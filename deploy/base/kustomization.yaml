@@ -28,4 +28,4 @@ configMapGenerator:
       - bootstrap.py
 images:
   - name: ghcr.io/open-tech-quest/ctfd-plugin
-    newTag: 0.1.21
+    newTag: 0.1.22
