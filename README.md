@@ -34,80 +34,11 @@ development, with database, uploads and logs stored in named volumes.
 
 Create challenges in **Organize → Rooms**. Participants register their own
 accounts and check in; organizers review team allocation, finalize rosters and
-start the event. See the [operations guide](docs/operations.md) for the full
-workflow and [maintainer guide](docs/maintainers.md) for delegated authoring.
+start the event. See [event operations](docs/operations.md) for preparation, staffing, attendance
+and play, or the [documentation index](docs/README.md) for developer contracts.
 
-### Using an existing CTFd instance
-
-Open Tech Quest uses CTFd's standard plugin loader and runs inside the same
-application, sharing its database, accounts and sessions. The bundled image is
-the tested deployment path, but the plugin can also be installed manually into
-an existing **CTFd 3.8.9** instance. Other CTFd versions have not been validated.
-
-A manual installation must reproduce the packaging in the [Dockerfile](Dockerfile):
-copy `plugin/open_tech_quest/` into `CTFd/plugins/open_tech_quest/`, build the
-frontend with `npm ci && npm run build` in `web/`, copy the contents of `web/dist/`
-into the installed plugin's `assets/app/`, and copy the contents of `branding/`
-into its `assets/branding/`. Restart CTFd to load the plugin and run its migrations.
-Copying the Python plugin directory alone does not include the frontend.
-
-The plugin replaces the participant challenge-board experience and manages team
-allocation and event timing. It requires team mode and refuses startup if
-switching from individual mode would affect existing individual solves. Back up
-an existing database and validate the installation against a copy before enabling
-it on an existing event. The bundled image can also be used with an existing
-database and cache; deploying a new full stack is not required.
-
-### Combining multiple plugins
-
-For multiple plugins, build your own image from upstream CTFd and include each
-plugin in it. The bundled Open Tech Quest image is a convenience for running
-CTFd with this plugin preinstalled; plugins run inside CTFd, rather than as
-separate containers connected to it.
-
-For example, arrange your build directory as follows. Use a tagged release of
-Open Tech Quest and the other plugin's installable Python package:
-
-```text
-my-ctfd/
-├── compose.yaml
-├── Dockerfile
-├── open-tech-quest/   # Checkout of this repository
-└── another_plugin/   # Plugin package from another repository
-```
-
-Build the Open Tech Quest frontend, then package both plugins into upstream CTFd:
-
-```dockerfile
-FROM node:24.22.2-bookworm-slim AS frontend
-WORKDIR /app
-COPY open-tech-quest/web/ ./
-RUN npm ci --no-audit --no-fund && npm run build
-
-FROM ctfd/ctfd:3.8.9
-USER 1001
-WORKDIR /opt/CTFd
-COPY --chown=1001:1001 open-tech-quest/plugin/open_tech_quest/ CTFd/plugins/open_tech_quest/
-COPY --chown=1001:1001 open-tech-quest/branding/ CTFd/plugins/open_tech_quest/assets/branding/
-COPY --from=frontend --chown=1001:1001 /app/dist/ CTFd/plugins/open_tech_quest/assets/app/
-COPY --chown=1001:1001 another_plugin/ CTFd/plugins/another_plugin/
-```
-
-In your existing Compose file, replace the `ctfd` service's `image` setting with
-`build: .`, keeping its environment, database/cache connections, ports and volumes:
-
-```yaml
-services:
-  ctfd:
-    build: .
-    # Keep the rest of your existing service configuration here.
-```
-
-Rebuild and recreate just that service with
-`docker compose up -d --build --no-deps ctfd`. CTFd loads both plugins at startup.
-Follow the other plugin's instructions for any additional dependencies or asset
-builds. This example illustrates packaging; compatibility between plugins must
-be checked, especially if they also control teams, challenge access or timing.
+The bundled image includes CTFd and the plugin. To use an existing CTFd instance
+or combine multiple plugins, follow the [installation instructions](docs/deployment.md#install-into-an-existing-ctfd).
 
 ## Deployment
 
@@ -123,29 +54,15 @@ and secret-manager integration in your own infrastructure repository.
 
 ### Sizing
 
-Size for **active pages**, not registered accounts. With plugin 0.1.20, our
-room/standings workload generated about **0.35 API requests/s per participant**;
-challenge workloads ran elsewhere. Lightweight sync and shared read caches
-reduced measured CTFd CPU from 5.2 to 2.8 cores against the same event fixture.
+With plugin **0.1.20 / CTFd 3.8.9**, a ten-minute OpenShift test of **400
+simultaneously active HTTP clients in 50 teams** sustained about 142 requests/s
+with zero unrecovered errors; CTFd averaged 2.77 CPU cores. The selected starting
+profile is **4 / 6 CPU cores for CTFd**, or **4.75 / 7.5 cores including MariaDB
+and Redis**. Challenge workloads ran elsewhere.
 
-A ten-minute OpenShift test with **400 authenticated HTTP clients, 50 teams of
-eight** completed 85,155 steady requests with no unrecovered errors;
-endpoint p95 was at most 0.27s. The selected starting profile is:
-
-| Component | CPU request / limit | Memory request / limit |
-|---|---|---|
-| CTFd, one pod with 8 workers | 4 / 6 cores | 1 / 2 GiB |
-| MariaDB | 500m / 1 core | 512 MiB / 1 GiB |
-| Redis | 250m / 500m | 128 / 256 MiB |
-
-Total: **4.75 CPU requested / 7.5 limited**. All 50 simultaneous flags succeeded
-(p95 8.3s), and all 400 reconnects and reloads completed. The shared flag-write
-lock still queues bursts. These were HTTP clients; venue networking and browser
-performance need separate validation.
-
-See the [sizing guide](docs/sizing.md) for the method, **50–500 attendee estimates**
-and a **400-attendee OpenShift example**. Only 400 attendees were measured;
-repeat the test with your hardware and event history.
+The [sizing guide](docs/sizing.md) contains the resource breakdown, burst results,
+limits and 50–500 attendee estimates. Only 400 clients were measured; this does
+not qualify rendered browsers or venue networking.
 
 ## Development
 

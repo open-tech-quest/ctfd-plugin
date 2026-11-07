@@ -4,13 +4,15 @@ Public repository `open-tech-quest/ctfd-plugin`. A CTFd 3.8.9 plugin and a React
 participant/admin/projector application for the Red Hat Hands-On Day.
 
 Read `docs/design.md` and `docs/implementation.md` before changing behavior.
-They define the shared API, prize rules, event lifecycle, and design direction.
+Use `docs/rosters.md` and `docs/administration.md` for their security/lifecycle
+contracts; API types and routes are defined in the source. `docs/README.md` maps
+the guides by audience. Keep current guidance separate from historical evidence.
 
 ## Rules
 
 - Never commit credentials, participant exports, browser state, internal
-  catalogue archives, real flags, or database dumps. Runtime credentials belong to the operator; never commit them in hosting
-  examples. See `docs/deployment.md`.
+  catalogue archives, real flags, or database dumps. Runtime credentials belong
+  to the operator; never commit them in hosting examples. See `docs/deployment.md`.
 - Keep CTFd responsible for users, teams, challenges, flags, hints, and solves.
   Add features through the plugin; do not fork CTFd's core.
 - All timing, authorization, and prize calculation is server-side. A room

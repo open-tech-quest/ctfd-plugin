@@ -44,6 +44,82 @@ its data; `down --volumes` deletes it.
 The root `compose.yaml` and `scripts/dev.sh` remain a separate source-build setup
 with SQLite for local development.
 
+## Install into an existing CTFd
+
+Open Tech Quest uses CTFd's standard plugin loader and runs inside the same
+application, sharing its database, accounts and sessions. The bundled image is
+the tested deployment path, but the plugin can also be installed manually into
+an existing **CTFd 3.8.9** instance. Other CTFd versions have not been validated.
+
+A manual installation must reproduce the packaging in the [Dockerfile](../Dockerfile):
+copy `plugin/open_tech_quest/` into `CTFd/plugins/open_tech_quest/`, build the
+frontend with `npm ci && npm run build` in `web/`, copy the contents of `web/dist/`
+into the installed plugin's `assets/app/`, and copy the contents of `branding/`
+into its `assets/branding/`. Restart CTFd to load the plugin and run its migrations.
+Copying the Python plugin directory alone does not include the frontend.
+Set `VITE_PLUGIN_VERSION` when building a labelled manual frontend; otherwise
+the footer identifies it as a development build.
+
+The plugin replaces the participant challenge-board experience and manages team
+allocation and event timing. It requires team mode and refuses startup if
+switching from individual mode would affect existing individual solves. Back up
+an existing database and validate the installation against a copy before enabling
+it on an existing event. The bundled image can also be used with an existing
+database and cache; deploying a new full stack is not required.
+
+## Combine multiple plugins
+
+For multiple plugins, build your own image from upstream CTFd and include each
+plugin in it. The bundled Open Tech Quest image is a convenience for running
+CTFd with this plugin preinstalled; plugins run inside CTFd, rather than as
+separate containers connected to it.
+
+For example, arrange your build directory as follows. Use a tagged release of
+Open Tech Quest and the other plugin's installable Python package:
+
+```text
+my-ctfd/
+├── compose.yaml
+├── Dockerfile
+├── open-tech-quest/   # Checkout of this repository
+└── another_plugin/   # Plugin package from another repository
+```
+
+Build the Open Tech Quest frontend, then package both plugins into upstream CTFd:
+
+```dockerfile
+FROM node:24-bookworm-slim AS frontend
+WORKDIR /app
+COPY open-tech-quest/web/ ./
+RUN npm ci --no-audit --no-fund && npm run build
+
+FROM ctfd/ctfd:3.8.9
+USER 1001
+WORKDIR /opt/CTFd
+COPY --chown=1001:1001 open-tech-quest/plugin/open_tech_quest/ CTFd/plugins/open_tech_quest/
+COPY --chown=1001:1001 open-tech-quest/branding/ CTFd/plugins/open_tech_quest/assets/branding/
+COPY --from=frontend --chown=1001:1001 /app/dist/ CTFd/plugins/open_tech_quest/assets/app/
+COPY --chown=1001:1001 another_plugin/ CTFd/plugins/another_plugin/
+```
+
+For reproducible event builds, pin the base images by digest.
+
+In your existing Compose file, replace the `ctfd` service's `image` setting with
+`build: .`, keeping its environment, database/cache connections, ports and volumes:
+
+```yaml
+services:
+  ctfd:
+    build: .
+    # Keep the rest of your existing service configuration here.
+```
+
+Rebuild and recreate just that service with
+`docker compose up -d --build --no-deps ctfd`. CTFd loads both plugins at startup.
+Follow the other plugin's instructions for any additional dependencies or asset
+builds. This example illustrates packaging; compatibility between plugins must
+be checked, especially if they also control teams, challenge access or timing.
+
 ## Configuration and storage
 
 CTFd owns accounts, authentication, challenges, flags and solves. The plugin
@@ -99,4 +175,7 @@ consuming it, copy those manifests and any bootstrap configuration from your
 existing pinned tag into your infrastructure repository. Compare rendered
 resources before changing the source, preserving namespaces, PVCs, selectors,
 secrets and application ownership. Do not point the old remote paths at newer
-releases. See [source migration](org-migration.md) for the migration checklist.
+releases. Keep the same Argo Application if using Argo CD; never let two Applications
+manage the same resources. Back up first, preserve session/database credentials
+and bootstrap behavior, and verify storage, authentication and event state after
+the source change. A source move is not a reason to seed demo data or reinstall.
