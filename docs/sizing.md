@@ -1,79 +1,85 @@
 # Sizing an event
 
-Size for simultaneously active participants. Our room/standings mix generated
-about **0.45 API requests/s per person**, including polling without submissions.
-Challenge workloads ran on separate clusters. Closed pages do not generate this
-polling load.
+Size for simultaneously active pages. Plugin **0.1.20 / CTFd 3.8.9** generated
+about **0.35 API requests/s per participant** in our room/standings mix. Challenge
+workloads ran on separate clusters; closed pages do not generate polling load.
 
 ## What we measured
 
-In November 2026, plugin **0.1.18 / CTFd 3.8.9** was tested on multi-node OpenShift
-with 16-vCPU AMD EPYC VM nodes. The disposable instance had 50 teams of eight,
-25 challenges and up to 1,070 historical solves before the final flag burst.
-Authenticated protocol clients used native sessions, CSRF and the shipped
-polling scheduler through the public HTTPS Route. This was not 400 rendered
-browsers.
+In November 2026, we tested on OpenShift with 16-vCPU AMD EPYC VM nodes,
+50 teams of eight, 25 challenges and 1,070 historical native solves. Authenticated
+HTTP clients used native sessions, CSRF and the exact shipped polling/session
+coordinator through the public HTTPS Route, from an isolated test pod. This was
+not 400 rendered browsers. We captured latency, errors/retries, CPU/throttling,
+memory, traffic, DB connections/lock waits and restarts.
 
-We captured request latency/errors, CPU/throttling, memory, traffic, database
-connections/lock waits and restarts. The selected profile used one CTFd pod,
-12 Gunicorn worker processes, an 8-CPU request and a 10-CPU limit:
+- **400 clients for ten minutes:** 85,155 originating requests,
+  141.7 successful requests/s, zero unrecovered errors. CTFd averaged
+  2.77 CPU cores and about 0.79 GiB RAM;
+  steady endpoint p95 ≤0.27s and p99 ≤0.35s.
+- **50 simultaneous team flags:** all acknowledged correctly, p95
+  8.34s; all 400 members observed their team's result. Native DB reconciliation
+  confirmed exactly 50 new solves, unchanged prior records and no duplicate credit.
+- **400 reconnects and 400 reloads, each spread over ten seconds:** all became
+  ready with fresh accepted state. One reused-connection GET reset recovered
+  with one bounded retry; POSTs were never retried.
 
-- **400 clients for ten minutes:** 109,089 requests, zero unrecovered errors,
-  about 6 application CPU cores and steady endpoint p95 up to 0.37s.
-- **50 simultaneous team flags:** all succeeded, p95 7.9s; all 400 teammates
-  observed the result. The shared event write lock still serializes submissions.
-- **400 reconnects and 400 reloads, each over ten seconds:** all completed.
-  Four stale-connection GETs recovered with one retry each; POSTs were not retried.
+The driver reports roughly one additional live second after each nominal phase;
+independent validation also checks the exact offered window. Warm HTTP response
+traffic was about 4.9 Mbit/s, excluding TLS; internal DB/cache traffic is separate.
 
-An 8-CPU limit exceeded the two-second steady endpoint-p95 target, so the
-10-CPU limit was retained. In-cluster cold downloads passed, but external
-connection stress exposed socket closures and deadlines despite spare CPU.
-These results qualify the measured origin workload, not venue Wi-Fi/WAN or
-end-to-end browser readiness.
+A paired 180-second comparison with unchanged old polling, data and allocation
+reduced CTFd CPU from 5.16 to 3.38 cores (35%) and DB commands by 52%. The new
+client then reduced requests from about 181/s to 142/s: one lightweight five-second
+sync replaces recurring full bootstrap and separate onboarding. Full metadata
+loads on relevant revisions; attendance and authorization remain live.
+
+We selected a six-core application limit for burst headroom. A four-core trial
+passed steady polling but throttled about 13% of CPU periods and slowed initial
+challenge reads. The shared event write lock still serializes flag submissions;
+more CPU does not remove it. Previous external connection stress exposed socket
+closures/deadlines, so these results qualify origin HTTP capacity, not venue
+Wi-Fi/WAN or end-to-end browser readiness.
 
 ## Starting estimates: 50–500 attendees
 
-Assume the same polling mix and roughly eight attendees per team. **Only the
-400-attendee row is measured.** Other rows scale its CPU allocation, rounding
-up to half a core; hardware, history, team count and submission bursts can change
-requirements.
+Assume this polling mix and roughly eight people per team. **Only 400 attendees
+were measured.** Other rows scale that CPU allocation, rounded up to half a core.
+Hardware, history, team count and bursts can change requirements.
 
 | Active attendees | Approx. API requests/s | CTFd CPU request / limit |
 |---:|---:|---:|
-| 50 | 23 | 1 / 1.5 cores |
-| 100 | 45 | 2 / 2.5 cores |
-| 150 | 68 | 3 / 4 cores |
-| 200 | 90 | 4 / 5 cores |
-| 250 | 113 | 5 / 6.5 cores |
-| 300 | 135 | 6 / 7.5 cores |
-| 350 | 158 | 7 / 9 cores |
-| **400 (measured)** | **180–182** | **8 / 10 cores** |
-| 450 | 203 | 9 / 11.5 cores |
-| 500 | 225 | 10 / 12.5 cores |
+| 50 | 18 | 0.5 / 1 core |
+| 100 | 35 | 1 / 1.5 cores |
+| 150 | 53 | 1.5 / 2.5 cores |
+| 200 | 71 | 2 / 3 cores |
+| 250 | 89 | 2.5 / 4 cores |
+| 300 | 106 | 3 / 4.5 cores |
+| 350 | 124 | 3.5 / 5.5 cores |
+| **400 (measured)** | **142** | **4 / 6 cores** |
+| 450 | 159 | 4.5 / 7 cores |
+| 500 | 177 | 5 / 7.5 cores |
 
-All rows retain **12 workers and CTFd memory requests/limits of 2 / 4 GiB**;
-smaller worker/memory profiles were not benchmarked. Add the same supporting
-services to each row:
+All rows retain **8 workers and CTFd memory requests/limits of 1 / 2 GiB**.
+Add these supporting services to each row:
 
 | Component | CPU request / limit | Memory request / limit |
 |---|---|---|
-| MariaDB | 1 / 2 cores | 1 / 2 GiB |
+| MariaDB | 500m / 1 core | 512 MiB / 1 GiB |
 | Redis | 250m / 500m | 128 / 256 MiB |
 
-Workers are processes, independent of the CPU limit. With a pool size of ten and
-zero overflow per worker, twelve workers allow at most 120 application database
-connections. Leave capacity for administration and migrations; recheck the DB
-connection budget when changing workers. More CPU does not remove the flag-write
-lock. Attendance above 400 needs additional load testing, including larger team
-bursts.
+Workers are processes, independent of the CPU limit. Each has a ten-connection
+pool with overflow zero: at most 80 application connections, below MariaDB's
+default 151. Leave room for administration/migrations and recheck pools when
+changing workers. Attendance above 400, larger challenge paths/history and more
+simultaneous team submissions need additional load tests.
 
 ## OpenShift example: 400 attendees
 
 Apply this **strategic merge patch to an existing CTFd Deployment**, adjusting
-its namespace and container name. Reference it from your Kustomization's
-`patches` list. It sets the application allocation, not a complete installation;
-provide the image, database, cache, secrets, storage, Service and Route separately.
-Use the MariaDB and Redis resources above.
+namespace and container name. Reference it from your Kustomization's `patches`
+list. Provide the image, database, cache, secrets, storage, Service and Route
+separately, using the supporting-service allocations above.
 
 ```yaml
 apiVersion: apps/v1
@@ -89,25 +95,26 @@ spec:
         - name: ctfd
           env:
             - name: WORKERS
-              value: "12"
+              value: "8"
             - name: SQLALCHEMY_MAX_OVERFLOW
               value: "0"
           resources:
             requests:
-              cpu: "8"
-              memory: 2Gi
+              cpu: "4"
+              memory: 1Gi
             limits:
-              cpu: "10"
-              memory: 4Gi
+              cpu: "6"
+              memory: 2Gi
 ```
 
-The stack totals **9.25 requested / 12.5 limited CPU** and **3.125 / 6.25 GiB
-memory**, excluding OpenShift. The CTFd pod needs a node with room for its full
-8-CPU / 2-GiB request; CPU limits do not reserve capacity. Test storage requests
-were 10 GiB for uploads/logs, 10 GiB for MariaDB and 1 GiB for Redis; adjust for
-your content and retention.
+The stack totals **4.75 requested / 7.5 limited CPU** and **1.625 / 3.25 GiB RAM**,
+excluding OpenShift. The CTFd pod needs a node with room for its full 4-CPU /
+1-GiB request; limits do not reserve capacity. Storage requests were 10 GiB for
+uploads/logs, 10 GiB MariaDB and 1 GiB Redis; adjust for content and retention.
 
 Before an event, repeat steady polling, simultaneous flags, reconnects and cold
-loads with representative history. Inspect tail latency and errors alongside
-CPU, memory, traffic and DB lock waits. Use a disposable instance and validate
-from the venue network as well as inside the cluster.
+loads against a disposable instance with representative history. Inspect tail
+latency and errors alongside resources, traffic and DB lock waits. Validate from
+the venue network too. Shared read caching requires MariaDB/MySQL REPEATABLE READ;
+other database/isolation modes bypass it. Use supported APIs during the event;
+out-of-band SQL edits require clearing the application cache/restarting readers.

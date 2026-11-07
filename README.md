@@ -47,29 +47,29 @@ across restarts and back up the database and uploads before upgrades. See
 
 ### Sizing
 
-Size for **active pages**, not registered accounts. Our polling workload produced
-about **0.45 API requests/s per active participant**; challenge workloads ran
-elsewhere.
+Size for **active pages**, not registered accounts. With plugin 0.1.20, our
+room/standings workload generated about **0.35 API requests/s per participant**;
+challenge workloads ran elsewhere. Lightweight sync and shared read caches
+reduced measured CTFd CPU from 5.2 to 2.8 cores against the same event fixture.
 
 A ten-minute OpenShift test with **400 authenticated HTTP clients, 50 teams of
-eight** on plugin 0.1.18 / CTFd 3.8.9 completed 109,089 requests with no unrecovered
-errors. CTFd averaged about 6 CPU cores; steady endpoint p95 was at most 0.37s.
-The selected starting profile was:
+eight** completed 85,155 steady requests with no unrecovered errors;
+endpoint p95 was at most 0.27s. The selected starting profile is:
 
 | Component | CPU request / limit | Memory request / limit |
 |---|---|---|
-| CTFd, one pod with 12 workers | 8 / 10 cores | 2 / 4 GiB |
-| MariaDB | 1 / 2 cores | 1 / 2 GiB |
+| CTFd, one pod with 8 workers | 4 / 6 cores | 1 / 2 GiB |
+| MariaDB | 500m / 1 core | 512 MiB / 1 GiB |
 | Redis | 250m / 500m | 128 / 256 MiB |
 
-Simultaneous flag submissions still queue on a shared write lock (50-team burst
-p95: 7.9s). These were HTTP clients rather than 400 rendered browsers; external
-connection tests exposed failures, so venue network and ingress need separate
-validation.
+Total: **4.75 CPU requested / 7.5 limited**. All 50 simultaneous flags succeeded
+(p95 8.3s), and all 400 reconnects and reloads completed. The shared flag-write
+lock still queues bursts. These were HTTP clients; venue networking and browser
+performance need separate validation.
 
-See the [sizing guide](docs/sizing.md) for the test method, **50–500 attendee
-estimates** and a **400-attendee OpenShift configuration example**. Only the
-400-attendee allocation was measured; test your own hardware and event data.
+See the [sizing guide](docs/sizing.md) for the method, **50–500 attendee estimates**
+and a **400-attendee OpenShift example**. Only 400 attendees were measured;
+repeat the test with your hardware and event history.
 
 ## Development
 
