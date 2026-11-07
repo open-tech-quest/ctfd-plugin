@@ -217,6 +217,22 @@ supply matching `DATABASE_URL`/`REDIS_URL` values in the native Secret. Do not a
 the bundled dependency manifests. Configure network access, TLS, backups and
 resource/pool limits for those services separately.
 
+The base is application-only: it supplies neither an HTTPS endpoint nor the
+OpenShift SCC grant. For an external-services installation on OpenShift, also
+apply the release's SCC binding in the application's namespace:
+
+```sh
+oc -n ctfd apply -f https://raw.githubusercontent.com/open-tech-quest/ctfd-plugin/v0.1.22/deploy/overlays/openshift/scc.yaml
+```
+
+Supply your own HTTPS exposure and web ingress policy, or also apply the same
+release's `route.yaml` and `network-policy.yaml` from that directory. On Kubernetes,
+provide an Ingress/TLS configuration and web policy appropriate to your controller.
+If adding these platform files to a local Kustomization, place copies from the
+chosen tag inside that overlay's directory; Kustomize normally rejects individual
+file references outside its root. The complete platform overlays already include
+these resources and need none of these extra steps.
+
 ## Upgrading and rolling back
 
 Read the release notes, take a private database/uploads backup, and render/diff
