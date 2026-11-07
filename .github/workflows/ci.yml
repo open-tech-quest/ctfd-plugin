@@ -94,7 +94,7 @@ jobs:
                       assert response.status == 200 and response.url.endswith('/setup')
                       assert b'<form' in response.read().lower()
                   break
-              except (URLError, TimeoutError):
+              except (URLError, TimeoutError, ConnectionError):
                   time.sleep(1)
           else:
               raise SystemExit('Compose example did not reach the native setup page')
