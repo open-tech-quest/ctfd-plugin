@@ -19,7 +19,8 @@ before starting a real event.
 
 ## Quick start
 
-With Docker or Podman and a Compose provider installed:
+With Docker or Podman and a Compose provider installed, start a complete local
+CTFd instance with Open Tech Quest preinstalled:
 
 ```sh
 ./scripts/dev.sh
@@ -27,12 +28,35 @@ With Docker or Podman and a Compose provider installed:
 
 Open `http://127.0.0.1:8000`, complete the CTFd setup wizard and visit
 `/quest/admin`. The helper builds the image and creates a private local session
-key in ignored `.env`. This SQLite setup is for local development.
+key in ignored `.env`. The `quest` Compose service runs CTFd and the plugin
+together; no separate CTFd installation is needed. This SQLite setup is for local
+development, with database, uploads and logs stored in named volumes.
 
 Create challenges in **Organize → Rooms**. Participants register their own
 accounts and check in; organizers review team allocation, finalize rosters and
 start the event. See the [operations guide](docs/operations.md) for the full
 workflow and [maintainer guide](docs/maintainers.md) for delegated authoring.
+
+### Using an existing CTFd instance
+
+Open Tech Quest uses CTFd's standard plugin loader and runs inside the same
+application, sharing its database, accounts and sessions. The bundled image is
+the tested deployment path, but the plugin can also be installed manually into
+an existing **CTFd 3.8.9** instance. Other CTFd versions have not been validated.
+
+A manual installation must reproduce the packaging in the [Dockerfile](Dockerfile):
+copy `plugin/open_tech_quest/` into `CTFd/plugins/open_tech_quest/`, build the
+frontend with `npm ci && npm run build` in `web/`, copy the contents of `web/dist/`
+into the installed plugin's `assets/app/`, and copy the contents of `branding/`
+into its `assets/branding/`. Restart CTFd to load the plugin and run its migrations.
+Copying the Python plugin directory alone does not include the frontend.
+
+The plugin replaces the participant challenge-board experience and manages team
+allocation and event timing. It requires team mode and refuses startup if
+switching from individual mode would affect existing individual solves. Back up
+an existing database and validate the installation against a copy before enabling
+it on an existing event. The bundled image can also be used with an existing
+database and cache; deploying a new full stack is not required.
 
 ## Deployment
 
