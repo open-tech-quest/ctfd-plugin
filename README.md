@@ -58,6 +58,57 @@ an existing database and validate the installation against a copy before enablin
 it on an existing event. The bundled image can also be used with an existing
 database and cache; deploying a new full stack is not required.
 
+### Combining multiple plugins
+
+For multiple plugins, build your own image from upstream CTFd and include each
+plugin in it. The bundled Open Tech Quest image is a convenience for running
+CTFd with this plugin preinstalled; plugins run inside CTFd, rather than as
+separate containers connected to it.
+
+For example, arrange your build directory as follows. Use a tagged release of
+Open Tech Quest and the other plugin's installable Python package:
+
+```text
+my-ctfd/
+├── compose.yaml
+├── Dockerfile
+├── open-tech-quest/   # Checkout of this repository
+└── another_plugin/   # Plugin package from another repository
+```
+
+Build the Open Tech Quest frontend, then package both plugins into upstream CTFd:
+
+```dockerfile
+FROM node:24.22.2-bookworm-slim AS frontend
+WORKDIR /app
+COPY open-tech-quest/web/ ./
+RUN npm ci --no-audit --no-fund && npm run build
+
+FROM ctfd/ctfd:3.8.9
+USER 1001
+WORKDIR /opt/CTFd
+COPY --chown=1001:1001 open-tech-quest/plugin/open_tech_quest/ CTFd/plugins/open_tech_quest/
+COPY --chown=1001:1001 open-tech-quest/branding/ CTFd/plugins/open_tech_quest/assets/branding/
+COPY --from=frontend --chown=1001:1001 /app/dist/ CTFd/plugins/open_tech_quest/assets/app/
+COPY --chown=1001:1001 another_plugin/ CTFd/plugins/another_plugin/
+```
+
+In your existing Compose file, replace the `ctfd` service's `image` setting with
+`build: .`, keeping its environment, database/cache connections, ports and volumes:
+
+```yaml
+services:
+  ctfd:
+    build: .
+    # Keep the rest of your existing service configuration here.
+```
+
+Rebuild and recreate just that service with
+`docker compose up -d --build --no-deps ctfd`. CTFd loads both plugins at startup.
+Follow the other plugin's instructions for any additional dependencies or asset
+builds. This example illustrates packaging; compatibility between plugins must
+be checked, especially if they also control teams, challenge access or timing.
+
 ## Deployment
 
 Tested, versioned images are published to
