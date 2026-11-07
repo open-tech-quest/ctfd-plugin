@@ -1,0 +1,15 @@
+# The public web endpoint accepts ingress on its application port. Restrict
+# sources to your controller namespace here if your cluster policy requires it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ctfd-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ctfd
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8000

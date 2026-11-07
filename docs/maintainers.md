@@ -126,14 +126,14 @@ Staff lobby should explain their role and link to Organize without attendance
 or Start actions; ordinary participant journeys remain unchanged.
 
 Backend owns plugin/tests, authoring owner owns its new module/helper and focused
-tests, frontend owns web, parent owns docs/browser/release/GitOps. No concurrent
+tests, frontend owns web, parent owns docs/browser/release/deployment. No concurrent
 staging/commits: parent commits completed units. Review independently using
 review-bar; findings need a concrete trigger, consequence, verified in-scope path.
 Meaningful checks cover authorization/PII, native endpoint bypass, staff exclusion
 everywhere, fresh/upgrade SQLite/MariaDB, stale role/readiness/optimization,
 grant/revoke in held sessions, CRUD/flags/native participant solving, lifecycle
 and activity locks, room isolation, no logged flag values, and actual admin/
-maintainer/participant browser journeys before CI publication and GitOps rollout.
+maintainer/participant browser journeys before CI publication and deployment.
 
 ## Isolated acceptance
 
@@ -174,12 +174,9 @@ container test target. Each backend run discovered 96 cases: SQLite skipped
 three MariaDB-specific cases and MariaDB skipped two SQLite-specific cases;
 all remaining cases passed. Every dialect-specific case ran on its target DB.
 
-All 37 GitOps kustomizations passed schema/build validation and
-[GitOps CI](https://github.com/Kounex/ocp-gitops/actions/runs/41746961637) passed.
-[GitOps revision 17b2da4](https://github.com/Kounex/ocp-gitops/commit/17b2da4e3c882b3b41d018806e1aac7f8b8e3bd8)
-pins init and runtime to the same tested version/digest. Argo Synced/Healthy,
-bound PVCs and the ready Doppler ExternalSecret were verified. A fresh private
-SQL/uploads backup preceded the migration.
+The historical rollout validated its manifests, deployed matching
+initialization/runtime image digests and retained its persistent volumes and
+runtime secrets. A private SQL/uploads backup preceded migration.
 
 Read-only live verification confirmed administrator capabilities, the Users
 list without seeded maintainer grants, a private-data-free room overview and

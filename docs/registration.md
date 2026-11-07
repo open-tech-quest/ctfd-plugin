@@ -54,11 +54,8 @@ signup. A previously loaded form was rejected without creating an account;
 existing participant check-in still succeeded. Organizer status and audit
 entries matched those actions. The organizer WCAG A/AA scan found zero violations.
 
-[GitOps commit 37f2db3](https://github.com/Kounex/ocp-gitops/commit/37f2db3)
-pins the tested image in both init and runtime. All 37 kustomizations passed
-validation, including
-[GitOps CI 41717661018](https://github.com/Kounex/ocp-gitops/actions/runs/41717661018).
-A private pre-release SQL/uploads backup was verified before rollout.
+The historical installation pinned the tested image in initialization and
+runtime after manifest validation. A private SQL/uploads backup preceded rollout.
 
 Live read-only checks verified exact served assets and agreement between public
 bootstrap, authenticated organizer state and native CTFd configuration. The

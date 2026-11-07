@@ -9,8 +9,9 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 ## Rules
 
 - Never commit credentials, participant exports, browser state, internal
-  catalogue archives, real flags, or database dumps. Runtime secrets come
-  from Doppler through the existing CTFd ExternalSecret in `Kounex/ocp-gitops`.
+  catalogue archives, real flags, or database dumps. Deployments consume an
+  existing native Kubernetes Secret; secret-manager integration is optional
+  and belongs to the operator. See `docs/deployment.md`.
 - Keep CTFd responsible for users, teams, challenges, flags, hints, and solves.
   Add features through the plugin; do not fork CTFd's core.
 - All timing, authorization, and prize calculation is server-side. A room
@@ -26,8 +27,10 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 - Theme changes must preserve room IDs, memberships, starts, and solves.
 - Every finished unit is committed and pushed. Every release runs backend
   integration tests, frontend checks/build, and container smoke tests.
-- CI publishes versioned images to `ghcr.io/open-tech-quest/ctfd-plugin`; GitOps
-  pins a tested tag and digest. No secrets in image build arguments/layers.
+- CI publishes versioned images to `ghcr.io/open-tech-quest/ctfd-plugin` and
+  immutable deployment tags. A release commit updates `deploy/VERSION` and
+  the base image together before testing/tagging; consumers use a `vX.Y.Z`
+  tag and the matching image digest, never `main`. No secrets in build layers.
 - Independent frontend/backend work and independent review are appropriate
   for this project; assign disjoint file ownership and follow review-bar.
 
@@ -37,11 +40,17 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 - `web/`: React/TypeScript frontend; Vite output is copied to plugin assets.
 - `tests/`: integration tests, run inside the pinned CTFd image.
 - `docs/`: public specification and operations documentation.
+- `deploy/`: portable Kustomize base, optional database/cache, platform
+  overlays and event sizing component; no external GitOps repository required.
 - `Dockerfile`: pinned upstream CTFd plus built app/plugin; UID 1001.
 
-## Related repositories
+## Deployment and verification
 
-Fleet context: `~/agent/it-env` (pull before any read, run skill installer
-after pull). GitOps clone on this Mac: `~/development/k8s/ocp-gitops`.
-Current app: namespace `ctfd`, Argo Application `ctfd-app`, URL
-`https://otq.apps.ocp.kounex.com`.
+Use `docs/deployment.md` for Kubernetes/OpenShift installation, secrets,
+configuration and migration. Keep published instructions independent of a
+maintainer's cluster, local filesystem, secret manager or GitOps repository.
+Deployment automation may consume releases, but is not a runtime dependency.
+Never prune/recreate an existing namespace or PVCs to change manifest source.
+Verify new platform claims against the actual rendered manifests and record
+what was tested; historical application validation does not validate a new
+deployment package automatically.

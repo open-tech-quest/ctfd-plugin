@@ -1,0 +1,14 @@
+# Upstream images use fixed, non-root UIDs. Grant nonroot-v2 only to this
+# namespace's runtime account; every container still drops all capabilities.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ctfd-nonroot
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: ctfd-runtime
+    # Omitted namespace binds the account in this RoleBinding's namespace.

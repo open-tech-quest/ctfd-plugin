@@ -76,36 +76,18 @@ simultaneous team submissions need additional load tests.
 
 ## OpenShift example: 400 attendees
 
-Apply this **strategic merge patch to an existing CTFd Deployment**, adjusting
-namespace and container name. Reference it from your Kustomization's `patches`
-list. Provide the image, database, cache, secrets, storage, Service and Route
-separately, using the supporting-service allocations above.
+Use the supplied `deploy/components/event-400` component with the OpenShift
+overlay. `deploy/examples/event-400` composes them for a checked-out release:
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ctfd
-  namespace: ctfd
-spec:
-  replicas: 1
-  template:
-    spec:
-      containers:
-        - name: ctfd
-          env:
-            - name: WORKERS
-              value: "8"
-            - name: SQLALCHEMY_MAX_OVERFLOW
-              value: "0"
-          resources:
-            requests:
-              cpu: "4"
-              memory: 1Gi
-            limits:
-              cpu: "6"
-              memory: 2Gi
+```sh
+kustomize build deploy/examples/event-400
 ```
+
+This renders the complete stack, not just the application resource patch.
+Configure the native Secret, administrator email, HTTPS endpoint and immutable
+release/image pin as described in [deployment](deployment.md#event-profile-400-attendees)
+before applying. The default two-worker stack is a smaller installation profile;
+it does not include the event allocation automatically.
 
 The stack totals **4.75 requested / 7.5 limited CPU** and **1.625 / 3.25 GiB RAM**,
 excluding OpenShift. The CTFd pod needs a node with room for its full 4-CPU /

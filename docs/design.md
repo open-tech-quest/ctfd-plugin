@@ -242,6 +242,12 @@ Build Vite assets and copy plugin into pinned `ctfd/ctfd:3.8.9` image.
 Plugin schema uses CTFd's plugin migration support; persists in MariaDB.
 Redis holds cache, not authoritative starts or ranking history.
 Provide a runnable development setup with disposable SQLite or Compose.
+Provide standalone Kustomize deployment manifests for Kubernetes and OpenShift,
+using a native Secret and operator-provided HTTPS/storage configuration. Keep
+optional GitOps and secret-manager integrations outside the runtime contract.
+Release tags pair manifests with the tested image; see
+[deployment](deployment.md). Platform validation is separate from the event
+capacity measurements in [sizing](sizing.md).
 
 Shared read caches store primitive metadata/history/roster inputs, with generation
 markers updated in the same database transaction as application domain writes.

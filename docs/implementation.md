@@ -1,9 +1,9 @@
 # Delivery plan
 
 This is tier L: persistent timing, authentication, prize fairness, and a
-new frontend span multiple components. The agreed scope authorizes creating
-the public repository, publishing a GHCR image and updating the live GitOps
-deployment. No approval pause is needed to ship the validated implementation.
+new frontend span multiple components. Delivery includes the public repository,
+versioned GHCR images and standalone deployment manifests. An operator may
+consume releases directly or through their own deployment automation.
 
 1. Plugin implementation owns `plugin/` and Python tests: schema/migrations,
    CTFd guards, event lifecycle, shared room progress, award calculations,
@@ -12,8 +12,9 @@ deployment. No approval pause is needed to ship the validated implementation.
    interaction, themed room components, standings and 50-team stage, admin
    controls, responsive accessibility and purposeful motion. The API
    contract in design.md is shared; changes require explicit coordination.
-3. Integration owns container/CI/docs/assets: pinned upstream, frontend build,
-   GHCR pipeline, anonymous image pull, operations and isolated validation.
+3. Integration owns container/CI/docs/assets/deploy: pinned upstream, frontend
+   build, GHCR pipeline, immutable release manifests, anonymous image pull,
+   operations and isolated validation.
    Only curated web assets from public/approved sources enter the image.
 4. Review risky plugin and frontend paths independently using review-bar.
    Findings require a concrete trigger, real consequence, verified path,
@@ -21,18 +22,22 @@ deployment. No approval pause is needed to ship the validated implementation.
 5. Run meaningful backend integration tests, frontend check/build and browser
    journeys. Exercise 50-team projector, load behavior, and persistence in an
    isolated environment, with production credentials absent.
-6. Publish the tested version via CI. Pin its image digest in both CTFd init
-   and runtime containers, let Argo sync, verify migration, root/room/admin
+6. Publish the tested version via CI. A release-only commit updates manifest
+   version and base image together, passes the release gate and becomes the
+   immutable `vX.Y.Z` tag. Consumers pin that tag and its published image digest
+   in both CTFd init and runtime containers. Verify migration, root/room/admin
    routes, real session login, CTFd health and absence of seeded event data.
-7. Update fleet documentation and asset intake guidance. Report shipped
+7. Update deployment documentation and asset intake guidance. Report shipped
    behavior and any real limitation. Do not claim authored event challenges
    or final assets exist when organizers have not supplied them.
 
 Pre-dispatch verification: the current CTFd 3.8.9 source was audited; native
 Requirements are enforced at reads/attempts; team account_id shares solves;
 plugin migration and admin menu APIs exist; the 50-team layout study fits
-1920x1080. The actual instance is freshly deployed with no event challenges,
-teams or solves. All secrets remain in existing Doppler ocp/main keys.
+1920x1080. Empty-install checks verify draft status and no generated challenge,
+team or solve data. Runtime secrets are supplied by the operator's native
+Secret, never by repository-specific infrastructure. See
+[deployment](deployment.md) for platform setup and migration boundaries.
 
 Unslop audit of the study: heavy type weights and inconsistent 2/3/5px
 spacing need refinement; the miniature mobile matrix needs a separate

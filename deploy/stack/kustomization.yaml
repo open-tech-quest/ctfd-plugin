@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ctfd
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: ctfd
+      app.kubernetes.io/managed-by: kustomize
+resources:
+  - ../base
+  - ../dependencies/mariadb
+  - ../dependencies/redis

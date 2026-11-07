@@ -73,3 +73,26 @@ jobs:
         run: |
           docker rm --force quest-smoke || true
           docker volume rm quest-smoke-data || true
+
+
+  deployment:
+    name: Deployment manifests and Kubernetes install/restart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Install deployment validation tools
+        run: |
+          python3 -m pip install --disable-pip-version-check -r scripts/requirements-deploy.txt
+          python3 scripts/install-deploy-tools.py --output "$RUNNER_TEMP/quest-deploy-tools"
+          printf '%s\n' "$RUNNER_TEMP/quest-deploy-tools" >> "$GITHUB_PATH"
+      - name: Validate deployment manifests and release preparation
+        run: |
+          python3 scripts/validate-deploy.py
+          python3 -m unittest discover -s scripts -p test_prepare_release.py -v
+          python3 -m unittest discover -s scripts -p test_deploy.py -v
+      - name: Install and restart the Kubernetes deployment
+        run: python3 scripts/deploy-smoke.py --state "$RUNNER_TEMP/quest-deploy-smoke-state.json"
+      - name: Remove isolated deployment smoke cluster
+        if: always()
+        run: python3 scripts/deploy-smoke.py --cleanup "$RUNNER_TEMP/quest-deploy-smoke-state.json"

@@ -31,12 +31,10 @@ sha256:d2a5251b0a0c743d07736c3ea732060db9191d51b8a3b17af1e7eaa90dc1ab13
 
 ## Live rollout verification
 
-GitOps commit `ebe3ba0` in
-[Kounex/ocp-gitops](https://github.com/Kounex/ocp-gitops/commit/ebe3ba013e106c9b977489b2e1cdc19aaa5165b0)
-pins the same image in initialization and runtime. Every repository
-kustomization passed build/schema checks locally and in GitHub Actions.
-Argo reported **Synced / Healthy** after rollout; MariaDB, Redis, all three
-PVCs and the Doppler ExternalSecret remained healthy.
+The historical installation deployed matching initialization/runtime image
+references after manifest validation. Rollout, database/cache health and all
+three persistent volumes were verified. This installation-specific evidence
+predates the standalone manifests; it is not platform qualification for them.
 
 The live HTTPS root redirected to `/quest`; compiled frontend/branding assets,
 registration, native authoring and organizer pages loaded. Existing organizer
@@ -75,10 +73,10 @@ attended assigned team. The fixture now supplies real participant attendance;
 the runtime guard remains intact. Independent review found no outstanding issues.
 
 The anonymous GHCR pull and OCI labels verified the exact tested revision.
-Both initialization and runtime use:
+Both initialization and runtime matched the historical published image:
 
 ```text
-ghcr.io/kounex/open-tech-quest:0.1.14@sha256:352c1f8918052b33cf4735bd54887f8c8fc1d682c7a0c7f31ba8f48dea32d123
+Historical 0.1.14 image digest: sha256:352c1f8918052b33cf4735bd54887f8c8fc1d682c7a0c7f31ba8f48dea32d123
 ```
 
 Actual disposable browser upgrade journeys covered identity-bound role changes
@@ -93,21 +91,16 @@ fit a 390px viewport without document-wide overflow. Details are recorded in
 [user lifecycle](user-lifecycle.md), [contribution moderation](contribution-moderation.md)
 and [late admission](late-admission.md).
 
-All 37 GitOps kustomizations passed build/schema validation; GitOps
-[`f959349`](https://github.com/Kounex/ocp-gitops/commit/f95934952cb2faecf9871ac9bf44178ad524736b)
-also passed [repository CI](https://github.com/Kounex/ocp-gitops/actions/runs/42053529573).
-Argo reported Synced / Healthy at that revision and the deployment completed
-with both containers pinned above. MariaDB/Redis remained running, all three
-PVCs remained Bound and the Doppler ExternalSecret remained Ready.
+The historical rollout retained matching initialization/runtime images,
+running MariaDB/Redis and all three bound persistent volumes.
 
 Read-only authenticated production checks verified the new capabilities,
 private/no-store user responses and byte-identical built frontend assets.
 The saved baseline remained unchanged: draft/check-in phase, public registration,
 attendance closed at generation zero, five rooms, 25 demo challenges, one native
 administrator and no participants, teams or readiness records. No production
-user was deleted, demoted, banned or admitted for verification. The private
-SQL/uploads backup taken before this upgrade is
-`/root/ocp-backups/ctfd/pre-account-moderation-late-20261105T145950Z/`.
+user was deleted, demoted, banned or admitted for verification. A private
+SQL/uploads backup preceded this upgrade.
 Restore matching plugin code with the database: older code cannot interpret the
 new native `quest_recovery` submission subtype.
 
@@ -126,17 +119,14 @@ registration/attendance/grouping, both naming modes, event starts, native shared
 solve, restart, accessibility and mobile verification.
 
 The anonymous GHCR pull and OCI labels verified the exact tested revision.
-Initialization and runtime are both pinned to:
+Initialization and runtime matched the historical published image:
 
 ```text
-ghcr.io/kounex/open-tech-quest:0.1.15@sha256:7327e4279f8989129ba3c375911ec8c60d45b291791620e09cf56caf9d4605e2
+Historical 0.1.15 image digest: sha256:7327e4279f8989129ba3c375911ec8c60d45b291791620e09cf56caf9d4605e2
 ```
 
-All 37 GitOps kustomizations passed build/schema validation. GitOps
-[`083e903`](https://github.com/Kounex/ocp-gitops/commit/083e90376ce0ab8df00b6915049b2783acad3c43)
-passed [repository CI](https://github.com/Kounex/ocp-gitops/actions/runs/42072726292).
-Argo reported Synced / Healthy at that revision and deployment rollout completed.
-All three PVCs remained Bound and the Doppler ExternalSecret remained Ready.
+The historical rollout passed manifest checks and retained the database,
+cache and all three persistent volumes.
 
 Read-only authenticated checks confirmed `allow_team_naming:false`, unchanged
 event/content/account/attendance/team data and byte-identical built frontend
@@ -145,17 +135,17 @@ the audit timestamp established this and that setting was preserved. Production
 remains draft/check-in with five rooms, 25 demo challenges, attendance closed at
 generation zero, one native administrator and no participants, teams or readiness
 records. No production grouping or naming actions were used for QA.
-Private pre-upgrade SQL/uploads backup:
-`/root/ocp-backups/ctfd/pre-attendance-first-20261105T163847Z/`.
+A private SQL/uploads backup preceded this upgrade.
 
 ## Organization migration — 2026-11-05
 
 Release **0.1.16** completes the move to `open-tech-quest/ctfd-plugin` and its
 public organization GHCR package. Pre-transfer and organization CI passed,
-anonymous full-image pull succeeded, and GitOps deployed the tested digest.
-Argo is Synced / Healthy and read-only live checks preserved event data/settings.
-See the [migration verification record](org-migration.md#verified-completion--2026-11-05)
-for source, image, CI/GitOps references, preserved history and rollback details.
+anonymous full-image pull succeeded, and the historical installation deployed
+the tested digest. Read-only checks preserved event data/settings. See the
+[migration record](org-migration.md#verified-completion--2026-11-05) for source,
+image and preserved-history evidence, and [deployment](deployment.md) for current
+installation and migration instructions.
 
 ## Challenge visibility — 2026-11-06
 
@@ -179,11 +169,8 @@ created for verification.
 
 Anonymous full-image pull and OCI source/revision/version checks passed for
 `ghcr.io/open-tech-quest/ctfd-plugin:0.1.17@sha256:56c7e3bd1ae3c6f8fcbf6e13ba5afeb1544c503085f5cd67fe5b6af781eeac8c`.
-GitOps `8e238ffafea2e07efb475b1fe11d2160ac2c9206` pins both initialization
-and runtime; all 38 kustomizations built and schema-validated locally, and
-[GitOps CI](https://github.com/Kounex/ocp-gitops/actions/runs/42242045279) passed.
-Argo reached Synced/Healthy at that revision and the deployment completed.
-All three PVCs remained Bound and the Doppler ExternalSecret remained Ready.
+The historical installation pinned matching initialization/runtime images,
+passed manifest validation and retained all three bound persistent volumes.
 
 Read-only authenticated before/after checks matched event, onboarding,
 registration, accounts, teams, challenge catalog and room configuration; live
@@ -191,7 +178,7 @@ frontend assets matched the built bytes. At verification the event was draft
 with five rooms, one visible challenge, one administrator, one maintainer and no
 participants/teams/readiness; registration was open and attendance closed.
 Startup may repair derived native Requirements/next links, preserving mapping,
-submission and timing history. No schema change was required. Private SQL/uploads
-backup: `/root/ocp-backups/ctfd/pre-visibility-20261106T150934Z/`.
+submission and timing history. No schema change was required. A private
+SQL/uploads backup preceded rollout.
 The previous 0.1.16 image remains available for rollback. Refresh existing Quest
 tabs once to load the new frontend behavior.

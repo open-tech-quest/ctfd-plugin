@@ -85,7 +85,7 @@ and organizer state. Existing search/filter, accessibility and mobile layout sta
 No extra tabs or write capabilities for maintainers or participants.
 
 Backend owns plugin and meaningful regression tests; frontend owns web; parent
-owns docs, actual isolated browser journeys, CI, GitOps and fleet updates. Parent
+owns docs, actual isolated browser journeys, CI and deployment verification. Parent
 stages/commits sequentially. Independent review follows review-bar: only concrete,
 verified in-scope failures with real consequences; zero findings is valid.
 Exercise unused/provisional/ready/captain/team-member/finalized/solved accounts,
@@ -94,7 +94,7 @@ stale previews and wait-boundary races on SQLite/MariaDB. Verify a teammate's
 solves/clock/rank remain intact when deleting is refused. Banning removes only the banned user’s counted contributions;
 teammate contributions and all raw history remain, with legitimate re-solves.
 Production verification is read-only; never delete, demote or ban actual users
-for QA. Back up privately before deploying the validated image through GitOps.
+for QA. Back up privately before deploying the validated image using the release deployment manifests.
 
 ## Isolated browser acceptance
 

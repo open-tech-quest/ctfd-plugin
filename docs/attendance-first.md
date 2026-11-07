@@ -76,7 +76,7 @@ concurrent policy/name actions, staff/banned exclusion, capacity and short tails
 legacy upgrade and late admissions, with no premature clocks or history changes.
 Run focused SQLite/MariaDB regression cases and frontend checks during development,
 independent correctness review, isolated real-browser journeys, then the full CI
-gate. Publish a source-matching GHCR image, pin both containers through GitOps,
+gate. Publish a source-matching GHCR image, pin both containers to the tested tag and digest,
 verify healthy rollout and preserved live event data, and update fleet notes.
 
 ## Isolated acceptance

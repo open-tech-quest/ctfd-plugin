@@ -1,13 +1,4 @@
-# Reusable workflow: next version -> build -> push to GHCR -> git tag -> release.
-#
-# Project-maintained portable variant of the fleet container-image workflow.
-# Changes here are owned by this repository, not the private fleet template.
-#
-# The version comes from the repo's git tags: the newest `<tag_prefix>X.Y.Z`
-# plus one `bump` step. The image is pushed as ghcr.io/<owner>/<image>:X.Y.Z,
-# the commit is tagged `<tag_prefix>X.Y.Z`, and (unless release: false) a
-# GitHub release with generated notes is created, which is what the fleet
-# board shows as release notes. A repo needs one seed tag before the first run.
+# Build and publish the same release commit used by tagged deployment manifests.
 name: build-image
 
 on:
@@ -26,7 +17,7 @@ on:
         type: string
         default: ""
       tag_prefix:
-        description: Git tag prefix; `v` for one image per repo, `<image>-v` for several
+        description: Prefix for immutable semantic-version Git tags
         type: string
         default: v
       bump:
@@ -34,11 +25,11 @@ on:
         type: string
         default: patch
       push:
-        description: false builds only (pull requests)
+        description: false prepares and tests locally without publication
         type: boolean
         default: false
       release:
-        description: Create a GitHub release for the new tag
+        description: Create a GitHub release with the published image metadata
         type: boolean
         default: true
       test_target:
@@ -53,7 +44,7 @@ jobs:
       contents: write
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
 
@@ -63,22 +54,25 @@ jobs:
           PREFIX: ${{ inputs.tag_prefix }}
           BUMP: ${{ inputs.bump }}
         run: |
-          last=$(git tag --list "${PREFIX}*" | sed "s/^${PREFIX}//" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-          if [ -z "$last" ]; then
-            echo "::error::No ${PREFIX}X.Y.Z tag yet. Tag the commit that built the running image first."
-            exit 1
-          fi
-          IFS=. read -r major minor patch <<<"$last"
-          case "$BUMP" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            patch) patch=$((patch + 1)) ;;
-            *) echo "::error::bump must be patch, minor or major"; exit 1 ;;
-          esac
-          echo "previous=$last" >> "$GITHUB_OUTPUT"
-          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+          python3 scripts/prepare-release.py --github-output "$GITHUB_OUTPUT" next-version --prefix "$PREFIX" --bump "$BUMP"
           namespace=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
-          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
+          printf 'namespace=%s\n' "$namespace" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release commit
+        id: prepared
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+          PREFIX: ${{ inputs.tag_prefix }}
+        run: python3 scripts/prepare-release.py --github-output "$GITHUB_OUTPUT" prepare --version "$VERSION" --prefix "$PREFIX"
+
+      - name: Install deployment validation tools
+        run: |
+          python3 -m pip install --disable-pip-version-check -r scripts/requirements-deploy.txt
+          python3 scripts/install-deploy-tools.py --output "$RUNNER_TEMP/quest-deploy-tools"
+          printf '%s\n' "$RUNNER_TEMP/quest-deploy-tools" >> "$GITHUB_PATH"
+
+      - name: Validate prepared deployment manifests
+        run: python3 scripts/validate-deploy.py
 
       - uses: docker/setup-buildx-action@v4
 
@@ -86,6 +80,7 @@ jobs:
         if: inputs.test_target != ''
         uses: docker/build-push-action@v7
         with:
+          # Explicit path context includes the prepared local commit's files.
           context: ${{ inputs.context }}
           file: ${{ inputs.file || format('{0}/Dockerfile', inputs.context) }}
           target: ${{ inputs.test_target }}
@@ -103,15 +98,13 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build${{ inputs.push && ' and push' || '' }} ${{ inputs.image }}:${{ steps.v.outputs.version }}
+        id: image
         uses: docker/build-push-action@v7
         with:
           context: ${{ inputs.context }}
           file: ${{ inputs.file || format('{0}/Dockerfile', inputs.context) }}
           push: ${{ inputs.push }}
           tags: ghcr.io/${{ steps.v.outputs.namespace }}/${{ inputs.image }}:${{ steps.v.outputs.version }}
-          # A Dockerfile can declare `ARG BUILD_DATE` right before a step that
-          # must refetch on every publish (stem-studio's yt-dlp download); the
-          # layers above it stay cached.
           build-args: |
             BUILD_DATE=${{ github.run_id }}
             PLUGIN_VERSION=${{ steps.v.outputs.version }}
@@ -119,7 +112,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.title=${{ inputs.image }}
             org.opencontainers.image.version=${{ steps.v.outputs.version }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ steps.prepared.outputs.source_commit }}
           cache-from: type=gha,scope=${{ inputs.image }}
           cache-to: type=gha,mode=max,scope=${{ inputs.image }}
 
@@ -127,25 +120,30 @@ jobs:
         if: inputs.push
         env:
           GH_TOKEN: ${{ github.token }}
-          NAMESPACE: ${{ steps.v.outputs.namespace }}
-          IMAGE: ${{ inputs.image }}
+          IMAGE_REF: ghcr.io/${{ steps.v.outputs.namespace }}/${{ inputs.image }}:${{ steps.v.outputs.version }}
+          IMAGE_NAME: ${{ inputs.image }}
           VERSION: ${{ steps.v.outputs.version }}
-          TAG: ${{ inputs.tag_prefix }}${{ steps.v.outputs.version }}
+          PREFIX: ${{ inputs.tag_prefix }}
+          TAG: ${{ steps.prepared.outputs.tag }}
+          SOURCE_COMMIT: ${{ steps.prepared.outputs.source_commit }}
+          SOURCE_PARENT: ${{ steps.prepared.outputs.source_parent }}
           PREVIOUS: ${{ inputs.tag_prefix }}${{ steps.v.outputs.previous }}
+          DIGEST: ${{ steps.image.outputs.digest }}
           RELEASE: ${{ inputs.release }}
           CONTEXT: ${{ inputs.context }}
         run: |
-          git tag "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          python3 scripts/prepare-release.py manifest --version "$VERSION" --prefix "$PREFIX" --image "$IMAGE_REF" --digest "$DIGEST" --output "$RUNNER_TEMP/quest-release/release.json"
+          git tag -- "$TAG" "$SOURCE_COMMIT"
+          git push origin "refs/tags/$TAG:refs/tags/$TAG"
           if [ "$RELEASE" = true ]; then
-            # Commits that touched this image's build context, newest first.
-            # (--generate-notes only lists merged PRs, so direct pushes came
-            # out empty.)
             {
-              git log --no-merges --format='- %s (%h)' "$PREVIOUS..$GITHUB_SHA" -- "$CONTEXT"
+              git log --no-merges --format='- %s (%h)' "$PREVIOUS..$SOURCE_PARENT" -- "$CONTEXT"
               echo
-              echo "**Full changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$PREVIOUS...$TAG"
-            } > notes.md
-            gh release create "$TAG" --title "$IMAGE $VERSION" --notes-file notes.md --latest=false
+              printf '**Full changelog**: https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$PREVIOUS" "$TAG"
+              echo
+              printf 'Image: `%s@%s`\n' "$IMAGE_REF" "$DIGEST"
+            } > "$RUNNER_TEMP/quest-release/notes.md"
+            gh release create "$TAG" "$RUNNER_TEMP/quest-release/release.json" --verify-tag --title "$IMAGE_NAME $VERSION" --notes-file "$RUNNER_TEMP/quest-release/notes.md" --latest=true
           fi
-          echo "Published ghcr.io/$NAMESPACE/$IMAGE:$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          printf 'Published `%s@%s` from `%s`\n' "$IMAGE_REF" "$DIGEST" "$SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"

@@ -6,6 +6,8 @@ __pycache__/
 *.pyc
 .env
 .env.*
+ctfd.env
+/deploy/.ci-*
 !.env.example
 private/
 *.db

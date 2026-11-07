@@ -110,7 +110,7 @@ serialization, capacity/attendance optimizer, endpoint authorization, stale-plan
 and concurrent name claims, native guard closure. Frontend owns web components,
 types and styles: participant onboarding and teammate state; organizer attendance
 workflow, search/filter, preview moves, warnings and irreversible naming copy.
-Integration owns docs, browser journeys, release and GitOps. No extra service,
+Integration owns docs, browser journeys, release and deployment. No extra service,
 secret, email sending or external participant collection is introduced.
 
 Before dispatch, the existing CTFd account/team API and shared event write lock

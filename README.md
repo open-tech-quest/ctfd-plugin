@@ -38,12 +38,14 @@ workflow and [maintainer guide](docs/maintainers.md) for delegated authoring.
 
 Tested, versioned images are published to
 [`ghcr.io/open-tech-quest/ctfd-plugin`](https://github.com/open-tech-quest/ctfd-plugin/pkgs/container/ctfd-plugin).
-Pin a release tag and digest for your deployment.
+The repository includes a standalone Kustomize stack with MariaDB, Redis,
+persistent storage, Kubernetes Ingress and OpenShift Route overlays. It consumes
+a native Secret; Argo CD and external secret managers are optional.
 
-For an event, provide MariaDB, Redis, persistent uploads, HTTPS and runtime
-secrets (`SECRET_KEY`, `DATABASE_URL`, `REDIS_URL`). Keep the session key stable
-across restarts and back up the database and uploads before upgrades. See
-[deployment and rollback](docs/operations.md#deployment-and-rollback).
+Follow the [deployment guide](docs/deployment.md) for installation, HTTPS,
+the 400-attendee component, upgrades and existing-deployment migration. Consume
+an immutable `vX.Y.Z` release tag and its published image digest. Each release
+updates the manifest version and image together; `main` is a development branch.
 
 ### Sizing
 
