@@ -172,7 +172,15 @@ aggregate results only.
 
 ### Participant and projector
 
-- GET `/bootstrap`: `{event, viewer, rooms, registration}`; safe lobby metadata for guests.
+- GET `/bootstrap`: `{event, viewer, rooms, registration, csrfNonce, onboarding, revisions}`;
+  initial room content and safe lobby metadata for guests.
+- GET `/sync`: the same live event/viewer/registration/CSRF/onboarding/revision
+  fields, without rooms. One five-second heartbeat replaces periodic full
+  bootstrap and separate onboarding reads. Opaque content/roster/progress tokens
+  trigger full reads when relevant data changes; scheduled privacy/cutoff
+  boundaries also change tokens without a write. Onboarding is null for guests
+  and staff. Identity and CSRF are accepted together; stale full responses cannot
+  overwrite newer live state.
 - GET `/rooms`: Room array for the current viewer.
 - GET `/rooms/<slug>`: Room for current viewer.
 - POST `/rooms/<slug>/start`: Room; idempotent for teammates, requires team,
@@ -234,6 +242,14 @@ Build Vite assets and copy plugin into pinned `ctfd/ctfd:3.8.9` image.
 Plugin schema uses CTFd's plugin migration support; persists in MariaDB.
 Redis holds cache, not authoritative starts or ranking history.
 Provide a runnable development setup with disposable SQLite or Compose.
+
+Shared read caches store primitive metadata/history/roster inputs, with generation
+markers updated in the same database transaction as application domain writes.
+Team/user generations limit invalidation after ordinary submissions. Cached inputs
+never authorize writes; clocks, eligibility and rankings are evaluated freshly.
+Cross-request caching requires verified MySQL/MariaDB REPEATABLE READ; SQLite and
+other isolation modes retain direct database reads. External database edits must
+clear the application cache/restart readers; use the supported APIs during an event.
 
 Required integration coverage: two users sharing a team; other-team
 isolation; early/locked challenge and known attachment URL denial; sequential

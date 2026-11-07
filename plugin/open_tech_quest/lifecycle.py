@@ -2,7 +2,7 @@
 import hashlib
 import hmac
 import re
-from flask import current_app, session
+from flask import current_app, g, has_request_context, request, session
 from CTFd.cache import clear_challenges, clear_standings, clear_team_session, clear_user_session
 from CTFd.models import (Awards, Comments, Notifications, Ratings, Solves, Submissions,
                          Teams, Tokens, Tracking, Unlocks, Users, db)
@@ -13,10 +13,19 @@ from .models import (QuestAudit, QuestCorrection, QuestMaintainer, QuestReadines
 
 def current_user():
     uid = session.get("id")
+    # Reuse identity only within an ordinary read request. Mutations still
+    # re-read after event(lock=True) discards the preceding DB snapshot.
+    memoize = has_request_context() and request.method == "GET"
+    key = (uid, session.get("hash"))
+    previous = getattr(g, "quest_read_user", None) if memoize else None
+    if previous is not None and previous[0] == key:
+        return previous[1]
     user = Users.query.populate_existing().filter_by(id=uid).first() if uid is not None else None
     if uid is not None and (user is None or (session.get("hash") and session["hash"] != session_hmac(user.password))):
         session.clear()
-        return None
+        user = None
+    if memoize:
+        g.quest_read_user = (key, user)
     return user
 
 

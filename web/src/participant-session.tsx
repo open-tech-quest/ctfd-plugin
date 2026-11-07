@@ -8,7 +8,6 @@ import {
   type ReactNode,
 } from "react";
 import { request } from "./api";
-import { useResource } from "./hooks";
 import type { Onboarding, Viewer } from "./types";
 import { Notice } from "./ui";
 
@@ -29,10 +28,16 @@ export function useParticipantSession() {
 
 export function ParticipantSession({
   viewer,
+  onboarding,
+  loading,
+  syncError,
   onChanged,
   children,
 }: {
   viewer?: Viewer;
+  onboarding: Onboarding | null;
+  loading: boolean;
+  syncError: string;
   onChanged: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -46,6 +51,9 @@ export function ParticipantSession({
     <AuthenticatedParticipantSession
       key={viewer.id}
       viewer={viewer}
+      state={onboarding}
+      loading={loading}
+      syncError={syncError}
       onChanged={onChanged}
     >
       {children}
@@ -55,14 +63,19 @@ export function ParticipantSession({
 
 function AuthenticatedParticipantSession({
   viewer,
+  state,
+  loading,
+  syncError,
   onChanged,
   children,
 }: {
   viewer: Viewer;
+  state: Onboarding | null;
+  loading: boolean;
+  syncError: string;
   onChanged: () => Promise<void>;
   children: ReactNode;
 }) {
-  const resource = useResource<Onboarding>("/onboarding", 5000);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [dismissedGeneration, setDismissedGeneration] = useState<number | null>(
@@ -79,24 +92,18 @@ function AuthenticatedParticipantSession({
     setBusy(true);
     setError("");
     try {
-      const result = await request<Onboarding>(path, "POST", body);
+      await request<Onboarding>(path, "POST", body);
       if (!mounted.current) return;
-      resource.setData(result);
-      await Promise.all([resource.refresh(), onChanged()]);
+      await onChanged();
     } catch (error) {
       if (!mounted.current) return;
       setError((error as Error).message);
-      await Promise.all([resource.refresh(), onChanged()]);
+      await onChanged();
       throw error;
     } finally {
       if (mounted.current) setBusy(false);
     }
   }
-  const state = resource.data;
-  useEffect(() => {
-    if (state?.roster_released && (state.team?.id ?? null) !== viewer.team_id)
-      void onChanged();
-  }, [state?.team?.id, state?.roster_released, viewer.team_id, onChanged]);
   useEffect(() => setError(""), [state?.attendance?.generation]);
   const eligible =
     !!state?.can_ready && !!state.attendance?.enabled && !state.ready_at;
@@ -116,10 +123,10 @@ function AuthenticatedParticipantSession({
       value={{
         viewer,
         state,
-        loading: resource.loading,
-        error: error || resource.error,
+        loading,
+        error: error || syncError,
         busy,
-        refresh: resource.refresh,
+        refresh: onChanged,
         update,
         openPrompt,
       }}
@@ -155,7 +162,7 @@ function AuthenticatedParticipantSession({
           key={`${state.attendance.generation}-${state.attendance.late_only}`}
           lateOnly={state.attendance.late_only}
           busy={busy}
-          error={error || resource.error}
+          error={error || syncError}
           onDismiss={dismiss}
           onConfirm={() => update("/onboarding/ready", {})}
         />

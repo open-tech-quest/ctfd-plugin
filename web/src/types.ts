@@ -62,11 +62,15 @@ export interface Room {
 export interface RegistrationState {
   enabled: boolean;
 }
-export interface Bootstrap {
+export interface QuestSync {
   csrfNonce: string | null;
   registration: RegistrationState;
   event: QuestEvent;
   viewer: Viewer;
+  onboarding: Onboarding | null;
+  revisions: { content: string; roster: string; progress: string };
+}
+export interface Bootstrap extends QuestSync {
   rooms: Room[];
 }
 export interface RoomProgress {

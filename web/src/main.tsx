@@ -1,8 +1,9 @@
 import { decode } from "./api";
-import { StrictMode, useLayoutEffect } from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { usePath, useResource } from "./hooks";
-import type { Bootstrap } from "./types";
+import { usePath } from "./hooks";
+import { useQuestSession } from "./use-quest-session";
+import { viewerIdentity } from "./quest-session";
 import { Link, Notice } from "./ui";
 import { Lobby, RoomPage } from "./participant";
 import { StandingsPage, Stage } from "./standings";
@@ -17,23 +18,20 @@ fonts.href = `${branding}/fonts.css`;
 document.head.appendChild(fonts);
 function App() {
   const path = usePath();
-  const bootstrap = useResource<Bootstrap>("/bootstrap", 10000);
+  const bootstrap = useQuestSession(path);
   const data = bootstrap.data;
-  useLayoutEffect(() => {
-    if (!data) return;
-    // Only the bootstrap resource's accepted viewer/token pair may replace the
-    // shell nonce. Responses discarded by its sequence guard cannot reach here.
-    window.QUEST_INIT = {
-      ...window.QUEST_INIT,
-      viewer: data.viewer,
-      csrfNonce: data.csrfNonce ?? undefined,
-    };
-  }, [data]);
   const staff =
     data?.viewer.role === "maintainer" || data?.viewer.role === "administrator";
   const stage = path.replace(/\/$/, "") === "/quest/stage";
   return (
-    <ParticipantSession viewer={data?.viewer} onChanged={bootstrap.refresh}>
+    <ParticipantSession
+      key={bootstrap.live ? viewerIdentity(bootstrap.live.viewer) : "loading"}
+      viewer={bootstrap.live?.viewer}
+      onboarding={bootstrap.live?.onboarding ?? null}
+      loading={bootstrap.loading}
+      syncError={bootstrap.syncError}
+      onChanged={bootstrap.refresh}
+    >
       {stage ? (
         <Stage />
       ) : (

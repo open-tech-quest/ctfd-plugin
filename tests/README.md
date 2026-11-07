@@ -27,6 +27,15 @@ reasoned corrections/exclusions and sanitized public/export data. Fifty teams ar
 exercised with 50 concurrent-client standings requests (concurrency 10), reporting
 p95/max latency and bounding the shared projection to 12 SQL statements.
 
+Read-cache and sync regressions cover concurrent roster removal, old-snapshot
+cache fills, transaction rollback, ORM/bulk/raw-SQL invalidation, immediate bans
+and visibility changes, per-team isolation, scheduled privacy/cutoff transitions,
+and cache failures. Shared cache hit/race tests run on MariaDB REPEATABLE READ;
+SQLite and other isolation modes verify the direct-read fallback. Frontend tests
+exercise the shipped session coordinator with controlled timers and responses,
+including identity/CSRF races, attendance delivery, hidden/offline suspension and
+coalesced content refreshes.
+
 The pure rule tests also run without CTFd:
 
 ```sh

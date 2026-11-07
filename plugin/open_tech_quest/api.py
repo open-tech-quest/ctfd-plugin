@@ -13,7 +13,7 @@ from CTFd.cache import cache, clear_challenges, clear_standings, clear_user_sess
 from CTFd.models import Challenges, Configs, Teams, Users, db
 from CTFd.utils import _get_config
 from CTFd.utils.dates import ctftime
-from CTFd.utils.user import get_current_user, is_admin
+from CTFd.utils.user import is_admin
 from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
                      QuestExclusion, QuestCorrection, QuestAudit, QuestReadiness, QuestTeamName)
 from .service import (event, event_data, now, iso, parse_time, released,
@@ -21,6 +21,7 @@ from .service import (event, event_data, now, iso, parse_time, released,
 
 from . import demo, onboarding, registration, roles, lifecycle
 from .models import QuestMaintainer
+from .lifecycle import current_user as get_current_user
 
 api = Blueprint("quest_api", __name__)
 
@@ -149,17 +150,18 @@ def viewer():
     if not user:
         return {"authenticated": False, "id": None, "name": None, "team_id": None, "team_name": None, "admin": False,
                 "role": "guest", "can_manage_rooms": False, "can_manage_users": False}
-    show = is_admin() or released()
+    administrator = user.type == "admin"
+    show = administrator or released()
     team = Teams.query.get(user.team_id) if user.team_id and show else None
     return {"authenticated": True, "id": user.id, "name": user.name,
-            "team_id": user.team_id if show else None, "team_name": team.name if team else None, "admin": is_admin(),
+            "team_id": user.team_id if show else None, "team_name": team.name if team else None, "admin": administrator,
             "role": roles.role(user), "can_manage_rooms": roles.can_manage_rooms(user),
-            "can_manage_users": bool(is_admin() and not user.banned)}
+            "can_manage_users": bool(administrator and not user.banned)}
 
 
-def current_rooms():
+def current_rooms(e=None):
     user = get_current_user()
-    view = projection(team_id=(user.team_id if user else None) or 0)
+    view = projection(e, team_id=(user.team_id if user else None) or 0)
     return [view.room(room, user.team_id if user else None, is_admin()) for room in view.rooms]
 
 
@@ -171,8 +173,46 @@ def bootstrap():
             and user and onboarding.can_confirm(user, e)
             and QuestReadiness.query.get(user.id) is None):
         fail("Attendance check-in is open. Refresh this page once to load the attendance confirmation.", 409)
-    response = success({"event": event_data(e), "viewer": viewer(), "rooms": current_rooms(),
-                        "registration": registration.status(), "csrfNonce": session.get("nonce")})
+    data = sync_data(e, user)
+    data["rooms"] = current_rooms(e)
+    response = success(data)
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
+def participant_data(user, e):
+    from .read_cache import cached, versions
+    stamps = versions(user.team_id or 0, user.id)
+    at = now()
+    boundaries = [released(e), bool(e.start_at and at >= e.start_at),
+                  bool(e.end_at and at >= e.end_at)]
+    return cached("onboarding", user.id,
+                  [stamps["roster"], stamps["event"], stamps["user"], boundaries],
+                  lambda: onboarding.participant(user, e))
+
+
+def sync_data(e=None, user=None):
+    """Live state without rebuilding room content or unchanged rosters."""
+    from .read_cache import public_revisions, token
+    e = e or event()
+    user = user if user is not None else get_current_user()
+    at = now()
+    boundaries = [released(e), bool(e.start_at and at >= e.start_at),
+                  bool(e.end_at and at >= e.end_at)]
+    team_id = (user.team_id or 0) if user else None
+    revisions = {key: token([value, boundaries])
+                 for key, value in public_revisions(team_id, user.id if user else None).items()}
+    participant = None
+    if user is not None and onboarding.eligible(user):
+        participant = participant_data(user, e)
+    return {"event": event_data(e), "viewer": viewer(),
+            "registration": registration.status(), "csrfNonce": session.get("nonce"),
+            "onboarding": participant, "revisions": revisions}
+
+
+@api.route("/sync")
+def sync_view():
+    response = success(sync_data())
     response.headers["Cache-Control"] = "private, no-store"
     return response
 
@@ -655,7 +695,7 @@ def participant_account():
 
 @api.route("/onboarding")
 def onboarding_view():
-    return success(onboarding.participant(participant_account(), event()))
+    return success(participant_data(participant_account(), event()))
 
 
 @api.route("/onboarding/ready", methods=["POST"])

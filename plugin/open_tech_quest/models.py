@@ -141,3 +141,10 @@ class QuestMaintainer(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     previous_hidden = db.Column(db.Boolean, nullable=False)
     granted_at = db.Column(UTCDateTime, nullable=False, default=datetime.utcnow)
+
+
+class QuestReadVersion(db.Model):
+    """Transactional cache generations; UUIDs also isolate restored/recreated rows."""
+    __tablename__ = "quest_read_versions"
+    key = db.Column(db.String(80), primary_key=True)
+    value = db.Column(db.String(32), nullable=False)
