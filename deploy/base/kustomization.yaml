@@ -29,4 +29,4 @@ configMapGenerator:
 images:
   - name: ghcr.io/open-tech-quest/ctfd-plugin
     # CI replaces dev with the release version in the immutable Git tag.
-    newTag: dev
+    newTag: 0.1.23
