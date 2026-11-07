@@ -12,6 +12,7 @@ import { StaffHome } from "./staff-home";
 import { ParticipantSession } from "./participant-session";
 import "./style.css";
 const branding = "/plugins/open_tech_quest/assets/branding";
+const pluginVersion = import.meta.env.VITE_PLUGIN_VERSION || "dev";
 const fonts = document.createElement("link");
 fonts.rel = "stylesheet";
 fonts.href = `${branding}/fonts.css`;
@@ -159,11 +160,20 @@ function App() {
           </main>
           <footer className="app-footer">
             <img src={`${branding}/redhat-on-light.svg`} alt="Red Hat" />
-            <span>Open Tech Quest · Learn together. Solve together.</span>
-            <a href="/settings">Account settings</a>
+            <span className="footer-message">
+              Open Tech Quest · Learn together. Solve together.
+            </span>
             {data?.viewer.role === "participant" && data.viewer.team_id && (
               <a href="/team">Your team</a>
             )}
+            <span
+              className="app-version"
+              aria-label={`Open Tech Quest plugin version ${pluginVersion}`}
+            >
+              {pluginVersion === "dev"
+                ? "Development build"
+                : `v${pluginVersion}`}
+            </span>
           </footer>
         </>
       )}

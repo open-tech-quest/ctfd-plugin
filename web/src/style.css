@@ -267,8 +267,12 @@ svg {
   max-height: 32px;
   object-fit: contain;
 }
-.app-footer span {
+.app-footer .footer-message {
   margin-right: auto;
+}
+.app-version {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .button {
   display: inline-flex;
@@ -1890,12 +1894,16 @@ fieldset {
     flex-wrap: wrap;
     gap: 16px;
   }
-  .app-footer span {
+  .app-footer .footer-message {
     width: calc(100% - 120px);
     margin: 0;
     font-size: 12px;
   }
   .app-footer > a {
+    font-size: 12px;
+  }
+  .app-footer .app-version {
+    margin-left: auto;
     font-size: 12px;
   }
   .lobby-intro {

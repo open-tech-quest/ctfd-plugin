@@ -222,6 +222,11 @@ in GitHub's package settings. Verify an anonymous pull before deployment.
 Pin the tested tag and digest in the application and any migration/init
 containers. Preserve database, cache and upload/log storage during upgrades.
 
+The Quest footer shows the plugin version compiled into the loaded frontend.
+An older open or cached page keeps its older version until refreshed. Published
+images use the release version; local builds show **Development build** unless
+`VITE_PLUGIN_VERSION` is set (or `PLUGIN_VERSION` for a container build).
+
 Plugin migrations run before request serving. Take a database/uploads backup
 before an upgrade and retain the previously working image reference. Rolling
 back code alone does not reverse database schema changes: check migration

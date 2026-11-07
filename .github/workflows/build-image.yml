@@ -90,6 +90,8 @@ jobs:
           file: ${{ inputs.file || format('{0}/Dockerfile', inputs.context) }}
           target: ${{ inputs.test_target }}
           push: false
+          build-args: |
+            PLUGIN_VERSION=${{ steps.v.outputs.version }}
           cache-from: type=gha,scope=${{ inputs.image }}
 
       - name: Log in to GHCR
@@ -112,6 +114,7 @@ jobs:
           # layers above it stay cached.
           build-args: |
             BUILD_DATE=${{ github.run_id }}
+            PLUGIN_VERSION=${{ steps.v.outputs.version }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.title=${{ inputs.image }}

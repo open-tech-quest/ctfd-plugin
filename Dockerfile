@@ -3,6 +3,8 @@ WORKDIR /app
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
+ARG PLUGIN_VERSION=dev
+ENV VITE_PLUGIN_VERSION=${PLUGIN_VERSION}
 RUN npm run check && npm run build \
     && test -s dist/quest.js && test -s dist/quest.css
 
