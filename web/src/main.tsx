@@ -166,10 +166,8 @@ function App() {
             {data?.viewer.role === "participant" && data.viewer.team_id && (
               <a href="/team">Your team</a>
             )}
-            <span
-              className="app-version"
-              aria-label={`Open Tech Quest plugin version ${pluginVersion}`}
-            >
+            <span className="app-version">
+              <span className="sr-only">Plugin version </span>
               {pluginVersion === "dev"
                 ? "Development build"
                 : `v${pluginVersion}`}
