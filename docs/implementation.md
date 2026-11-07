@@ -22,8 +22,9 @@ consume releases directly or through their own deployment automation.
 5. Run meaningful backend integration tests, frontend check/build and browser
    journeys. Exercise 50-team projector, load behavior, and persistence in an
    isolated environment, with production credentials absent.
-6. Publish the tested version via CI. A release-only commit updates manifest
-   version and base image together, passes the release gate and becomes the
+6. Publish the tested version via CI. Main uses the `dev` image marker; CI derives
+   the next version from Git tags and stamps one Kustomize image pin. That
+   release-only commit passes the release gate and becomes the
    immutable `vX.Y.Z` tag. Consumers pin that tag and its published image digest
    in both CTFd init and runtime containers. Verify migration, root/room/admin
    routes, real session login, CTFd health and absence of seeded event data.

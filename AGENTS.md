@@ -28,8 +28,9 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 - Every finished unit is committed and pushed. Every release runs backend
   integration tests, frontend checks/build, and container smoke tests.
 - CI publishes versioned images to `ghcr.io/open-tech-quest/ctfd-plugin` and
-  immutable deployment tags. A release commit updates `deploy/VERSION` and
-  the base image together before testing/tagging; consumers use a `vX.Y.Z`
+  immutable deployment tags. Main uses `dev`; CI selects the next version from
+  Git tags and stamps only the base Kustomization's image pin before testing/tagging.
+  Do not manually bump deployment versions. Consumers use a `vX.Y.Z`
   tag and the matching image digest, never `main`. No secrets in build layers.
 - Independent frontend/backend work and independent review are appropriate
   for this project; assign disjoint file ownership and follow review-bar.

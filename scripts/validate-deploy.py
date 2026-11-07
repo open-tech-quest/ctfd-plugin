@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Render, schema-check and validate the supported deployment compositions."""
 import argparse
+import importlib.util
 from pathlib import Path
 import subprocess
 import tempfile
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
+SPEC = importlib.util.spec_from_file_location('prepare_release', ROOT / 'scripts/prepare-release.py')
+release = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(release)
 
 def build(path):
     result = subprocess.run(['kustomize', 'build', str(path)], capture_output=True, check=True)
@@ -70,8 +74,12 @@ def check_stack(objects, version, platform, namespace='ctfd', event=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--skip-schema', action='store_true', help='Only for an offline render check')
+    parser.add_argument('--release-version', help='Require this release version in every full stack')
     args = parser.parse_args()
-    version = (ROOT / 'deploy/VERSION').read_text().strip()
+    version = release.image_version_document((ROOT / release.KUSTOMIZATION).read_text())
+    if args.release_version:
+        release.version_tuple(args.release_version)
+        assert version == args.release_version, 'Deployment image pin disagrees with the release version'
     count = 0
     for path in sorted((ROOT / 'deploy').rglob('kustomization.yaml')):
         if yaml.safe_load(path.read_text()).get('kind') == 'Component':

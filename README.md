@@ -120,7 +120,8 @@ a native Secret; Argo CD and external secret managers are optional.
 Follow the [deployment guide](docs/deployment.md) for installation, HTTPS,
 the 400-attendee component, upgrades and existing-deployment migration. Consume
 an immutable `vX.Y.Z` release tag and its published image digest. Each release
-updates the manifest version and image together; `main` is a development branch.
+automatically stamps the image version into its tagged manifests; `main` uses
+an unpublished `dev` marker. See [deploy](deploy/README.md) for the folder layout.
 
 ### Sizing
 

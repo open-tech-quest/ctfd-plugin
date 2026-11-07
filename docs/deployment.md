@@ -4,11 +4,12 @@ Use an immutable release of this repository to deploy CTFd with the plugin,
 MariaDB, Redis and persistent storage. Kubernetes uses an Ingress; OpenShift uses
 a Route. Neither Argo CD nor an external secret manager is required.
 
-The examples use release **v0.1.22** and namespace **ctfd**. Review the release's
-`release.json` for its version, source commit, image and digest. The manifests
-and image version are updated together in a release-only commit, tested, and
-published under the same immutable `vX.Y.Z` tag. Use that tag, never `main`, as a
-deployment source. Pin the accompanying image digest for reproducible rollouts.
+Replace **vX.Y.Z** in the examples with your chosen published release (deployment
+manifests start at **v0.1.22**). The default namespace is **ctfd**. Review that
+release's `release.json` for its image digest and source commit. CI derives the
+version from Git tags and stamps one image pin into the tested release commit;
+`main` uses an unpublished `dev` marker. Use the immutable release tag as your
+deployment source and pin its accompanying image digest.
 
 ## Prerequisites and layout
 
@@ -45,7 +46,7 @@ An existing event needs the [migration checklist](#migrating-an-existing-deploym
 instead. In particular, do not generate replacement secrets for an existing stack.
 
 ```sh
-git clone --branch v0.1.22 --depth 1 https://github.com/open-tech-quest/ctfd-plugin.git
+git clone --branch vX.Y.Z --depth 1 https://github.com/open-tech-quest/ctfd-plugin.git
 cd ctfd-plugin
 kubectl create namespace ctfd
 python3 scripts/create-deploy-env.py --output ctfd.env
@@ -88,7 +89,9 @@ kubectl -n ctfd create secret tls ctfd-tls --cert=/path/to/tls.crt --key=/path/t
 mkdir site
 ```
 
-Create `site/kustomization.yaml`, replacing the email, hostname and image digest:
+Create `site/kustomization.yaml`, replacing the email, hostname and image digest.
+The image override needs only the digest; Kustomize applies it to both CTFd
+containers, so there is no separate image version to keep in sync.
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -114,7 +117,6 @@ patches:
         value: quest.example.com
 images:
   - name: ghcr.io/open-tech-quest/ctfd-plugin
-    newTag: 0.1.22
     digest: sha256:REPLACE_WITH_RELEASE_DIGEST
 ```
 
@@ -160,9 +162,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: ctfd
 resources:
-  - https://github.com/open-tech-quest/ctfd-plugin//deploy/overlays/openshift?ref=v0.1.22
+  - https://github.com/open-tech-quest/ctfd-plugin//deploy/overlays/openshift?ref=vX.Y.Z
 components:
-  - https://github.com/open-tech-quest/ctfd-plugin//deploy/components/event-400?ref=v0.1.22
+  - https://github.com/open-tech-quest/ctfd-plugin//deploy/components/event-400?ref=vX.Y.Z
 configMapGenerator:
   - name: ctfd-config
     behavior: merge
@@ -170,7 +172,6 @@ configMapGenerator:
       - CTFD_ADMIN_EMAIL=organizer@example.com
 images:
   - name: ghcr.io/open-tech-quest/ctfd-plugin
-    newTag: 0.1.22
     digest: sha256:REPLACE_WITH_RELEASE_DIGEST
 ```
 
@@ -222,7 +223,7 @@ OpenShift SCC grant. For an external-services installation on OpenShift, also
 apply the release's SCC binding in the application's namespace:
 
 ```sh
-oc -n ctfd apply -f https://raw.githubusercontent.com/open-tech-quest/ctfd-plugin/v0.1.22/deploy/overlays/openshift/scc.yaml
+oc -n ctfd apply -f https://raw.githubusercontent.com/open-tech-quest/ctfd-plugin/vX.Y.Z/deploy/overlays/openshift/scc.yaml
 ```
 
 Supply your own HTTPS exposure and web ingress policy, or also apply the same

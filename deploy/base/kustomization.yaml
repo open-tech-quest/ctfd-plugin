@@ -28,4 +28,5 @@ configMapGenerator:
       - bootstrap.py
 images:
   - name: ghcr.io/open-tech-quest/ctfd-plugin
-    newTag: 0.1.21
+    # CI replaces dev with the release version in the immutable Git tag.
+    newTag: dev

@@ -23,14 +23,13 @@ class PrepareReleaseTests(unittest.TestCase):
         release.git(self.repo, "config", "user.email", "release@example.test")
         release.git(self.repo, "config", "commit.gpgsign", "false")
         (self.repo / release.KUSTOMIZATION).parent.mkdir(parents=True)
-        (self.repo / release.VERSION_FILE).write_text("0.1.21\n")
         self.original_document = """apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ctfd.yaml
 images:
   - name: ghcr.io/open-tech-quest/ctfd-plugin
-    newTag: 0.1.21
+    newTag: dev
   - name: redis
     newTag: 7.4.12
 """
@@ -46,7 +45,7 @@ images:
 
     def check_source_unchanged(self):
         self.assertEqual(release.git(self.repo, "rev-parse", "HEAD"), self.source)
-        self.assertEqual((self.repo / release.VERSION_FILE).read_text(), "0.1.21\n")
+        self.assertEqual((self.repo / release.KUSTOMIZATION).read_text(), self.original_document)
 
     def test_next_version_sorts_semantically_and_ignores_non_release_tags(self):
         for tag in ("v0.1.9", "v0.1.22-rc1", "v0.01.90", "other-v99.0.0"):
@@ -66,12 +65,31 @@ images:
         self.assertEqual(release.git(self.repo, "rev-parse", "main"), self.source)
         self.assertEqual(release.git(self.repo, "branch", "--show-current"), "")
         self.assertEqual(release.git(self.repo, "tag", "--list"), "v0.1.21")
-        self.assertEqual((self.repo / release.VERSION_FILE).read_text(), "0.1.22\n")
         document = (self.repo / release.KUSTOMIZATION).read_text()
-        self.assertEqual(document, self.original_document.replace("newTag: 0.1.21", "newTag: 0.1.22"))
+        self.assertEqual(document, self.original_document.replace("newTag: dev", "newTag: 0.1.22"))
         changed = set(release.git(self.repo, "diff", "--name-only", self.source, "HEAD").splitlines())
-        self.assertEqual(changed, {str(release.VERSION_FILE), str(release.KUSTOMIZATION)})
+        self.assertEqual(changed, {str(release.KUSTOMIZATION)})
         self.assertEqual(release.git(self.repo, "status", "--porcelain"), "")
+
+    def test_consecutive_releases_need_no_version_edits_on_main(self):
+        first = release.prepare(self.repo, "0.1.22")
+        release.git(self.repo, "tag", "v0.1.22", first["source_commit"])
+        release.git(self.repo, "checkout", "main")
+        self.check_source_unchanged()
+        self.assertEqual(release.next_version(self.repo)["version"], "0.1.23")
+        second = release.prepare(self.repo, "0.1.23")
+        self.assertEqual(second["source_parent"], self.source)
+        self.assertEqual(release.image_version_document((self.repo / release.KUSTOMIZATION).read_text()), "0.1.23")
+        self.assertEqual(release.git(self.repo, "show", "main:" + str(release.KUSTOMIZATION)), self.original_document.strip())
+
+    def test_manifest_rejects_a_changed_pin_even_in_a_prepared_commit(self):
+        release.prepare(self.repo, "0.1.22")
+        path = self.repo / release.KUSTOMIZATION
+        path.write_text(path.read_text().replace("newTag: 0.1.22", "newTag: 0.1.23"))
+        release.git(self.repo, "add", str(release.KUSTOMIZATION))
+        release.git(self.repo, "commit", "--amend", "--no-edit")
+        with self.assertRaises(release.ReleaseError):
+            release.release_manifest(self.repo, "0.1.22", "v", release.IMAGE + ":0.1.22", "sha256:" + "a" * 64)
 
     def test_repeated_preparation_reuses_exact_commit(self):
         first = release.prepare(self.repo, "0.1.22")
@@ -108,18 +126,18 @@ images:
                 release.prepare(self.repo, "0.1.22", prefix=prefix)
             self.check_source_unchanged()
 
-    def test_same_or_older_version_in_source_is_rejected(self):
+    def test_same_or_older_release_version_is_rejected(self):
         for version in ("0.1.21", "0.1.20"):
             with self.subTest(version=version), self.assertRaises(release.ReleaseError):
                 release.prepare(self.repo, version)
             self.check_source_unchanged()
 
-    def test_inconsistent_or_ambiguous_image_entries_fail_without_writing_version(self):
+    def test_invalid_or_ambiguous_image_entries_fail_without_writing(self):
         cases = [
-            self.original_document.replace("newTag: 0.1.21", "newTag: 0.1.20"),
-            self.original_document.replace("newTag: 0.1.21", "digest: sha256:" + "0" * 64),
-            self.original_document.replace("newTag: 0.1.21", "newTag: 0.1.21\n    newName: unrelated/image"),
-            self.original_document.replace("newTag: 0.1.21", "newTag: 0.1.21\n    newTag: 0.1.21"),
+            self.original_document.replace("newTag: dev", "newTag: latest"),
+            self.original_document.replace("newTag: dev", "digest: sha256:" + "0" * 64),
+            self.original_document.replace("newTag: dev", "newTag: dev\n    newName: unrelated/image"),
+            self.original_document.replace("newTag: dev", "newTag: dev\n    newTag: dev"),
             self.original_document.replace("  - name: redis", "  - name: ghcr.io/open-tech-quest/ctfd-plugin"),
         ]
         for document in cases:
@@ -130,7 +148,6 @@ images:
                 with self.assertRaises(release.ReleaseError):
                     release.prepare(self.repo, "0.1.22")
                 self.assertEqual(release.git(self.repo, "rev-parse", "HEAD"), head)
-                self.assertEqual((self.repo / release.VERSION_FILE).read_text(), "0.1.21\n")
                 self.assertEqual((self.repo / release.KUSTOMIZATION).read_text(), document)
 
     def test_release_manifest_identifies_the_prepared_commit_and_published_digest(self):
@@ -160,9 +177,9 @@ images:
         self.assertEqual(release.git(self.repo, "rev-parse", "main"), self.source)
 
     def test_yaml_editor_preserves_quotes_comments_and_other_images(self):
-        original = self.original_document.replace("newTag: 0.1.21", 'newTag: "0.1.21" # release')
-        actual = release.image_version_document(original, "0.1.21", "0.1.22")
-        self.assertEqual(actual, original.replace('"0.1.21"', '"0.1.22"'))
+        original = self.original_document.replace("newTag: dev", 'newTag: "dev" # release')
+        actual = release.image_version_document(original, "0.1.22")
+        self.assertEqual(actual, original.replace('"dev"', '"0.1.22"'))
 
 
 if __name__ == "__main__":

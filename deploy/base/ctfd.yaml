@@ -39,7 +39,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: initialize
-          image: ghcr.io/open-tech-quest/ctfd-plugin:0.1.21
+          image: ghcr.io/open-tech-quest/ctfd-plugin:dev
           command: [/bin/sh, -ec]
           args:
             - |
@@ -96,7 +96,7 @@ spec:
               readOnly: true
       containers:
         - name: ctfd
-          image: ghcr.io/open-tech-quest/ctfd-plugin:0.1.21
+          image: ghcr.io/open-tech-quest/ctfd-plugin:dev
           command: [/bin/sh, -ec]
           args:
             - |

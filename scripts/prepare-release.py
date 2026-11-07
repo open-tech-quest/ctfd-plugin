@@ -13,7 +13,6 @@ import sys
 
 
 IMAGE = "ghcr.io/open-tech-quest/ctfd-plugin"
-VERSION_FILE = Path("deploy/VERSION")
 KUSTOMIZATION = Path("deploy/base/kustomization.yaml")
 VERSION_PATTERN = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z")
 DIGEST_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
@@ -64,8 +63,8 @@ def next_version(repo, prefix="v", bump="patch"):
     return {"previous": ".".join(map(str, previous)), "version": f"{major}.{minor}.{patch}"}
 
 
-def image_version_document(document, previous, desired):
-    """Edit the controlled Kustomize images entry without rewriting other YAML."""
+def image_version_document(document, desired=None):
+    """Read or stamp the single release image pin without rewriting other YAML."""
     lines = document.splitlines(keepends=True)
     roots = [i for i, line in enumerate(lines) if re.fullmatch(r"images:\s*(?:#.*)?\n?", line)]
     if len(roots) != 1:
@@ -97,12 +96,15 @@ def image_version_document(document, previous, desired):
     fields = entries[0]
     if "digest" in fields or "newName" in fields or "newTag" not in fields:
         raise ReleaseError("Release image entry must use name and newTag without digest or newName")
-    if fields["newTag"][0] != previous:
-        raise ReleaseError("deploy/VERSION and deployment image newTag disagree")
+    current = fields["newTag"][0]
+    if current != "dev":
+        version_tuple(current)
     index = fields["newTag"][1]
-    match = re.fullmatch(r"(\s*newTag:\s*)([\"']?)([0-9]+\.[0-9]+\.[0-9]+)\2(\s*(?:#.*)?)(\n?)", lines[index])
+    match = re.fullmatch(r"(\s*newTag:\s*)([\"']?)(dev|[0-9]+\.[0-9]+\.[0-9]+)\2(\s*(?:#.*)?)(\n?)", lines[index])
     if not match:
-        raise ReleaseError("Deployment image newTag must be a plain or quoted semantic version")
+        raise ReleaseError("Deployment image newTag must be dev or a semantic version")
+    if desired is None:
+        return current
     prefix, quote, _, suffix, newline = match.groups()
     lines[index] = prefix + quote + desired + quote + suffix + newline
     return "".join(lines)
@@ -118,8 +120,8 @@ def prepared_identity(repo, version, prefix):
     if git(repo, "log", "-1", "--format=%s") != subject:
         raise ReleaseError("Current commit is not the prepared release commit")
     changed = set(git(repo, "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD").splitlines())
-    if changed != {str(VERSION_FILE), str(KUSTOMIZATION)}:
-        raise ReleaseError("Prepared release commit must change only the two version metadata files")
+    if changed != {str(KUSTOMIZATION)}:
+        raise ReleaseError("Prepared release commit must change only the deployment image pin")
     return {"source_commit": git(repo, "rev-parse", "HEAD"), "source_parent": git(repo, "rev-parse", "HEAD^")}
 
 
@@ -130,27 +132,25 @@ def prepare(repo, version, prefix="v"):
     tag = prefix + version
     if tag in git(repo, "tag", "--list").splitlines():
         raise ReleaseError(f"Release tag {tag} already exists")
-    current = (repo / VERSION_FILE).read_text().strip()
-    existing = version_tuple(current)
     document = (repo / KUSTOMIZATION).read_text()
-    updated = image_version_document(document, current, version)
+    current = image_version_document(document)
+    updated = image_version_document(document, version)
     subject = f"Release {tag} deployment metadata"
     if current == version:
         # A repeated invocation after preparation reuses the same exact commit.
         # Matching version metadata in an ordinary source commit is not enough.
         prepared_identity(repo, version, prefix)
     else:
-        if requested <= existing:
-            raise ReleaseError("Release version must be newer than deploy/VERSION")
-        for path in (VERSION_FILE, KUSTOMIZATION):
-            git(repo, "ls-files", "--error-unmatch", str(path))
+        previous = version_tuple(next_version(repo, prefix)["previous"])
+        if requested <= previous or (current != "dev" and requested <= version_tuple(current)):
+            raise ReleaseError("Release version must be newer than existing releases")
+        git(repo, "ls-files", "--error-unmatch", str(KUSTOMIZATION))
         # Leave the local main branch pointing at its source commit, too. Only
         # the detached HEAD advances; a later publication may tag that commit.
         git(repo, "checkout", "--detach", "HEAD")
-        (repo / VERSION_FILE).write_text(version + "\n")
         (repo / KUSTOMIZATION).write_text(updated)
         git(repo, "-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com",
-            "commit", "--only", "-m", subject, "--", str(VERSION_FILE), str(KUSTOMIZATION))
+            "commit", "--only", "-m", subject, "--", str(KUSTOMIZATION))
     check_clean(repo)
     return {"version": version, "tag": tag, **prepared_identity(repo, version, prefix), "image": IMAGE + ":" + version}
 
@@ -164,9 +164,8 @@ def release_manifest(repo, version, prefix, image, digest):
         raise ReleaseError("Published image digest must be sha256 followed by 64 lowercase hex digits")
     if image != IMAGE + ":" + version:
         raise ReleaseError("Published image must match the release version and deployment image")
-    if (repo / VERSION_FILE).read_text().strip() != version:
-        raise ReleaseError("Prepared deployment version does not match the release")
-    image_version_document((repo / KUSTOMIZATION).read_text(), version, version)
+    if image_version_document((repo / KUSTOMIZATION).read_text()) != version:
+        raise ReleaseError("Prepared deployment image pin does not match the release")
     return {"version": version, "tag": prefix + version, **identity, "image": image, "digest": digest}
 
 
