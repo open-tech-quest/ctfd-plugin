@@ -94,7 +94,9 @@ export function ChallengePath({
       <div className="challenge-path-heading">
         <div>
           <h2 id={`${id}-heading`}>Challenge path</h2>
-          <span>{steps.length} challenges</span>
+          <span>
+            {steps.length} {steps.length === 1 ? "challenge" : "challenges"}
+          </span>
         </div>
         {bounds.overflowing && (
           <div className="challenge-path-controls">

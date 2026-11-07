@@ -113,12 +113,14 @@ export function Lobby({ data }: { data: Bootstrap }) {
       </section>
       <ParticipantOnboarding viewer={data.viewer} />
       <EventNotice data={data} />
-      <div className="section-heading">
-        <h2>Choose your room</h2>
-        <span className="meta">
-          Each room has its own ordered challenge path
-        </span>
-      </div>
+      {!!data.rooms.length && (
+        <div className="section-heading">
+          <h2>{data.rooms.length === 1 ? "Your room" : "Choose your room"}</h2>
+          <span className="meta">
+            Each room has its own ordered challenge path
+          </span>
+        </div>
+      )}
       {!data.rooms.length && (
         <div className="empty">
           <h2>The rooms are being prepared</h2>
@@ -127,7 +129,7 @@ export function Lobby({ data }: { data: Bootstrap }) {
           </p>
         </div>
       )}
-      <div className={`room-grid room-count-${data.rooms.length}`}>
+      <div className="room-grid">
         {data.rooms.map((room) => (
           <Link
             key={room.id}
@@ -165,17 +167,19 @@ export function Lobby({ data }: { data: Bootstrap }) {
           </Link>
         ))}
       </div>
-      <div className="rules-strip">
-        <h3>Before you start</h3>
-        <p>
-          Starting a room starts a shared team clock. It keeps running while you
-          explore another room. The next step opens when anyone on your team
-          solves the current challenge.
-        </p>
-        <Link href="/quest/standings">
-          How the awards work <Arrow />
-        </Link>
-      </div>
+      {!!data.rooms.length && (
+        <div className="rules-strip">
+          <h3>Before you start</h3>
+          <p>
+            Starting a room starts a shared team clock. It keeps running while
+            you explore another room. The next step opens when anyone on your
+            team solves the current challenge.
+          </p>
+          <Link href="/quest/standings">
+            How the awards work <Arrow />
+          </Link>
+        </div>
+      )}
     </>
   );
 }

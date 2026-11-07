@@ -102,7 +102,10 @@ readable neutral surfaces, visible keyboard focus and restrained motion respecti
 [branding](../branding/README.md). Theme changes never change competition identity.
 
 Participant room paths scroll within a bounded horizontal rail with navigation
-controls. Standings overview presents room-level progress;
+controls. Cards fit their titles within a bounded width; long titles wrap in full,
+including locked steps. The home screen balances any room count into rows of two
+or three, uses a horizontal card for a single room, and stacks cards on phones.
+Standings overview presents room-level progress;
 room projector views show individual challenge marks when readable and proportional
 tracks with numbered milestones for long chains. Long paths must not create
 one column per challenge or page-wide participant overflow. Projector, organizer,

@@ -439,10 +439,10 @@ svg {
 }
 .room-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 24px;
 }
-.room-card {
+.room-grid > .room-card {
   grid-column: span 2;
   display: flex;
   flex-direction: column;
@@ -458,15 +458,41 @@ svg {
 .room-card:hover {
   border-color: #777782;
 }
-.room-count-5 .room-card:nth-child(4),
-.room-count-5 .room-card:nth-child(5) {
+/* Balance the final row into pairs instead of leaving a lone third-width card. */
+.room-grid:where(:has(> .room-card:nth-child(3n + 1):last-child))
+  > .room-card:where(:nth-last-child(-n + 4)),
+.room-grid:where(:has(> .room-card:nth-child(3n + 2):last-child))
+  > .room-card:where(:nth-last-child(-n + 2)) {
   grid-column: span 3;
 }
+.room-grid > .room-card:where(:only-child) {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
 .room-card .room-art {
+  position: relative;
   height: 244px;
   border-bottom: 1px solid var(--line);
 }
+.room-card .room-art > img,
+.room-card .custom-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.room-card .custom-art {
+  display: flex;
+}
+.room-grid > .room-card:where(:only-child) .room-art {
+  height: auto;
+  min-height: 244px;
+  border-bottom: 0;
+  border-right: 1px solid var(--line);
+}
 .room-card-content {
+  min-width: 0;
   padding: 24px;
   display: flex;
   flex: 1;
@@ -479,11 +505,14 @@ svg {
   margin-bottom: 12px;
 }
 .room-card-heading h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 28px;
   margin: 0;
   flex: 1;
 }
 .room-card-heading > svg {
+  flex-shrink: 0;
   transition: transform 180ms var(--ease);
 }
 .room-card:hover .room-card-heading > svg {
@@ -503,6 +532,7 @@ svg {
 }
 .room-card-progress {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
   font-size: 13px;
@@ -587,10 +617,14 @@ svg {
 }
 .room-intro {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 64px;
   align-items: center;
   margin: 40px 0;
+}
+.room-intro > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .room-name {
   display: flex;
@@ -740,11 +774,14 @@ svg {
   scrollbar-color: #aaaab3 #ececf0;
   list-style: none;
   display: flex;
+  align-items: flex-start;
   gap: 8px;
 }
 .step-path > li {
-  flex: 1 0 224px;
-  min-width: 0;
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: min(160px, 100%);
+  max-width: min(288px, 100%);
   border-top: 3px solid #d4d4dc;
   background: #ececf0;
 }
@@ -755,10 +792,10 @@ svg {
   align-items: flex-start;
   border: 0;
   background: none;
-  padding: 16px;
+  padding: 14px 16px;
   width: 100%;
   height: 100%;
-  min-height: 116px;
+  min-height: 80px;
   opacity: 1;
 }
 .step-path button:disabled {
@@ -828,6 +865,10 @@ svg {
 }
 .challenge-heading h2 {
   margin: 8px 0 0;
+  overflow-wrap: anywhere;
+}
+.challenge-heading > div {
+  min-width: 0;
 }
 .solved-label {
   font-size: 14px;
@@ -976,6 +1017,10 @@ textarea {
 .completion h2 {
   font-size: 24px;
   margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+.completion > div {
+  min-width: 0;
 }
 .completion p {
   font-size: 14px;
@@ -1790,16 +1835,17 @@ fieldset {
   .room-grid {
     gap: 20px;
   }
-  .room-card {
+  .room-grid > .room-card {
     grid-column: span 3;
   }
-  .room-card:last-child {
-    grid-column: span 6;
+  .room-grid > .room-card:where(:last-child:nth-child(odd)) {
+    grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
-  .room-card:last-child .room-art {
-    height: 100%;
+  .room-grid > .room-card:where(:last-child:nth-child(odd)) .room-art {
+    height: auto;
+    min-height: 244px;
     border-bottom: 0;
     border-right: 1px solid var(--line);
   }
@@ -1951,21 +1997,15 @@ fieldset {
     grid-template-columns: 1fr;
     gap: 20px;
   }
-  .room-card,
-  .room-card:nth-child(4),
-  .room-card:nth-child(5) {
+  .room-grid > .room-card {
     grid-column: auto;
-  }
-  .room-card:last-child {
     display: flex;
   }
-  .room-card:last-child .room-art {
+  .room-grid > .room-card .room-art {
     height: 232px;
+    min-height: 0;
     border-right: 0;
     border-bottom: 1px solid var(--line);
-  }
-  .room-card .room-art {
-    height: 232px;
   }
   .room-card-content {
     padding: 20px;
@@ -3371,18 +3411,6 @@ body:has(.participant-attendance-bar) {
   object-fit: contain;
   margin: auto;
 }
-.room-grid:not(.room-count-5) {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-}
-.room-grid:not(.room-count-5) > .room-card {
-  grid-column: auto;
-  display: flex;
-}
-.room-grid:not(.room-count-5) > .room-card:last-child .room-art {
-  height: 244px;
-  border-right: 0;
-  border-bottom: 1px solid var(--line);
-}
 .stage-panel {
   min-width: 0;
   overflow-x: auto;
@@ -3469,9 +3497,6 @@ body:has(.participant-attendance-bar) {
   }
   .accepted-answer .text-button {
     justify-self: start;
-  }
-  .room-grid:not(.room-count-5) > .room-card:last-child .room-art {
-    height: 220px;
   }
   .stage-table {
     min-width: 0 !important;
