@@ -1,7 +1,7 @@
 Backend verification runs the real pinned CTFd Flask app and SQLAlchemy models,
 including native flags, requirements, attempts, hints and attachment downloads.
 The image already contains all dependencies; these tests use `unittest`.
-For a standalone installation and manifest verification, see
+For hosting requirements and the Compose example, see
 [deployment](../docs/deployment.md). Application tests below do not by themselves
 validate Kubernetes/OpenShift networking, storage or admission policies.
 

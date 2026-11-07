@@ -1,285 +1,102 @@
-# Deploying Open Tech Quest
+# Hosting Open Tech Quest
 
-Use an immutable release of this repository to deploy CTFd with the plugin,
-MariaDB, Redis and persistent storage. Kubernetes uses an Ingress; OpenShift uses
-a Route. Neither Argo CD nor an external secret manager is required.
+The published image bundles **CTFd 3.8.9**, the plugin and its frontend:
+`ghcr.io/open-tech-quest/ctfd-plugin`. It currently runs on **Linux amd64**.
 
-Replace **vX.Y.Z** in the examples with your chosen published release (deployment
-manifests start at **v0.1.22**). The default namespace is **ctfd**. Review that
-release's `release.json` for its image digest and source commit. CI derives the
-version from Git tags and stamps one image pin into the tested release commit;
-`main` uses an unpublished `dev` marker. Use the immutable release tag as your
-deployment source and pin its accompanying image digest.
+This repository provides an illustrative Compose setup and application guidance.
+Keep production manifests, secrets integration and cluster configuration in your
+own deployment repository. See [sizing](sizing.md) for measured event resources
+and [operations](operations.md) for organizer workflows and backups.
 
-## Prerequisites and layout
+## Try the published image
 
-You need a cluster with **Linux amd64 worker nodes**, dynamic persistent-volume
-provisioning, namespace creation rights, a suitable ingress/router and HTTPS
-certificates. The published application image currently supports **amd64 only**;
-the public base constrains the CTFd pod with `kubernetes.io/arch: amd64`. This
-release does not add multi-architecture image support. The OpenShift
-overlay also grants its service account access to the existing `nonroot-v2` SCC;
-applying that binding requires the corresponding cluster permission. Render with
-**Kustomize 5.8.3**, the version used for manifest validation. A `kubectl`-bundled
-Kustomize may be a different version.
+[examples/compose.yaml](../examples/compose.yaml) runs CTFd, MariaDB and Redis.
+It binds CTFd to localhost; the database and cache have no published ports.
+Docker needs an amd64 host or amd64 emulation. From a checkout of this repository:
 
-| Path | Includes |
+```sh
+cd examples
+python3 - <<'PY'
+import os, secrets
+os.umask(0o077)
+with open('.env', 'x') as output:
+    for key in ('SECRET_KEY', 'DB_PASSWORD', 'DB_ROOT_PASSWORD'):
+        output.write(key + '=' + secrets.token_hex(32) + '\n')
+PY
+docker compose up -d
+```
+
+The command creates private credentials and refuses to overwrite an existing
+`.env`. Keep that file and the named volumes across restarts. Never commit it.
+Use hex database passwords in this example because they are embedded in a URL.
+
+Open **http://localhost:8000/setup**, create the administrator and select **Teams**
+mode. Then open `/quest` or `/quest/admin`. A fresh event starts in draft with
+five empty rooms; it does not create demo participants, challenges or solves.
+
+The example defaults to `latest` for convenience. Set `OTQ_IMAGE` in `.env` to a
+specific `ghcr.io/open-tech-quest/ctfd-plugin:X.Y.Z@sha256:...` reference when you
+want a reproducible version. Versioned releases publish the image digest in their
+release notes; the footer displays the plugin version loaded by the browser.
+`docker compose pull && docker compose up -d` updates the example. `down` retains
+its data; `down --volumes` deletes it.
+
+The root `compose.yaml` and `scripts/dev.sh` remain a separate source-build setup
+with SQLite for local development.
+
+## Configuration and storage
+
+CTFd owns accounts, authentication, challenges, flags and solves. The plugin
+uses the same database for event configuration, timing, progress and audit data.
+MariaDB/MySQL and Redis are recommended for hosting an event. SQLite and CTFd's
+filesystem cache are suitable for small local trials, not our measured profile.
+
+| Setting | Purpose |
 |---|---|
-| `deploy/base` | Namespace, CTFd, service account, configuration/bootstrap and uploads/logs PVC; expects external database/cache URLs |
-| `deploy/dependencies/mariadb` | MariaDB Deployment, Service and data PVC |
-| `deploy/dependencies/redis` | Redis Deployment, Service and data PVC |
-| `deploy/stack` | Base plus both bundled dependencies |
-| `deploy/overlays/kubernetes` | Stack, Ingress and ingress network policy |
-| `deploy/overlays/openshift` | Stack, Route, SCC binding and router network policy |
-| `deploy/components/event-400` | Measured 400-attendee starting resources and eight CTFd workers |
-| `deploy/examples/event-400` | OpenShift overlay plus the event component |
+| `SECRET_KEY` | Stable random session/signing key; preserve across upgrades |
+| `DATABASE_URL` | SQLAlchemy URL, e.g. `mysql+pymysql://USER:PASSWORD@HOST/ctfd` |
+| `REDIS_URL` | Cache URL; include authentication/TLS for your Redis service |
+| `WORKERS` | Gunicorn worker processes; see the sizing guide |
+| `SQLALCHEMY_MAX_OVERFLOW` | Set to `0` for the measured eight-worker profile |
+| `UPLOAD_FOLDER` | Persistent uploads, `/var/uploads` in the example |
+| `LOG_FOLDER` | Logs, `/var/log/CTFd` in the example |
+| `REVERSE_PROXY` | CTFd proxy handling; match your actual trusted proxy chain |
 
-Default profiles use a small, two-worker CTFd allocation. They are not the
-400-attendee allocation. All profiles keep one CTFd pod with a **Recreate** rollout
-strategy and single-writer storage. PVC requests are 10 GiB for uploads/logs,
-10 GiB for MariaDB and 1 GiB for Redis, all ReadWriteOnce. No storage class is
-hard-coded; choose your cluster's class and capacity before creating the claims.
+Persist and back up the database and uploads. Redis is a cache, not the source
+of truth for solves or room clocks. Retain logs according to your operational
+needs. The image runs as UID **1001**; mounted directories must be writable by
+that user or an appropriate supplemental group.
 
-## Fresh installation
+For public hosting, finish setup before exposing the instance. Configure HTTPS,
+CTFd's secure session cookies and proxy handling, SMTP, backups and monitoring.
+Restrict database/cache access to CTFd. The local example's plain HTTP and private,
+unauthenticated Redis are not an event deployment configuration.
 
-An existing event needs the [migration checklist](#migrating-an-existing-deployment)
-instead. In particular, do not generate replacement secrets for an existing stack.
+## Kubernetes and OpenShift
 
-```sh
-git clone --branch vX.Y.Z --depth 1 https://github.com/open-tech-quest/ctfd-plugin.git
-cd ctfd-plugin
-kubectl create namespace ctfd
-python3 scripts/create-deploy-env.py --output ctfd.env
-kubectl -n ctfd create secret generic ctfd-secrets --from-env-file=ctfd.env
-```
+Maintain the Deployment, Services, persistent volumes, ingress/Route, network
+policies and Secret provider in your own infrastructure repository. Supply the
+settings above through your platform's configuration and secret mechanisms.
+Use a tested **image version and digest**, including any init/migration container;
+there is no upstream manifest tag to pair with the image.
 
-The helper writes random hex credentials with mode `0600` and refuses to overwrite
-an existing file. It generates exactly these Secret keys:
+Keep a single CTFd replica with its worker processes unless you have separately
+validated shared storage, initialization and multi-replica behavior. With
+ReadWriteOnce uploads, a Recreate rollout avoids competing volume attachments.
+Allow startup time for CTFd migrations. On OpenShift, configure an SCC/service
+account that permits the image's non-root UID and writable storage; do not assume
+the namespace's default UID range includes 1001.
 
-| Key | Purpose |
-|---|---|
-| `SECRET_KEY` | Stable CTFd session/signing key |
-| `DATABASE_URL` | CTFd connection to the bundled MariaDB service |
-| `REDIS_URL` | CTFd connection to the authenticated bundled Redis service |
-| `MARIADB_PASSWORD` | CTFd's MariaDB account password |
-| `MARIADB_ROOT_PASSWORD` | MariaDB initialization password |
-| `REDIS_PASSWORD` | Redis service password |
-| `CTFD_ADMIN_PASSWORD` | Initial administrator password |
+## Upgrades and existing deployments
 
-Keep a private backup of this file or move its values into your own secret store;
-never commit it or put its contents in an issue, CI log or rendered artifact.
-Kubernetes Secret encoding is not encryption. Configure cluster access and
-at-rest protection appropriately. An optional secret controller can supply the
-same native Secret; it is not part of this stack.
+Back up SQL and uploads, retain the previous image reference, and test the next
+image against a disposable copy before an event. Preserve session keys, database
+credentials, resource identities and storage. Image rollback does not undo a
+schema migration; check compatibility or restore a matching backup.
 
-Before applying a profile, set the administrator email and public hostname in a
-local overlay. The initial account name defaults to `admin` and email to
-`admin@example.com`. Override `CTFD_ADMIN_NAME` and `CTFD_ADMIN_EMAIL` in the
-`ctfd-config` ConfigMap generator. These are initialization settings, not a way to
-reset an existing administrator's credentials.
-
-### Kubernetes
-
-The default Ingress uses `quest.example.com` and TLS Secret `ctfd-tls`. Configure
-DNS, your ingress controller and a real certificate. No ingress class is forced;
-set `spec.ingressClassName` if your cluster needs one.
-
-```sh
-kubectl -n ctfd create secret tls ctfd-tls --cert=/path/to/tls.crt --key=/path/to/tls.key
-mkdir site
-```
-
-Create `site/kustomization.yaml`, replacing the email, hostname and image digest.
-The image override needs only the digest; Kustomize applies it to both CTFd
-containers, so there is no separate image version to keep in sync.
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: ctfd
-resources:
-  - ../deploy/overlays/kubernetes
-configMapGenerator:
-  - name: ctfd-config
-    behavior: merge
-    literals:
-      - CTFD_ADMIN_EMAIL=organizer@example.com
-patches:
-  - target:
-      kind: Ingress
-      name: ctfd
-    patch: |-
-      - op: replace
-        path: /spec/rules/0/host
-        value: quest.example.com
-      - op: replace
-        path: /spec/tls/0/hosts/0
-        value: quest.example.com
-images:
-  - name: ghcr.io/open-tech-quest/ctfd-plugin
-    digest: sha256:REPLACE_WITH_RELEASE_DIGEST
-```
-
-If required, add an Ingress patch operation with `op: add`, path
-`/spec/ingressClassName` and your controller's class as its value. The Kubernetes
-network policy permits inbound web traffic on port 8000; restrict its sources
-for your ingress controller if your environment requires it.
-
-```sh
-kustomize build site > rendered.yaml
-kubectl apply --dry-run=server -f rendered.yaml
-kubectl apply -f rendered.yaml
-```
-
-### OpenShift
-
-Use `../deploy/overlays/openshift` as the resource in the same local overlay,
-remove the Ingress patch, and keep the email/digest overrides. The Route provides
-HTTPS through the cluster router. Configure its hostname/certificate for your
-installation and verify DNS. The router policy selects the OpenShift ingress
-namespace; adapt it if your cluster uses a different router placement.
-
-```sh
-kustomize build site > rendered.yaml
-oc apply --dry-run=server -f rendered.yaml
-oc apply -f rendered.yaml
-oc -n ctfd get route ctfd
-```
-
-The service account `ctfd-runtime` receives `nonroot-v2` through the namespaced
-`ctfd-nonroot` RoleBinding. The CTFd pod runs as non-root UID 1001; it does not require
-privileged containers or `anyuid`. Keep the platform-specific grant rather than
-disabling admission checks globally.
-
-## Event profile: 400 attendees
-
-For a checked-out release, start with `deploy/examples/event-400`, then apply your
-site's email, Route and image-digest overrides. To consume the release directly
-from another repository, create a local Kustomization like this:
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: ctfd
-resources:
-  - https://github.com/open-tech-quest/ctfd-plugin//deploy/overlays/openshift?ref=vX.Y.Z
-components:
-  - https://github.com/open-tech-quest/ctfd-plugin//deploy/components/event-400?ref=vX.Y.Z
-configMapGenerator:
-  - name: ctfd-config
-    behavior: merge
-    literals:
-      - CTFD_ADMIN_EMAIL=organizer@example.com
-images:
-  - name: ghcr.io/open-tech-quest/ctfd-plugin
-    digest: sha256:REPLACE_WITH_RELEASE_DIGEST
-```
-
-For Kubernetes, substitute the Kubernetes overlay and add the Ingress/TLS
-configuration above. Create the native Secret separately before applying.
-
-| Component | CPU request / limit | Memory request / limit |
-|---|---|---|
-| CTFd, 8 workers | 4 / 6 cores | 1 / 2 GiB |
-| MariaDB | 500m / 1 core | 512 MiB / 1 GiB |
-| Redis | 250m / 500m | 128 / 256 MiB |
-
-The component encodes the **0.1.20 measured starting profile**: 400 authenticated
-HTTP clients, 50 teams of eight, challenges running elsewhere. It is not a new
-capacity measurement for every subsequent release or cluster. See
-[sizing](sizing.md) for the test method, limits and unmeasured estimates. That
-capacity evidence is from OpenShift; a manifest render or a fresh-install smoke
-does not establish event-scale capacity or ingress/TLS readiness elsewhere.
-
-## Verification and operations
-
-```sh
-kubectl -n ctfd rollout status deployment/database
-kubectl -n ctfd rollout status deployment/cache
-kubectl -n ctfd rollout status deployment/ctfd
-kubectl -n ctfd get pods,pvc,svc
-```
-
-Check the public HTTPS URL, native login and `/quest/admin`. A fresh deployment
-starts in draft with five empty rooms and no generated participants, teams or
-solves. The initializer creates the initial administrator; the plugin never
-loads demo event data at startup. Check init-container logs if bootstrap fails:
-`kubectl -n ctfd logs deployment/ctfd -c initialize`.
-
-Check the image architecture against your nodes and the published image metadata;
-do not assume every node architecture is supported. Test the site's ingress,
-certificate, storage permissions, restart persistence and backups before an event.
-Local port forwarding can check the Service but does not qualify HTTPS or venue
-networking. SMTP, database/uploads backups and monitoring remain operator setup;
-see [operations](operations.md) for the event workflow.
-
-For an external database/cache, consume `deploy/base` instead of the stack and
-supply matching `DATABASE_URL`/`REDIS_URL` values in the native Secret. Do not add
-the bundled dependency manifests. Configure network access, TLS, backups and
-resource/pool limits for those services separately.
-
-The base is application-only: it supplies neither an HTTPS endpoint nor the
-OpenShift SCC grant. For an external-services installation on OpenShift, also
-apply the release's SCC binding in the application's namespace:
-
-```sh
-oc -n ctfd apply -f https://raw.githubusercontent.com/open-tech-quest/ctfd-plugin/vX.Y.Z/deploy/overlays/openshift/scc.yaml
-```
-
-Supply your own HTTPS exposure and web ingress policy, or also apply the same
-release's `route.yaml` and `network-policy.yaml` from that directory. On Kubernetes,
-provide an Ingress/TLS configuration and web policy appropriate to your controller.
-If adding these platform files to a local Kustomization, place copies from the
-chosen tag inside that overlay's directory; Kustomize normally rejects individual
-file references outside its root. The complete platform overlays already include
-these resources and need none of these extra steps.
-
-## Upgrading and rolling back
-
-Read the release notes, take a private database/uploads backup, and render/diff
-the next tagged release before applying it. Update the immutable manifest tag and
-matching image digest together, including the `initialize` and `ctfd` containers.
-`release.json` records the tested version, tag, source commit, image and digest;
-repository maintainers must protect released tags from deletion or retargeting.
-
-Keep the previous source tag and exact image reference in your rollback record.
-Migrations run before serving requests. Rolling back code does not reverse a
-database migration: verify compatibility or restore the matching private backup
-with the event closed. Preserve `SECRET_KEY`, database/cache credentials and all
-PVCs. Do not delete the namespace as an upgrade or rollback step.
-
-## Migrating an existing deployment
-
-A deployment-source change does not require a new application, namespace or data
-import. Keep existing native user/team/challenge IDs, event history and application
-ownership intact.
-
-1. Back up the database and uploads privately. Record the current source revision,
-   image digests, runtime Secret provider, resource names, selectors, storage
-   mounts and PVC bindings. Retain a tested rollback reference.
-2. Render the chosen immutable release with a local compatibility overlay. The
-   defaults are namespace `ctfd`; Deployments/Services `ctfd`, `database`, `cache`;
-   PVCs `ctfd-data`, `database-data`, `cache-data`; service account `ctfd-runtime`;
-   Secret `ctfd-secrets`; and containers `initialize`, `ctfd`, `mariadb`, `redis`.
-   Match existing names rather than provisioning a second empty stack.
-3. Preserve the namespace's existing labels/annotations and application ownership
-   metadata in the operator's overlay. If using Argo CD, change the source of the
-   **same Application** to your tagged wrapper; never have two Applications manage
-   the same objects. Review prune behavior before switching source. Keep Namespace
-   and PVCs out of any prune/delete transition, then verify the rendered diff.
-4. Keep the current native Secret and its existing provider. Do not regenerate
-   session keys/passwords or bootstrap over an existing database. Review changes
-   to admin initialization settings; they must not reset existing accounts.
-5. Apply the reviewed source change, verify the init migration and rollout, check
-   the same PVCs are still Bound, and compare authenticated read-only event,
-   registration, attendance, accounts, teams, starts and solves before/after.
-   Verify native login and the served version/assets without creating production
-   test participants, starts or submissions.
-
-To change namespace for a **new** installation, set `namespace` in the outer
-Kustomization; it updates the Namespace and namespaced resources together. The
-OpenShift binding uses the binding's namespace for its service account subject.
-Create the native Secret and any TLS Secret in the same namespace and inspect the
-rendered resources. Changing an existing event's namespace requires a separate
-storage/data migration; a namespace transformer cannot move PVC data. See also
-[repository migration](org-migration.md).
+Releases **v0.1.22–v0.1.23** included a reusable `deploy/` package. For deployments
+consuming it, copy those manifests and any bootstrap configuration from your
+existing pinned tag into your infrastructure repository. Compare rendered
+resources before changing the source, preserving namespaces, PVCs, selectors,
+secrets and application ownership. Do not point the old remote paths at newer
+releases. See [source migration](org-migration.md) for the migration checklist.

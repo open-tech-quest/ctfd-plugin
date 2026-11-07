@@ -2,14 +2,14 @@
 
 The canonical source is [open-tech-quest/ctfd-plugin](https://github.com/open-tech-quest/ctfd-plugin),
 with images at `ghcr.io/open-tech-quest/ctfd-plugin`. Changing repository ownership
-or moving deployment manifests into this repository does not require a new CTFd
+or moving deployment manifests between infrastructure repositories does not require a new CTFd
 instance. Accounts, event/room IDs, native submissions, clocks and storage must
 remain intact.
 
-For the current manifest layout and an existing-installation migration checklist,
-see [deployment](deployment.md#migrating-an-existing-deployment). Consumers pin an
-immutable `vX.Y.Z` source tag and its matching image digest. Do not change a
-production application's manifest source to `main`.
+Production manifests belong in the operator's infrastructure repository. See
+[hosting](deployment.md) for runtime requirements and migration from the former
+upstream manifest package. Pin the tested image version and digest; Git tags now
+identify application source, not a Kubernetes deployment API.
 
 ## Moving repository ownership
 
@@ -32,7 +32,7 @@ Argo CD, update the source of the **same Application** after reviewing rendered
 manifests; do not introduce a second Application that manages the same objects.
 Keep the application's namespace and PVCs outside any prune/delete transition.
 Retain an existing secret-manager integration if it already supplies the native
-Secret: the public stack does not require replacing it.
+Secret; moving manifest ownership does not require replacing it.
 
 Back up the database and uploads, compare manifests against live objects, and
 verify migrations, storage attachment, authentication and event data before
@@ -67,4 +67,4 @@ The historical installation retained matching init/runtime pins, database/cache
 pods, all three bound PVCs and runtime secrets. Read-only checks verified matching
 frontend bytes and unchanged event, content, accounts, attendance and teams. A
 private SQL/uploads backup preceded cutover. This records that transfer's
-verification; it does not qualify new portable platform overlays.
+verification; it does not qualify other platform configurations.

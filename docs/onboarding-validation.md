@@ -61,7 +61,7 @@ on the venue's actual devices and network.
 
 Initialization and runtime were pinned to the tested version/digest after
 manifest validation. A private SQL/uploads backup was verified before migration.
-These historical checks do not validate the later standalone deployment package.
+These historical checks do not validate other platform configurations.
 
 The historical rollout was verified through health, exact deployment images,
 authenticated read-only organizer state and byte-for-byte compiled assets.

@@ -113,15 +113,13 @@ be checked, especially if they also control teams, challenge access or timing.
 
 Tested, versioned images are published to
 [`ghcr.io/open-tech-quest/ctfd-plugin`](https://github.com/open-tech-quest/ctfd-plugin/pkgs/container/ctfd-plugin).
-The repository includes a standalone Kustomize stack with MariaDB, Redis,
-persistent storage, Kubernetes Ingress and OpenShift Route overlays. It consumes
-a native Secret; Argo CD and external secret managers are optional.
+Use the [Compose example](examples/compose.yaml) to try the published image with
+MariaDB and Redis. It uses `latest` for convenience; real event deployments should
+pin a tested image version and digest.
 
-Follow the [deployment guide](docs/deployment.md) for installation, HTTPS,
-the 400-attendee component, upgrades and existing-deployment migration. Consume
-an immutable `vX.Y.Z` release tag and its published image digest. Each release
-automatically stamps the image version into its tagged manifests; `main` uses
-an unpublished `dev` marker. See [deploy](deploy/README.md) for the folder layout.
+The [hosting guide](docs/deployment.md) explains configuration, storage, platform
+requirements and upgrades. Maintain production Kubernetes/OpenShift manifests
+and secret-manager integration in your own infrastructure repository.
 
 ### Sizing
 

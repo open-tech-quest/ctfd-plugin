@@ -94,7 +94,7 @@ stale previews and wait-boundary races on SQLite/MariaDB. Verify a teammate's
 solves/clock/rank remain intact when deleting is refused. Banning removes only the banned user’s counted contributions;
 teammate contributions and all raw history remain, with legitimate re-solves.
 Production verification is read-only; never delete, demote or ban actual users
-for QA. Back up privately before deploying the validated image using the release deployment manifests.
+for QA. Back up privately before deploying the validated image using the operator's deployment manifests.
 
 ## Isolated browser acceptance
 

@@ -1,0 +1,48 @@
+# Local hosting example. Production infrastructure belongs in your deployment repo.
+services:
+  ctfd:
+    image: ${OTQ_IMAGE:-ghcr.io/open-tech-quest/ctfd-plugin:latest}
+    platform: linux/amd64
+    ports:
+      - "127.0.0.1:${OTQ_PORT:-8000}:8000"
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Set a stable random SECRET_KEY}
+      DATABASE_URL: mysql+pymysql://ctfd:${DB_PASSWORD:?Set a hex DB_PASSWORD}@database/ctfd
+      REDIS_URL: redis://cache:6379
+      WORKERS: "2"
+      REVERSE_PROXY: "false"
+      UPLOAD_FOLDER: /var/uploads
+      LOG_FOLDER: /var/log/CTFd
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+    volumes:
+      - uploads:/var/uploads
+      - logs:/var/log/CTFd
+  database:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: ctfd
+      MARIADB_USER: ctfd
+      MARIADB_PASSWORD: ${DB_PASSWORD:?Set a hex DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Set a random DB_ROOT_PASSWORD}
+    healthcheck:
+      test: [CMD, healthcheck.sh, --connect, --innodb_initialized]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - database:/var/lib/mysql
+  cache:
+    image: redis:8.10-alpine
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  database:
+  uploads:
+  logs:

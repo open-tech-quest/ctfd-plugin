@@ -74,25 +74,37 @@ jobs:
           docker rm --force quest-smoke || true
           docker volume rm quest-smoke-data || true
 
-
-  deployment:
-    name: Deployment manifests and Kubernetes install/restart
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Install deployment validation tools
+      - name: Start the Compose hosting example
+        env:
+          OTQ_IMAGE: quest-smoke
+          OTQ_PORT: '8001'
+          SECRET_KEY: disposable-compose-ci-only
+          DB_PASSWORD: disposablecomposeci
+          DB_ROOT_PASSWORD: disposablecomposerootci
         run: |
-          python3 -m pip install --disable-pip-version-check -r scripts/requirements-deploy.txt
-          python3 scripts/install-deploy-tools.py --output "$RUNNER_TEMP/quest-deploy-tools"
-          printf '%s\n' "$RUNNER_TEMP/quest-deploy-tools" >> "$GITHUB_PATH"
-      - name: Validate deployment manifests and release preparation
-        run: |
-          python3 scripts/validate-deploy.py
-          python3 -m unittest discover -s scripts -p test_prepare_release.py -v
-          python3 -m unittest discover -s scripts -p test_deploy.py -v
-      - name: Install and restart the Kubernetes deployment
-        run: python3 scripts/deploy-smoke.py --state "$RUNNER_TEMP/quest-deploy-smoke-state.json"
-      - name: Remove isolated deployment smoke cluster
+          docker compose -p quest-example -f examples/compose.yaml config --quiet
+          docker compose -p quest-example -f examples/compose.yaml up -d --wait --wait-timeout 180
+          python3 - <<'PY'
+          import time
+          from urllib.error import URLError
+          from urllib.request import urlopen
+          for _ in range(90):
+              try:
+                  with urlopen('http://127.0.0.1:8001/setup', timeout=3) as response:
+                      assert response.status == 200 and response.url.endswith('/setup')
+                      assert b'<form' in response.read().lower()
+                  break
+              except (URLError, TimeoutError):
+                  time.sleep(1)
+          else:
+              raise SystemExit('Compose example did not reach the native setup page')
+          print('Compose example reached native CTFd setup with MariaDB and Redis')
+          PY
+      - name: Remove disposable Compose stack
         if: always()
-        run: python3 scripts/deploy-smoke.py --cleanup "$RUNNER_TEMP/quest-deploy-smoke-state.json"
+        env:
+          OTQ_IMAGE: quest-smoke
+          SECRET_KEY: disposable-compose-ci-only
+          DB_PASSWORD: disposablecomposeci
+          DB_ROOT_PASSWORD: disposablecomposerootci
+        run: docker compose -p quest-example -f examples/compose.yaml down --volumes --remove-orphans

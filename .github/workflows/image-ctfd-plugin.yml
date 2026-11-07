@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - Dockerfile
-      - deploy/**
+      - examples/**
       - .dockerignore
       - plugin/**
       - web/**

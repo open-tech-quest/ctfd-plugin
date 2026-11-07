@@ -9,9 +9,8 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 ## Rules
 
 - Never commit credentials, participant exports, browser state, internal
-  catalogue archives, real flags, or database dumps. Deployments consume an
-  existing native Kubernetes Secret; secret-manager integration is optional
-  and belongs to the operator. See `docs/deployment.md`.
+  catalogue archives, real flags, or database dumps. Runtime credentials belong to the operator; never commit them in hosting
+  examples. See `docs/deployment.md`.
 - Keep CTFd responsible for users, teams, challenges, flags, hints, and solves.
   Add features through the plugin; do not fork CTFd's core.
 - All timing, authorization, and prize calculation is server-side. A room
@@ -27,11 +26,10 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 - Theme changes must preserve room IDs, memberships, starts, and solves.
 - Every finished unit is committed and pushed. Every release runs backend
   integration tests, frontend checks/build, and container smoke tests.
-- CI publishes versioned images to `ghcr.io/open-tech-quest/ctfd-plugin` and
-  immutable deployment tags. Main uses `dev`; CI selects the next version from
-  Git tags and stamps only the base Kustomization's image pin before testing/tagging.
-  Do not manually bump deployment versions. Consumers use a `vX.Y.Z`
-  tag and the matching image digest, never `main`. No secrets in build layers.
+- CI publishes tested versioned images and a `latest` alias for the Compose
+  example to `ghcr.io/open-tech-quest/ctfd-plugin`. Git tags identify the tested
+  source commit; no generated deployment commits. Event deployments pin tested
+  image versions/digests. No secrets in build layers.
 - Independent frontend/backend work and independent review are appropriate
   for this project; assign disjoint file ownership and follow review-bar.
 
@@ -41,17 +39,15 @@ They define the shared API, prize rules, event lifecycle, and design direction.
 - `web/`: React/TypeScript frontend; Vite output is copied to plugin assets.
 - `tests/`: integration tests, run inside the pinned CTFd image.
 - `docs/`: public specification and operations documentation.
-- `deploy/`: portable Kustomize base, optional database/cache, platform
-  overlays and event sizing component; no external GitOps repository required.
+- `examples/compose.yaml`: illustrative CTFd/MariaDB/Redis hosting setup.
+- Root `compose.yaml`: disposable SQLite development setup.
 - `Dockerfile`: pinned upstream CTFd plus built app/plugin; UID 1001.
 
 ## Deployment and verification
 
-Use `docs/deployment.md` for Kubernetes/OpenShift installation, secrets,
-configuration and migration. Keep published instructions independent of a
-maintainer's cluster, local filesystem, secret manager or GitOps repository.
-Deployment automation may consume releases, but is not a runtime dependency.
-Never prune/recreate an existing namespace or PVCs to change manifest source.
-Verify new platform claims against the actual rendered manifests and record
-what was tested; historical application validation does not validate a new
-deployment package automatically.
+Use `docs/deployment.md` for runtime configuration, hosting and upgrades. Keep
+public guidance independent of a maintainer's filesystem, secret manager, cluster
+or GitOps repository. Production Kubernetes/OpenShift manifests belong to the
+operator; do not introduce a versioned deployment package or release stamping.
+Verify the Compose example and runtime in CI. Preserve measured sizing evidence;
+application tests do not qualify another cluster's networking, storage or capacity.

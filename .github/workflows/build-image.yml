@@ -1,4 +1,4 @@
-# Build and publish the same release commit used by tagged deployment manifests.
+# Build, test and publish versioned images from the source commit.
 name: build-image
 
 on:
@@ -17,7 +17,7 @@ on:
         type: string
         default: ""
       tag_prefix:
-        description: Prefix for immutable semantic-version Git tags
+        description: Git tag prefix; `v` for one image per repo, `<image>-v` for several
         type: string
         default: v
       bump:
@@ -25,11 +25,11 @@ on:
         type: string
         default: patch
       push:
-        description: false prepares and tests locally without publication
+        description: false builds only (pull requests)
         type: boolean
         default: false
       release:
-        description: Create a GitHub release with the published image metadata
+        description: Create a GitHub release for the new tag
         type: boolean
         default: true
       test_target:
@@ -54,27 +54,22 @@ jobs:
           PREFIX: ${{ inputs.tag_prefix }}
           BUMP: ${{ inputs.bump }}
         run: |
-          python3 scripts/prepare-release.py --github-output "$GITHUB_OUTPUT" next-version --prefix "$PREFIX" --bump "$BUMP"
+          last=$(git tag --list "${PREFIX}*" | sed "s/^${PREFIX}//" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$last" ]; then
+            echo "::error::No ${PREFIX}X.Y.Z tag yet. Tag the commit that built the running image first."
+            exit 1
+          fi
+          IFS=. read -r major minor patch <<<"$last"
+          case "$BUMP" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+            *) echo "::error::bump must be patch, minor or major"; exit 1 ;;
+          esac
+          echo "previous=$last" >> "$GITHUB_OUTPUT"
+          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
           namespace=$(printf '%s' "$GITHUB_REPOSITORY_OWNER" | tr '[:upper:]' '[:lower:]')
-          printf 'namespace=%s\n' "$namespace" >> "$GITHUB_OUTPUT"
-
-      - name: Prepare release commit
-        id: prepared
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
-          PREFIX: ${{ inputs.tag_prefix }}
-        run: python3 scripts/prepare-release.py --github-output "$GITHUB_OUTPUT" prepare --version "$VERSION" --prefix "$PREFIX"
-
-      - name: Install deployment validation tools
-        run: |
-          python3 -m pip install --disable-pip-version-check -r scripts/requirements-deploy.txt
-          python3 scripts/install-deploy-tools.py --output "$RUNNER_TEMP/quest-deploy-tools"
-          printf '%s\n' "$RUNNER_TEMP/quest-deploy-tools" >> "$GITHUB_PATH"
-
-      - name: Validate prepared deployment manifests
-        env:
-          VERSION: ${{ steps.v.outputs.version }}
-        run: python3 scripts/validate-deploy.py --release-version "$VERSION"
+          echo "namespace=$namespace" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -82,7 +77,6 @@ jobs:
         if: inputs.test_target != ''
         uses: docker/build-push-action@v7
         with:
-          # Explicit path context includes the prepared local commit's files.
           context: ${{ inputs.context }}
           file: ${{ inputs.file || format('{0}/Dockerfile', inputs.context) }}
           target: ${{ inputs.test_target }}
@@ -106,7 +100,9 @@ jobs:
           context: ${{ inputs.context }}
           file: ${{ inputs.file || format('{0}/Dockerfile', inputs.context) }}
           push: ${{ inputs.push }}
-          tags: ghcr.io/${{ steps.v.outputs.namespace }}/${{ inputs.image }}:${{ steps.v.outputs.version }}
+          tags: |
+            ghcr.io/${{ steps.v.outputs.namespace }}/${{ inputs.image }}:${{ steps.v.outputs.version }}
+            ghcr.io/${{ steps.v.outputs.namespace }}/${{ inputs.image }}:latest
           build-args: |
             BUILD_DATE=${{ github.run_id }}
             PLUGIN_VERSION=${{ steps.v.outputs.version }}
@@ -114,7 +110,7 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.title=${{ inputs.image }}
             org.opencontainers.image.version=${{ steps.v.outputs.version }}
-            org.opencontainers.image.revision=${{ steps.prepared.outputs.source_commit }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=${{ inputs.image }}
           cache-to: type=gha,mode=max,scope=${{ inputs.image }}
 
@@ -122,30 +118,25 @@ jobs:
         if: inputs.push
         env:
           GH_TOKEN: ${{ github.token }}
-          IMAGE_REF: ghcr.io/${{ steps.v.outputs.namespace }}/${{ inputs.image }}:${{ steps.v.outputs.version }}
-          IMAGE_NAME: ${{ inputs.image }}
+          NAMESPACE: ${{ steps.v.outputs.namespace }}
+          IMAGE: ${{ inputs.image }}
           VERSION: ${{ steps.v.outputs.version }}
-          PREFIX: ${{ inputs.tag_prefix }}
-          TAG: ${{ steps.prepared.outputs.tag }}
-          SOURCE_COMMIT: ${{ steps.prepared.outputs.source_commit }}
-          SOURCE_PARENT: ${{ steps.prepared.outputs.source_parent }}
+          TAG: ${{ inputs.tag_prefix }}${{ steps.v.outputs.version }}
           PREVIOUS: ${{ inputs.tag_prefix }}${{ steps.v.outputs.previous }}
-          DIGEST: ${{ steps.image.outputs.digest }}
           RELEASE: ${{ inputs.release }}
           CONTEXT: ${{ inputs.context }}
+          DIGEST: ${{ steps.image.outputs.digest }}
         run: |
-          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
-          python3 scripts/prepare-release.py manifest --version "$VERSION" --prefix "$PREFIX" --image "$IMAGE_REF" --digest "$DIGEST" --output "$RUNNER_TEMP/quest-release/release.json"
-          git tag -- "$TAG" "$SOURCE_COMMIT"
+          git tag -- "$TAG" "$GITHUB_SHA"
           git push origin "refs/tags/$TAG:refs/tags/$TAG"
           if [ "$RELEASE" = true ]; then
+            # Commits that touched this image's build context, newest first.
             {
-              git log --no-merges --format='- %s (%h)' "$PREVIOUS..$SOURCE_PARENT" -- "$CONTEXT"
+              git log --no-merges --format='- %s (%h)' "$PREVIOUS..$GITHUB_SHA" -- "$CONTEXT"
               echo
-              printf '**Full changelog**: https://github.com/%s/compare/%s...%s\n' "$GITHUB_REPOSITORY" "$PREVIOUS" "$TAG"
-              echo
-              printf 'Image: `%s@%s`\n' "$IMAGE_REF" "$DIGEST"
-            } > "$RUNNER_TEMP/quest-release/notes.md"
-            gh release create "$TAG" "$RUNNER_TEMP/quest-release/release.json" --verify-tag --title "$IMAGE_NAME $VERSION" --notes-file "$RUNNER_TEMP/quest-release/notes.md" --latest=true
+              printf 'Image: `%s@%s`\n\n' "ghcr.io/$NAMESPACE/$IMAGE:$VERSION" "$DIGEST"
+              echo "**Full changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$PREVIOUS...$TAG"
+            } > "$RUNNER_TEMP/notes.md"
+            gh release create "$TAG" --title "$IMAGE $VERSION" --verify-tag --notes-file "$RUNNER_TEMP/notes.md" --latest=true
           fi
-          printf 'Published `%s@%s` from `%s`\n' "$IMAGE_REF" "$DIGEST" "$SOURCE_COMMIT" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published ghcr.io/$NAMESPACE/$IMAGE:$VERSION@$DIGEST" >> "$GITHUB_STEP_SUMMARY"
