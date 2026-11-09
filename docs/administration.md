@@ -58,11 +58,14 @@ only. Theme edits cannot change IDs, starts or submissions.
 The room editor creates standard challenges with static, any-flag grading and a
 default value of 100, editable as a nonnegative whole number. It supports
 Hidden/Visible/Locked, Markdown descriptions and
-case-sensitive or explicitly case-insensitive flags. Unsupported native challenge
-or flag types remain read-only there; administrators use native CTFd for advanced
-settings, attachments and hints. The editor never silently normalizes them.
-Editing existing challenges preserves native files and hints; unchanged point
-values are preserved. Advanced native scoring remains managed in CTFd.
+case-sensitive or explicitly case-insensitive flags. Accepted answers are readable
+in the authorized editor. Each challenge can have multiple native CTFd hints,
+with an optional title, Markdown text and nonnegative point cost; zero means free.
+Saving preserves existing hint IDs and prerequisites. Referenced or purchased
+hints cannot be removed. Unsupported native challenge, flag or hint types remain
+read-only; administrators use native CTFd for advanced settings, hint prerequisites
+and attachments. The editor never silently normalizes them. Editing preserves
+native files and unchanged values; omitted hints are preserved by the API.
 
 New authoring requires draft status, no relevant activity and no loaded demo.
 Every challenge ID must belong to the requested room. Reordering updates Quest
@@ -87,8 +90,8 @@ only an unused provisional member before apply; historical membership remains.
 Changing a published contributor's eligibility requires explicit unpublication.
 
 Each team/challenge counts its earliest eligible original or recovery solve once.
-Room credit is the consecutive prefix; losing an early solve relocks later steps
-but retains their timestamps and distinct overall credit. Milestone times are
+Losing an early solve relocks later steps but retains other eligible solves'
+timestamps and distinct room/overall credit. Milestone times are
 recomputed from currently counted solves, not retained from a disqualified faster
 contribution. Recovery uses its new server time. Unbanning can restore the earlier
 original time, with no duplicate credit and no clock reset.

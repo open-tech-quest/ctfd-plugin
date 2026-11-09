@@ -131,7 +131,7 @@ def _history_inputs(mapped, counted_ids, team_id, challenge_id):
         purchases = purchases.filter_by(team_id=team_id)
     if challenge_id is not None:
         purchases = purchases.filter_by(challenge_id=challenge_id)
-    return {"purchases": [[p.team_id, p.challenge_id, p.cost, _stamp(p.purchased_at)] for p in purchases.all()],
+    return {"purchases": [[p.team_id, p.challenge_id, p.hint_id, p.cost, _stamp(p.purchased_at)] for p in purchases.all()],
             "starts": [[s.team_id, s.room_id, _stamp(s.started_at)] for s in starts.all()],
             "pauses": [[_stamp(p.started_at), _stamp(p.ended_at)] for p in QuestPause.query.order_by(QuestPause.started_at).all()],
             "corrections": [[c.team_id, c.room_id, c.adjustment_ms] for c in corrections.all()],
@@ -172,7 +172,7 @@ class Projection:
         for tid, rid, adjustment in history["corrections"]:
             key = tid, rid
             self.corrections[key] = self.corrections.get(key, 0) + adjustment
-        self.solves, self.hint_costs = {}, {}
+        self.solves, self.hint_costs, self.used_hints = {}, {}, {}
         if not self.event.start_at:
             return
         e = self.event
@@ -189,7 +189,7 @@ class Projection:
                 continue
             solves = self.solves.setdefault(team_id, {})
             solves[challenge_id] = min(at, solves.get(challenge_id, at))
-        for tid, cid, cost, stamp in history["purchases"]:
+        for tid, cid, hint_id, cost, stamp in history["purchases"]:
             at = parse_time(stamp)
             start = self.starts.get((tid, self.mapped[cid]))
             if not start or not at or at < max(start, e.start_at) or at > self.at or (e.end_at and at > e.end_at):
@@ -198,6 +198,7 @@ class Projection:
                 continue
             costs = self.hint_costs.setdefault(tid, {})
             costs[cid] = costs.get(cid, 0) + cost
+            self.used_hints.setdefault(tid, {}).setdefault(cid, {})[hint_id] = cost
 
     def score(self, team_id, ids=None):
         ids = set(self.mapped if ids is None else ids)
@@ -223,7 +224,10 @@ class Projection:
         score_time = active_ms(origin, max(counted) if counted else None, self.pauses)
         if score_time is not None:
             score_time = max(0, score_time + self.corrections.get((team_id, room.id), 0))
+        used_costs = {hid: cost for cid in ids
+                      for hid, cost in self.used_hints.get(team_id, {}).get(cid, {}).items()}
         return {**self.score(team_id, ids), "available_points": sum(self.challenges[cid].value for cid in ids),
+                "used_hint_ids": sorted(used_costs), "used_hint_costs": dict(sorted(used_costs.items())),
                 "solved_steps": [index + 1 for index, cid in enumerate(ids) if cid in solves],
                 "credited_solved": len(counted), "score_elapsed_ms": score_time,
                 "solved": len(milestones), "total": len(ids), "started_at": iso(start),

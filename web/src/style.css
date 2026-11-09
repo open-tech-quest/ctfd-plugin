@@ -1031,7 +1031,61 @@ textarea {
   padding-top: 24px;
 }
 .hint {
-  margin: 12px 0;
+  margin: 16px 0;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+.hint-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.hint-heading h4 {
+  margin: 0;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.hint-cost {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.hint .hint-status {
+  margin: 0 0 12px;
+  color: #286340;
+  font-size: 13px;
+}
+.hint-purchase-summary {
+  margin: 24px 0;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+.hint-purchase-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.hint-purchase-summary dt {
+  color: var(--muted);
+}
+.hint-purchase-summary dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+.hint-purchase-summary > div:last-child {
+  color: var(--indigo);
+  border-bottom: 1px solid var(--line);
+}
+.dialog .hint-dialog-title {
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
 .hint .prose {
   padding: 16px;
@@ -1805,6 +1859,7 @@ fieldset {
 }
 .dialog p {
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .dialog .actions {
   justify-content: flex-end;
@@ -3418,10 +3473,6 @@ body:has(.participant-attendance-bar) {
 .challenge-edit-form .text-button {
   font-size: 13px;
 }
-.challenge-edit-form .answer-visibility {
-  margin-bottom: 20px;
-  font-size: 13px;
-}
 .challenge-edit-form fieldset > .section-heading {
   margin: 24px 0 16px;
 }
@@ -3444,6 +3495,34 @@ body:has(.participant-attendance-bar) {
   font-size: 12px;
   margin: 20px 0 24px;
   line-height: 1.6;
+}
+.hint-policy {
+  font-size: 14px;
+  line-height: 1.6;
+}
+.hint-editor {
+  border-top: 1px solid var(--line);
+  padding: 24px 0;
+}
+.hint-editor > .section-heading {
+  align-items: baseline;
+  gap: 16px;
+  margin: 0 0 16px;
+}
+.hint-editor h4 {
+  margin: 0;
+  font-size: 17px;
+}
+.hint-editor-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 20px;
+}
+.hint-editor textarea {
+  min-height: 112px;
+}
+.hint-editor .introduction-preview {
+  margin-top: 0;
 }
 .answer-preview {
   border-top: 1px solid var(--line);
@@ -3553,6 +3632,10 @@ body:has(.participant-attendance-bar) {
   }
   .accepted-answer {
     grid-template-columns: 1fr;
+  }
+  .hint-editor-fields {
+    grid-template-columns: 1fr;
+    gap: 0;
   }
   .accepted-answer .text-button {
     justify-self: start;

@@ -60,6 +60,12 @@ with the team if the purchasing member is later banned; revoked solve credit
 can leave a negative score. Hidden challenges withdraw both credit and associated
 hint costs, without deleting history. Locked challenges retain both.
 
+Staff edit multiple native hints per supported challenge, including text and cost,
+before activity starts. Existing IDs and native prerequisites survive saves.
+Participants confirm each new reveal with its cost and current overall balance;
+paid purchases cannot make that balance negative. A free hint is available at
+zero points. Staff previews are separate from participant purchases.
+
 The room editor supports fixed point values, including zero. Scoring and hint
 prices are frozen after competition activity; supported native dynamic scoring
 retains CTFd's automatic value changes. New publication snapshots include point

@@ -74,9 +74,12 @@ PY
    capacity five. All 50 new users should be participants, unassigned and not
    checked in. There should be no teams, starts or submissions.
 
-No external challenge cluster is needed. You can replace titles/descriptions,
-include a long title or change point values in the room editor while retaining
-`test` as the accepted flag. Native CTFd owns attachments and hint configuration.
+No external challenge cluster is needed. Before starting, edit titles, point
+values, accepted answers and multiple hint texts/costs in the room editor.
+Keep `test` as the accepted flag for easy play. The sample first hint in each
+room is free; later hints cost 25 points. Set a positive cost before play to test
+rejection at zero balance. Native CTFd manages attachments and advanced hint
+prerequisites.
 
 ## Exercise the full flow
 

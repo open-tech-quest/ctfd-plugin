@@ -5,10 +5,11 @@ from unittest.mock import patch
 
 import test_integration as integration
 from CTFd.cache import clear_user_session
-from CTFd.models import (ChallengeFiles, Challenges, Fails, Flags, HintUnlocks,
+from CTFd.models import (Awards, ChallengeFiles, Challenges, Fails, Flags, HintUnlocks,
                          Hints, Ratings, Solves, Submissions, Users, db)
 from CTFd.plugins.open_tech_quest.models import (QuestAudit, QuestCorrection,
-    QuestEvent, QuestMaintainer, QuestRoom, QuestStart, QuestStep)
+    QuestEvent, QuestHintPurchase, QuestMaintainer, QuestRoom, QuestStart, QuestStep)
+from CTFd.plugins.open_tech_quest.service import standings
 from CTFd.plugins.open_tech_quest import authoring
 
 PREFIX = integration.PREFIX
@@ -124,6 +125,160 @@ class AuthoringIntegration(unittest.TestCase):
         for value in (True, "100", -1, 1.5, 2147483648, None):
             response = self.post(self.maintainer, self.path(created["id"]), {"value": value}, "PATCH")
             self.assertEqual(response.status_code, 400, repr(value))
+
+    def test_native_hints_create_update_remove_keep_ids_and_prerequisites(self):
+        created = self.create(hints=[
+            {"title": "First clue", "content": "Private first hint", "cost": 0},
+            {"title": "Second clue", "content": "Private second hint", "cost": 40}])
+        first, second = created["hints"]
+        self.assertNotEqual(first["id"], second["id"])
+        self.assertEqual(first["prerequisites"], [])
+        requirements = {"prerequisites": [first["id"]], "native_metadata": "preserve"}
+        with self.app.app_context():
+            Hints.query.get(second["id"]).requirements = requirements
+            db.session.commit()
+        payload = [{"id": h["id"], "title": h["title"], "content": h["content"], "cost": h["cost"]}
+                   for h in created["hints"]]
+        payload[1].update(content="Updated private hint", cost=75)
+        payload.append({"title": "", "content": "A final clue", "cost": 10})
+        response = self.post(self.admin, self.path(created["id"]), {"hints": payload}, "PATCH")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        hints = response.json["data"]["hints"]
+        self.assertEqual([h["id"] for h in hints[:2]], [first["id"], second["id"]])
+        self.assertEqual((hints[1]["cost"], hints[1]["prerequisites"]), (75, [first["id"]]))
+        with self.app.app_context():
+            self.assertEqual(Hints.query.get(second["id"]).requirements, requirements)
+            self.assertEqual(Hints.query.get(second["id"]).content, "Updated private hint")
+        removed_id = hints[2]["id"]
+        response = self.post(self.maintainer, self.path(created["id"]), {"hints": payload[:2]}, "PATCH")
+        self.assertEqual(response.status_code, 200)
+        with self.app.app_context():
+            self.assertIsNone(Hints.query.get(removed_id))
+            self.assertEqual(Hints.query.filter_by(challenge_id=created["id"]).count(), 2)
+
+    def test_hint_contents_are_private_and_missing_hints_preserve_native_rows(self):
+        created = self.create(hints=[{"title": "Private title", "content": "private-hint-evidence", "cost": 0}])
+        hid = created["hints"][0]["id"]
+        for client in (self.admin, self.maintainer):
+            response = client.get(self.path())
+            self.assertIn("private-hint-evidence", response.get_data(as_text=True))
+            self.assertIn("no-store", response.headers["Cache-Control"])
+        for client in (self.alice, self.guest):
+            self.assertNotEqual(client.get(self.path()).status_code, 200)
+            self.assertNotEqual(self.post(client, self.path(created["id"]), {"hints": []}, "PATCH").status_code, 200)
+        for response in (self.guest.get(PREFIX + "/bootstrap"), self.alice.get(PREFIX + "/bootstrap"),
+                         self.maintainer.get(PREFIX + "/manage/rooms"), self.admin.get(PREFIX + "/admin/state")):
+            self.assertNotIn("private-hint-evidence", response.get_data(as_text=True))
+        response = self.post(self.maintainer, self.path(created["id"]), {"name": "Renamed only"}, "PATCH")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["hints"], created["hints"])
+        self.assertEqual(self.create()["hints"], [])
+        with self.app.app_context():
+            self.assertEqual(Hints.query.get(hid).content, "private-hint-evidence")
+            self.assertNotIn("private-hint-evidence", json.dumps([a.detail for a in QuestAudit.query.all()]))
+
+    def test_hint_validation_foreign_ids_and_late_failures_are_atomic(self):
+        hint = {"title": "Clue", "content": "private-invalid-hint", "cost": 10}
+        invalid = [None, {}, ["private-invalid-hint"], [hint] * 21,
+                   [{**hint, "title": "x" * 81}], [{**hint, "title": None}],
+                   [{**hint, "content": ""}], [{**hint, "content": " "}],
+                   [{**hint, "content": "x" * 10001}], [{**hint, "content": "\x00private-invalid-hint"}],
+                   [{**hint, "requirements": {"prerequisites": []}}],
+                   [{**hint, "id": 1}, {**hint, "id": 1}]]
+        invalid += [[{**hint, "cost": cost}] for cost in (True, -1, 0.5, "10", None, 2147483648)]
+        invalid += [[{**hint, "id": hid}] for hid in (True, -1, 0, 1.0, "1", None, 2147483648)]
+        for hints in invalid:
+            response = self.post(self.maintainer, self.path(2), {"name": "Must not change", "hints": hints}, "PATCH")
+            self.assertEqual(response.status_code, 400, response.get_data(as_text=True))
+            self.assertNotIn("private-invalid-hint", response.get_data(as_text=True))
+        # Existing ID 1 belongs to challenge 2, not challenge 1 or a new one.
+        for path, payload, method in (
+            (self.path(1), {"name": "Must not change", "hints": [{**hint, "id": 1}]}, "PATCH"),
+            (self.path(), self.payload(hints=[{**hint, "id": 1}]), "POST")):
+            self.assertEqual(self.post(self.maintainer, path, payload, method).status_code, 400)
+        with patch.object(authoring, "audit", side_effect=authoring.QuestError("fixture transaction failure", 409)):
+            response = self.post(self.maintainer, self.path(2), {"hints": [hint]}, "PATCH")
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(self.post(self.maintainer, self.path(), self.payload(hints=[hint])).status_code, 409)
+        with self.app.app_context():
+            self.assertEqual(Challenges.query.count(), 3)
+            self.assertEqual(Challenges.query.get(2).name, "Challenge 2")
+            self.assertEqual(Hints.query.count(), 1)
+            self.assertEqual((Hints.query.one().id, Hints.query.one().content), (1, "Private hint"))
+
+    def test_hint_deletion_preserves_dependencies_inside_and_outside_challenge(self):
+        with self.app.app_context():
+            db.session.add_all([
+                Hints(id=2, challenge_id=2, content="Dependent", cost=0, requirements={"prerequisites": [1]}),
+                Hints(id=3, challenge_id=3, content="Outside", cost=0, requirements={"prerequisites": [1]})])
+            db.session.commit()
+        keep = {"id": 2, "title": "", "content": "Dependent", "cost": 0}
+        for method, payload in (("PATCH", {"hints": [keep]}), ("PATCH", {"hints": []}), ("DELETE", {})):
+            response = self.post(self.maintainer, self.path(2), payload, method)
+            self.assertEqual(response.status_code, 409, response.get_data(as_text=True))
+            self.assertIn("hint", response.json["error"])
+        with self.app.app_context():
+            self.assertEqual(Hints.query.count(), 3)
+            self.assertIsNotNone(Challenges.query.get(2))
+            Hints.query.get(3).requirements = {"prerequisites": ["1"]}
+            db.session.commit()
+        self.assertEqual(self.post(self.maintainer, self.path(2), {"hints": []}, "PATCH").status_code, 409)
+        with self.app.app_context():
+            db.session.delete(Hints.query.get(3))
+            db.session.commit()
+        # A dependent removed in the same transaction need not keep its source.
+        response = self.post(self.admin, self.path(2), {"hints": []}, "PATCH")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(Hints.query.count(), 0)
+
+    def test_unsupported_native_hint_type_remains_read_only_without_normalizing(self):
+        with self.app.app_context():
+            db.session.execute(Hints.__table__.update().where(Hints.id == 1).values(type="external-fixture"))
+            db.session.commit()
+        workspace = self.maintainer.get(self.path())
+        self.assertEqual(workspace.status_code, 200, workspace.get_data(as_text=True))
+        challenge = next(c for c in workspace.json["data"]["challenges"] if c["id"] == 2)
+        self.assertFalse(challenge["can_edit"])
+        self.assertIn("native hint", challenge["edit_reason"])
+        self.assertEqual(self.post(self.maintainer, self.path(2), {"hints": []}, "PATCH").status_code, 409)
+        with self.app.app_context():
+            self.assertEqual(db.session.query(Hints.type, Hints.content).filter(Hints.id == 1).one(),
+                             ("external-fixture", "Private hint"))
+
+    def test_authored_free_and_paid_hints_use_shared_native_purchase_receipts(self):
+        response = self.post(self.maintainer, self.path(1), {"hints": [
+            {"title": "Free clue", "content": "Free authored answer", "cost": 0},
+            {"title": "Paid clue", "content": "Paid authored answer", "cost": 50},
+            {"title": "Exact balance", "content": "Another paid answer", "cost": 50},
+            {"title": "Over budget", "content": "Too expensive now", "cost": 1}]}, "PATCH")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        free, paid, exact, extra = response.json["data"]["hints"]
+        self.action("start")
+        self.start()
+        self.assertEqual(self.post(self.alice, "/api/v1/unlocks", {"type": "hints", "target": paid["id"]}).status_code, 400)
+        with self.app.app_context():
+            self.assertEqual((HintUnlocks.query.count(), Awards.query.count(), QuestHintPurchase.query.count()), (0, 0, 0))
+        self.assertEqual(self.post(self.alice, "/api/v1/unlocks", {"type": "hints", "target": free["id"]}).status_code, 200)
+        self.solve(self.alice, 1)
+        for client, hint in ((self.alice, paid), (self.alice, exact), (self.bob, paid)):
+            response = self.post(client, "/api/v1/unlocks", {"type": "hints", "target": hint["id"]})
+            self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+            self.assertEqual(self.bob.get("/api/v1/hints/" + str(hint["id"])).json["data"]["content"], hint["content"])
+        self.assertEqual(self.post(self.bob, "/api/v1/unlocks", {"type": "hints", "target": extra["id"]}).status_code, 400)
+        with self.app.app_context():
+            self.assertEqual(QuestHintPurchase.query.count(), 3)
+            self.assertEqual(HintUnlocks.query.count(), 3)
+            self.assertEqual(sorted(a.value for a in Awards.query.all()), [-50, -50, 0])
+            team = next(t for t in standings()["teams"] if t["id"] == self.team_id)
+            self.assertEqual((team["gross_points"], team["hint_costs"], team["points"]), (100, 100, 0))
+            room = next(p for p in team["room_progress"] if p["gross_points"])
+            self.assertEqual((room["hint_costs"], room["points"]), (100, 0))
+        self.assertEqual(self.post(self.maintainer, self.path(1), {"hints": []}, "PATCH").status_code, 409)
+        self.assertEqual(self.post(self.admin, self.path(1), {}, "DELETE").status_code, 409)
+        with self.app.app_context():
+            self.assertEqual(QuestHintPurchase.query.count(), 3)
+            self.assertEqual(Hints.query.filter_by(challenge_id=1).count(), 4)
 
     def test_preview_matches_native_case_rules_without_progress_or_answer_logs(self):
         created = self.create(flags=[{"content": "ExactCase", "case_insensitive": False},

@@ -176,16 +176,20 @@ export function Confirm({
     </>
   );
 }
-function ConfirmDialog({
+export function ConfirmDialog({
   label,
   description,
   onConfirm,
   onClose,
+  disabled = false,
+  children,
 }: {
   label: string;
   description: string;
   onConfirm: () => Promise<void>;
   onClose: () => void;
+  disabled?: boolean;
+  children?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null),
     [busy, setBusy] = useState(false),
@@ -209,6 +213,7 @@ function ConfirmDialog({
     >
       <h2>{label}?</h2>
       <p>{description}</p>
+      {children}
       {error && <Notice tone="error">{error}</Notice>}
       <div className="actions">
         <button
@@ -223,8 +228,9 @@ function ConfirmDialog({
         <button
           type="button"
           className="button"
-          disabled={busy}
+          disabled={busy || disabled}
           onClick={async () => {
+            if (disabled) return;
             setBusy(true);
             setError("");
             try {

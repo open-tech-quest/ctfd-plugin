@@ -3,13 +3,14 @@ from flask import Blueprint
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
 from CTFd.cache import clear_challenges
-from CTFd.models import Challenges, Flags, SolutionFiles, Solutions, db
+from CTFd.models import Challenges, Flags, Hints, SolutionFiles, Solutions, db
 from CTFd.plugins.flags import get_flag_class
 from .api import (QuestError, audit, body, conflict, error, fail, http_error,
                   room_by_slug, success)
 from .roles import can_manage_rooms, room_manager
 from .room_topology import activity_reason, set_challenge_order, topology_reason
 from .service import event, room_steps
+from .models import QuestHintPurchase
 from . import demo
 
 authoring_api = Blueprint("quest_authoring", __name__)
@@ -21,7 +22,8 @@ NAME_LIMIT = 80
 DESCRIPTION_LIMIT = 10000
 FLAG_LIMIT = 1024
 FLAG_COUNT_LIMIT = 20
-EDIT_FIELDS = {"name", "description", "state", "flags", "value"}
+HINT_COUNT_LIMIT = 20
+EDIT_FIELDS = {"name", "description", "state", "flags", "value", "hints"}
 
 
 @authoring_api.after_request
@@ -38,6 +40,29 @@ def flag_rows(challenge):
         Flags.challenge_id == challenge.id).order_by(Flags.id).all()
 
 
+def hint_rows(challenge):
+    return db.session.query(Hints.id, Hints.type, Hints.title, Hints.content,
+                            Hints.cost, Hints.requirements).filter_by(
+                                challenge_id=challenge.id).order_by(Hints.id).all()
+
+
+def hint_prerequisites(hint):
+    requirements = hint.requirements or {}
+    values = requirements.get("prerequisites", []) if isinstance(requirements, dict) else []
+    return values if isinstance(values, list) else []
+
+
+def hint_deletion_reason(ids):
+    if not ids:
+        return None
+    for hint in db.session.query(Hints.id, Hints.requirements).filter(~Hints.id.in_(ids)):
+        required = hint_prerequisites(hint)
+        # Match the native purchase lookup, including imported numeric strings.
+        if required and Hints.query.filter(Hints.id.in_(ids), Hints.id.in_(required)).first():
+            return "A remaining hint depends on a hint being removed. Resolve its native hint prerequisites before deletion."
+    return None
+
+
 def unsupported_reason(challenge, flags=None):
     if challenge.type != "standard" or challenge.logic != "any":
         return "This challenge uses unsupported native challenge type or flag logic. Manage it in native CTFd."
@@ -46,6 +71,8 @@ def unsupported_reason(challenge, flags=None):
     flags = flags if flags is not None else flag_rows(challenge)
     if any(f.type != "static" or f.data not in (None, "", "case_insensitive") for f in flags):
         return "This challenge uses unsupported native flag behavior. Manage it in native CTFd."
+    if any(h.type != "standard" for h in hint_rows(challenge)):
+        return "This challenge uses unsupported native hint behavior. Manage its hints in native CTFd."
     return None
 
 
@@ -64,7 +91,7 @@ def outside_dependency(room, challenge):
         prerequisites = requirements.get("prerequisites", []) if isinstance(requirements, dict) else []
         if candidate.next_id == challenge.id or (isinstance(prerequisites, list) and challenge.id in prerequisites):
             return "A challenge outside this room depends on this challenge. Resolve that dependency in native CTFd before deletion."
-    return None
+    return hint_deletion_reason({h.id for h in hint_rows(challenge)})
 
 
 def editable(room, challenge, e=None):
@@ -76,6 +103,8 @@ def editable(room, challenge, e=None):
     return {"id": challenge.id, "name": challenge.name, "description": challenge.description or "",
             "state": challenge.state, "type": challenge.type, "value": challenge.value,
             "flags": [] if unsupported else [{"content": f.content, "case_insensitive": f.data == "case_insensitive"} for f in flags],
+            "hints": [{"id": h.id, "title": h.title or "", "content": h.content or "",
+                       "cost": h.cost, "prerequisites": hint_prerequisites(h)} for h in hint_rows(challenge)],
             "can_edit": edit_reason is None, "edit_reason": edit_reason,
             "can_delete": delete_reason is None, "delete_reason": delete_reason}
 
@@ -98,8 +127,8 @@ def checked_text(value, label, limit, empty=False):
 
 def checked_payload(data, create=False):
     if set(data) - EDIT_FIELDS or not data:
-        fail("Use only name, description, state, flags and value")
-    if create and not (EDIT_FIELDS - {"value"}) <= set(data):
+        fail("Use only name, description, state, flags, value and hints")
+    if create and not (EDIT_FIELDS - {"value", "hints"}) <= set(data):
         fail("A new challenge requires name, description, state and flags")
     result = {}
     if "value" in data:
@@ -128,10 +157,43 @@ def checked_payload(data, create=False):
             if type(value["case_insensitive"]) is not bool:
                 fail("Flag case_insensitive must be true or false")
             result["flags"].append({"content": content, "case_insensitive": value["case_insensitive"]})
+    if "hints" in data:
+        values = data["hints"]
+        if not isinstance(values, list) or len(values) > HINT_COUNT_LIMIT:
+            fail(f"Provide a list of at most {HINT_COUNT_LIMIT} hints")
+        result["hints"], ids = [], set()
+        for value in values:
+            if (not isinstance(value, dict) or set(value) - {"id", "title", "content", "cost"}
+                    or not {"title", "content", "cost"} <= set(value)):
+                fail("Each hint requires title, content and cost, with an optional existing id")
+            hint = {"title": checked_text(value["title"], "Hint title", NAME_LIMIT, empty=True),
+                    "content": checked_text(value["content"], "Hint content", DESCRIPTION_LIMIT)}
+            if type(value["cost"]) is not int or not 0 <= value["cost"] <= 2147483647:
+                fail("Hint cost must be a whole number from 0 to 2147483647")
+            hint["cost"] = value["cost"]
+            if "id" in value:
+                hid = value["id"]
+                if create or type(hid) is not int or not 1 <= hid <= 2147483647 or hid in ids:
+                    fail("Hint IDs must be unique existing hints of the edited challenge")
+                hint["id"] = hid
+                ids.add(hid)
+            result["hints"].append(hint)
     return result
 
 
 def apply_fields(challenge, data):
+    existing, removed = {}, set()
+    if "hints" in data:
+        existing = {h.id: h for h in Hints.query.filter_by(challenge_id=challenge.id).all()}
+        keep = {h["id"] for h in data["hints"] if "id" in h}
+        if not keep <= existing.keys():
+            fail("Hint IDs must belong to the edited challenge")
+        removed = existing.keys() - keep
+        if QuestHintPurchase.query.filter(QuestHintPurchase.hint_id.in_(list(existing))).first():
+            fail("Hints with purchase history cannot be changed or removed", 409)
+        reason = hint_deletion_reason(removed)
+        if reason:
+            fail(reason, 409)
     for field in ("name", "description", "state", "value"):
         if field in data:
             setattr(challenge, field, data[field])
@@ -140,6 +202,14 @@ def apply_fields(challenge, data):
         for flag in data["flags"]:
             db.session.add(Flags(challenge_id=challenge.id, type="static", content=flag["content"],
                                  data="case_insensitive" if flag["case_insensitive"] else ""))
+    if "hints" in data:
+        for hid in removed:
+            db.session.delete(existing[hid])
+        for value in data["hints"]:
+            hint = existing[value["id"]] if "id" in value else Hints(challenge_id=challenge.id, type="standard")
+            for field in ("title", "content", "cost"):
+                setattr(hint, field, value[field])
+            db.session.add(hint)
 
 
 def locked_event():

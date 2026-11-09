@@ -2,7 +2,15 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, dateTime, decode, duration, fileUrl, request } from "./api";
 import type { Bootstrap, Challenge, Room, Step, Score } from "./types";
 import { useResource } from "./hooks";
-import { Arrow, Check, Empty, Link, Markdown, Notice } from "./ui";
+import {
+  Arrow,
+  Check,
+  ConfirmDialog,
+  Empty,
+  Link,
+  Markdown,
+  Notice,
+} from "./ui";
 import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
 import { ParticipantOnboarding } from "./onboarding";
 import { ChallengePath } from "./challenge-path";
@@ -342,6 +350,12 @@ export function RoomPage({
               Team{" "}
               <strong>{room.team_score.points.toLocaleString()} pts</strong>
             </span>
+            <span>
+              Room hints{" "}
+              <strong>
+                {room.progress.hint_costs.toLocaleString()} pts spent
+              </strong>
+            </span>
             <strong>{data.viewer.team_name || "Shared team progress"}</strong>
             <span>
               {room.progress.credited_solved} of {room.progress.total} solved
@@ -458,6 +472,9 @@ export function RoomPage({
               enabled={preview || data.event.status === "live"}
               preview={preview}
               score={room.team_score}
+              roomName={room.name}
+              progressRevision={data.revisions.progress}
+              usedHintCosts={room.progress.used_hint_costs}
               onHintPurchased={async () => {
                 await Promise.all([resource.refresh(), onRefresh()]);
               }}
@@ -485,11 +502,17 @@ function ChallengePanel({
   onSolved,
   score,
   onHintPurchased,
+  roomName,
+  progressRevision,
+  usedHintCosts = {},
 }: {
   step: Step;
   enabled: boolean;
   preview: boolean;
   score: Score;
+  roomName: string;
+  progressRevision: string;
+  usedHintCosts: Record<number, number>;
   onHintPurchased: () => Promise<void>;
   onSolved: (message: string) => Promise<void>;
 }) {
@@ -505,8 +528,84 @@ function ChallengePanel({
     } | null>(null),
     [hints, setHints] = useState<Record<number, string>>({}),
     [hintBusy, setHintBusy] = useState<number | null>(null),
-    [hintError, setHintError] = useState("");
+    [hintError, setHintError] = useState(""),
+    [pendingHint, setPendingHint] = useState<
+      (Challenge["hints"][number] & { number: number }) | null
+    >(null);
   const input = useRef<HTMLInputElement>(null);
+  const previousRevision = useRef(progressRevision);
+  useEffect(() => {
+    if (previousRevision.current !== progressRevision) {
+      previousRevision.current = progressRevision;
+      void content.refresh();
+    }
+  }, [progressRevision]);
+  useEffect(() => {
+    if (
+      pendingHint &&
+      hintBusy === null &&
+      content.data?.hints.some(
+        (hint) =>
+          hint.id === pendingHint.id && typeof hint.content === "string",
+      )
+    )
+      setPendingHint(null);
+  }, [content.data, pendingHint, hintBusy]);
+  async function openHint(hint: Challenge["hints"][number], number: number) {
+    setHintBusy(hint.id);
+    setHintError("");
+    try {
+      const result = await request<{ content?: string; cost: number }>(
+        `/api/v1/hints/${hint.id}${preview ? "?preview=true" : ""}`,
+      );
+      if (typeof result.content === "string") {
+        setHints((previous) => ({ ...previous, [hint.id]: result.content! }));
+        if (!preview) await onHintPurchased();
+      } else if (preview) {
+        throw new Error("This hint is not available in organizer preview.");
+      } else {
+        setPendingHint({ ...hint, cost: result.cost, number });
+      }
+    } catch (error) {
+      setHintError((error as Error).message);
+    } finally {
+      setHintBusy(null);
+    }
+  }
+  async function purchaseHint() {
+    if (!pendingHint) return;
+    const hint = pendingHint;
+    setHintBusy(hint.id);
+    try {
+      let result: { content?: string } | undefined;
+      try {
+        await request("/api/v1/unlocks", "POST", {
+          target: hint.id,
+          type: "hints",
+        });
+      } catch (error) {
+        // A teammate may have purchased it, or the acknowledgement was lost.
+        // Read the durable unlock; never retry the purchase POST automatically.
+        result = await request<{ content?: string }>(
+          `/api/v1/hints/${hint.id}`,
+        );
+        if (typeof result.content !== "string") throw error;
+      }
+      if (typeof result?.content !== "string")
+        result = await request<{ content?: string }>(
+          `/api/v1/hints/${hint.id}`,
+        );
+      if (typeof result.content !== "string")
+        throw new Error(
+          "Your hint could not be loaded. Refresh before trying again.",
+        );
+      setHints((previous) => ({ ...previous, [hint.id]: result.content! }));
+    } finally {
+      setHintBusy(null);
+      await onHintPurchased();
+      await content.refresh();
+    }
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy || !answer.trim()) return;
@@ -564,7 +663,8 @@ function ChallengePanel({
     <section className="challenge-panel">
       {preview && (
         <Notice>
-          Organizer preview · Answers are checked without recording team solves
+          Organizer preview · Answers are checked and hints are shown without
+          recording team solves or spending points
         </Notice>
       )}
       <div className="challenge-heading">
@@ -597,6 +697,54 @@ function ChallengePanel({
             {score.hint_costs.toLocaleString()} in hints
           </span>
         </p>
+      )}
+      {pendingHint && (
+        <ConfirmDialog
+          label={`Reveal hint ${pendingHint.number}`}
+          description={`This hint is shared with your team. Its cost is deducted once from your overall score and your ${roomName} room score.`}
+          disabled={
+            !enabled ||
+            (pendingHint.cost > 0 && pendingHint.cost > score.points)
+          }
+          onClose={() => setPendingHint(null)}
+          onConfirm={purchaseHint}
+        >
+          {pendingHint.title && (
+            <p className="hint-dialog-title">{pendingHint.title}</p>
+          )}
+          <dl className="hint-purchase-summary">
+            <div>
+              <dt>Your team has</dt>
+              <dd>{score.points.toLocaleString()} points</dd>
+            </div>
+            <div>
+              <dt>Hint cost</dt>
+              <dd>
+                {pendingHint.cost === 0
+                  ? "Free (0 points)"
+                  : `${pendingHint.cost.toLocaleString()} points`}
+              </dd>
+            </div>
+            <div>
+              <dt>After revealing</dt>
+              <dd>
+                {pendingHint.cost > 0 && pendingHint.cost > score.points
+                  ? "Not enough points"
+                  : `${(score.points - pendingHint.cost).toLocaleString()} points`}
+              </dd>
+            </div>
+          </dl>
+          {pendingHint.cost > 0 && pendingHint.cost > score.points && (
+            <Notice>
+              Earn {(pendingHint.cost - score.points).toLocaleString()} more
+              points before revealing this hint. Your balance cannot go below
+              zero when buying hints.
+            </Notice>
+          )}
+          {!enabled && (
+            <Notice>Hints can be revealed when the event is live.</Notice>
+          )}
+        </ConfirmDialog>
       )}
       {challenge && (
         <>
@@ -671,76 +819,60 @@ function ChallengePanel({
           {!!challenge.hints?.length && (
             <section className="hints">
               <h3>Hints</h3>
-              {challenge.hints.map((hint, i) => (
-                <div className="hint" key={hint.id}>
-                  {hints[hint.id] || hint.content ? (
-                    <Markdown source={hints[hint.id] || hint.content || ""} />
-                  ) : (
-                    <button
-                      className="text-button"
-                      disabled={hintBusy !== null || !enabled}
-                      onClick={async () => {
-                        setHintBusy(hint.id);
-                        setHintError("");
-                        const hintPath = `/api/v1/hints/${hint.id}${preview ? "?preview=true" : ""}`;
-                        try {
-                          let result = await request<{ content?: string }>(
-                            hintPath,
-                          );
-                          if (preview && typeof result.content !== "string")
-                            throw new Error(
-                              "This hint is not available in organizer preview.",
-                            );
-                          if (typeof result.content !== "string") {
-                            if (
-                              hint.cost > 0 &&
-                              !window.confirm(
-                                `Reveal hint ${i + 1} for ${hint.cost} points from your team? This is paid once and shared with every teammate.`,
-                              )
-                            )
-                              return;
-                            try {
-                              await request("/api/v1/unlocks", "POST", {
-                                target: hint.id,
-                                type: "hints",
-                              });
-                            } catch (unlockError) {
-                              const shared = await request<{
-                                content?: string;
-                              }>(hintPath);
-                              if (typeof shared.content !== "string")
-                                throw unlockError;
-                              result = shared;
-                            }
-                            if (typeof result.content !== "string")
-                              result = await request<{ content: string }>(
-                                hintPath,
-                              );
-                          }
-                          if (typeof result.content !== "string")
-                            throw new Error("This hint is not available yet.");
-                          setHints((previous) => ({
-                            ...previous,
-                            [hint.id]: result.content!,
-                          }));
-                          if (!preview) await onHintPurchased();
-                        } catch (e) {
-                          setHintError((e as Error).message);
-                        } finally {
-                          setHintBusy(null);
-                        }
-                      }}
-                    >
-                      {hintBusy === hint.id
-                        ? "Loading hint…"
-                        : preview
-                          ? `Preview hint ${i + 1}`
-                          : `Reveal hint ${i + 1}${hint.cost ? ` · ${hint.cost} points` : ""}`}
-                      <Arrow />
-                    </button>
-                  )}
-                </div>
-              ))}
+              {challenge.hints.map((hint, i) => {
+                const usedCost = usedHintCosts[hint.id];
+                const used = usedCost !== undefined;
+                const revealed =
+                  hints[hint.id] !== undefined ||
+                  typeof hint.content === "string";
+                return (
+                  <div
+                    className={`hint${used ? " hint-used" : ""}`}
+                    key={hint.id}
+                  >
+                    <div className="hint-heading">
+                      <h4>
+                        Hint {i + 1}
+                        {hint.title ? ` · ${hint.title}` : ""}
+                      </h4>
+                      <span className="hint-cost">
+                        {(usedCost ?? hint.cost) === 0
+                          ? "Free"
+                          : used
+                            ? `${usedCost.toLocaleString()} points spent`
+                            : `${hint.cost.toLocaleString()} points`}
+                      </span>
+                    </div>
+                    {revealed ? (
+                      <>
+                        <p className="hint-status">
+                          {preview
+                            ? "Organizer preview"
+                            : used
+                              ? "Used by your team"
+                              : "Revealed"}
+                        </p>
+                        <Markdown
+                          source={hints[hint.id] ?? hint.content ?? ""}
+                        />
+                      </>
+                    ) : (
+                      <button
+                        className="text-button"
+                        disabled={hintBusy !== null || !enabled}
+                        onClick={() => void openHint(hint, i + 1)}
+                      >
+                        {hintBusy === hint.id
+                          ? "Loading hint…"
+                          : preview
+                            ? `Preview hint ${i + 1}`
+                            : `Reveal hint ${i + 1}`}
+                        <Arrow />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               {hintError && <Notice tone="error">{hintError}</Notice>}
             </section>
           )}

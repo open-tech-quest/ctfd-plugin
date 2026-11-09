@@ -17,7 +17,7 @@ from CTFd.cache import cache
 from CTFd.models import db
 from .models import QuestReadVersion
 
-_SCHEMA = "quest-read-v2-points"
+_SCHEMA = "quest-read-v3-hint-usage"
 _TABLE = re.compile(r'^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE|DELETE\s+FROM)\s+[`"\[]?([\w]+)', re.I)
 _CONTENT = {"quest_rooms", "quest_steps", "challenges", "flags", "hints", "files",
             "solutions", "tags", "challenge_tags", "topics", "challenge_topics"}

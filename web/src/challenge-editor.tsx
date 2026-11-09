@@ -14,6 +14,13 @@ interface Draft {
   description: string;
   state: EditableChallenge["state"];
   flags: EditableFlag[];
+  hints: {
+    id?: number;
+    title: string;
+    content: string;
+    cost: number | "";
+    prerequisites: number[];
+  }[];
 }
 function draftOf(challenge?: EditableChallenge): Draft {
   return {
@@ -24,6 +31,11 @@ function draftOf(challenge?: EditableChallenge): Draft {
     flags: challenge?.flags.map((flag) => ({ ...flag })) || [
       { content: "", case_insensitive: false },
     ],
+    hints:
+      challenge?.hints.map((hint) => ({
+        ...hint,
+        prerequisites: [...hint.prerequisites],
+      })) || [],
   };
 }
 
@@ -76,7 +88,10 @@ export function ChallengeEditor({
       const result = await request<EditableChallenge>(
         `/manage/rooms/${room.slug}/challenges${selected === "new" ? "" : `/${selected}`}`,
         selected === "new" ? "POST" : "PATCH",
-        draft,
+        {
+          ...draft,
+          hints: draft.hints.map(({ prerequisites: _, ...hint }) => hint),
+        },
       );
       setDirty(false);
       await Promise.all([resource.refresh(), onChanged()]);
@@ -96,8 +111,8 @@ export function ChallengeEditor({
         <div>
           <h2>Challenges in {room.name}</h2>
           <p>
-            Write Markdown instructions, accepted answers and visibility for
-            standard flag challenges.
+            Edit instructions, accepted answers, points and hints for standard
+            challenges.
           </p>
         </div>
         <button
@@ -218,7 +233,6 @@ function ChallengeForm({
 }) {
   const [draft, setDraft] = useState(() => draftOf(challenge)),
     [remote, setRemote] = useState(false),
-    [showFlags, setShowFlags] = useState(false),
     [submission, setSubmission] = useState(""),
     [checking, setChecking] = useState(false),
     [feedback, setFeedback] = useState<{
@@ -258,6 +272,17 @@ function ChallengeForm({
         flag.content.trim().length > 0 &&
         flag.content === flag.content.trim() &&
         flag.content.length <= 1024,
+    ) &&
+    draft.hints.length <= 20 &&
+    draft.hints.every(
+      (hint) =>
+        hint.title.length <= 80 &&
+        hint.content.trim().length > 0 &&
+        hint.content.length <= 10000 &&
+        typeof hint.cost === "number" &&
+        Number.isInteger(hint.cost) &&
+        hint.cost >= 0 &&
+        hint.cost <= 2147483647,
     );
   function reload() {
     if (
@@ -305,14 +330,6 @@ function ChallengeForm({
           }
         }}
       >
-        <label className="checkbox-field answer-visibility">
-          <input
-            type="checkbox"
-            checked={showFlags}
-            onChange={(event) => setShowFlags(event.target.checked)}
-          />
-          Show accepted answer values
-        </label>
         <fieldset disabled={!editable || busy}>
           <label className="field">
             <span>Challenge name</span>
@@ -398,7 +415,7 @@ function ChallengeForm({
                 <label className="field">
                   <span>Answer {index + 1}</span>
                   <input
-                    type={showFlags ? "text" : "password"}
+                    type="text"
                     autoComplete="off"
                     maxLength={1024}
                     required
@@ -477,6 +494,142 @@ function ChallengeForm({
             required unless “Ignore letter case” is selected. Answers cannot
             begin or end with whitespace.
           </p>
+          <div className="section-heading">
+            <h3>Hints</h3>
+            <span className="meta">{draft.hints.length} of 20</span>
+          </div>
+          <p className="meta hint-policy">
+            Each hint has its own text and cost. A team pays once, using its
+            overall points. The cost also reduces its score in this room. Set a
+            cost of 0 for a free hint.
+          </p>
+          {draft.hints.length ? (
+            draft.hints.map((hint, index) => {
+              const change = (update: Partial<Draft["hints"][number]>) =>
+                setDraft({
+                  ...draft,
+                  hints: draft.hints.map((item, i) =>
+                    i === index ? { ...item, ...update } : item,
+                  ),
+                });
+              const requiredBy =
+                hint.id !== undefined &&
+                draft.hints.some((other) =>
+                  other.prerequisites.includes(hint.id!),
+                );
+              return (
+                <section
+                  className="hint-editor"
+                  key={hint.id ?? `new-${index}`}
+                  aria-label={`Hint ${index + 1}`}
+                >
+                  <div className="section-heading">
+                    <h4>Hint {index + 1}</h4>
+                    <button
+                      type="button"
+                      className="text-button"
+                      disabled={!!requiredBy}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          hints: draft.hints.filter((_, i) => i !== index),
+                        })
+                      }
+                    >
+                      Remove hint {index + 1}
+                    </button>
+                  </div>
+                  <div className="hint-editor-fields">
+                    <label className="field">
+                      <span>Hint {index + 1} title (optional)</span>
+                      <input
+                        value={hint.title}
+                        maxLength={80}
+                        onChange={(event) =>
+                          change({ title: event.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="field hint-cost-field">
+                      <span>Hint {index + 1} cost</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={2147483647}
+                        step={1}
+                        required
+                        value={hint.cost}
+                        onChange={(event) =>
+                          change({
+                            cost:
+                              event.target.value === ""
+                                ? ""
+                                : event.target.valueAsNumber,
+                          })
+                        }
+                      />
+                      <small>
+                        {hint.cost === 0 ? "Free" : "Points per team"}
+                      </small>
+                    </label>
+                  </div>
+                  <label className="field">
+                    <span>Hint {index + 1} text (Markdown)</span>
+                    <textarea
+                      rows={4}
+                      maxLength={10000}
+                      required
+                      value={hint.content}
+                      onChange={(event) =>
+                        change({ content: event.target.value })
+                      }
+                    />
+                  </label>
+                  <details className="introduction-preview">
+                    <summary>Preview hint {index + 1}</summary>
+                    {hint.content.trim() ? (
+                      <Markdown source={hint.content} />
+                    ) : (
+                      <p className="meta">Write a hint to preview it here</p>
+                    )}
+                  </details>
+                  {!!hint.prerequisites.length && (
+                    <p className="meta">
+                      This hint requires other hints. Its existing requirements
+                      will be preserved.
+                    </p>
+                  )}
+                  {requiredBy && (
+                    <p className="meta">
+                      Another hint requires this one. Remove that dependency
+                      before deleting it.
+                    </p>
+                  )}
+                </section>
+              );
+            })
+          ) : (
+            <p className="meta">
+              No hints yet. Add a clue participants can reveal when they need
+              help.
+            </p>
+          )}
+          <button
+            type="button"
+            className="button secondary"
+            disabled={draft.hints.length >= 20}
+            onClick={() =>
+              setDraft({
+                ...draft,
+                hints: [
+                  ...draft.hints,
+                  { title: "", content: "", cost: 25, prerequisites: [] },
+                ],
+              })
+            }
+          >
+            Add hint
+          </button>
         </fieldset>
         <div className="actions">
           <button
@@ -540,7 +693,7 @@ function ChallengeForm({
             <label className="field">
               <span>Preview answer</span>
               <input
-                type="password"
+                type="text"
                 autoComplete="off"
                 maxLength={1024}
                 value={submission}

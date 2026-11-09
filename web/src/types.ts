@@ -37,6 +37,8 @@ export interface Score {
   hint_costs: number;
 }
 export interface Progress extends Score {
+  used_hint_ids: number[];
+  used_hint_costs: Record<number, number>;
   available_points: number;
   credited_solved: number;
   score_elapsed_ms: number | null;
@@ -173,7 +175,12 @@ export interface Challenge {
   value: number;
   description: string;
   files: string[];
-  hints: { id: number; cost: number; content?: string }[];
+  hints: {
+    id: number;
+    cost: number;
+    title?: string | null;
+    content?: string;
+  }[];
   max_attempts?: number;
   attempts?: number;
   connection_info?: string;
@@ -262,6 +269,13 @@ export interface EditableFlag {
   content: string;
   case_insensitive: boolean;
 }
+export interface EditableHint {
+  id: number;
+  title: string;
+  content: string;
+  cost: number;
+  prerequisites: number[];
+}
 export interface EditableChallenge {
   id: number;
   name: string;
@@ -270,6 +284,7 @@ export interface EditableChallenge {
   state: "hidden" | "visible" | "locked";
   type: string;
   flags: EditableFlag[];
+  hints: EditableHint[];
   can_edit: boolean;
   edit_reason: string | null;
   can_delete: boolean;

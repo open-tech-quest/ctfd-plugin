@@ -2,13 +2,15 @@
 import csv
 import io
 import importlib
+import json
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import unittest
 
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from CTFd.models import Awards, Challenges, Hints, HintUnlocks, Solves, Users, db
+from CTFd.utils import set_config
 from CTFd.plugins.open_tech_quest.models import QuestEvent, QuestHintPurchase, QuestStart
 from CTFd.plugins.open_tech_quest.service import standings
 import test_integration as integration
@@ -76,6 +78,65 @@ class PointsIntegration(unittest.TestCase):
             db.session.commit()
         row = self.rows()[self.team_id]
         self.assertEqual((row["gross_points"], row["hint_costs"], row["points"]), (100, 50, 50))
+        progress = self.bob.get(integration.PREFIX + "/rooms/openshift").json["data"]["progress"]
+        self.assertEqual(progress["used_hint_ids"], [1])
+        self.assertEqual(progress["used_hint_costs"], {"1": 50})
+
+    def test_used_hints_include_free_receipts_and_are_scoped_to_room_and_team(self):
+        with self.app.app_context():
+            Hints.query.get(2).cost = 0
+            db.session.add(Hints(id=3, challenge_id=2, content="Free second clue", cost=0))
+            db.session.commit()
+        self.begin()
+        self.solve(self.alice, 1)
+        for hint_id in (1, 3, 2):
+            self.assertEqual(self.buy(hint_id=hint_id).status_code, 200)
+        self.assertEqual(self.buy(self.carol, 2).status_code, 200)
+        for client, expected in ((self.alice, [1, 3]), (self.bob, [1, 3]), (self.carol, [])):
+            rooms = client.get(integration.PREFIX + "/bootstrap").json["data"]["rooms"]
+            openshift = next(room for room in rooms if room["slug"] == "openshift")
+            ansible = next(room for room in rooms if room["slug"] == "ansible")
+            self.assertEqual(openshift["progress"]["used_hint_ids"], expected)
+            self.assertEqual(openshift["progress"]["used_hint_costs"], {"1": 50, "3": 0} if expected else {})
+            self.assertEqual(ansible["progress"]["used_hint_ids"], [2])
+            self.assertEqual(ansible["progress"]["used_hint_costs"], {"2": 0})
+        guest = self.guest.get(integration.PREFIX + "/bootstrap").json["data"]
+        self.assertTrue(all(room["progress"]["used_hint_ids"] == [] for room in guest["rooms"]))
+        public = self.guest.get(integration.PREFIX + "/standings").json["data"]
+        self.assertNotIn("used_hint_ids", json.dumps(public))
+        self.assertNotIn("used_hint_costs", json.dumps(public))
+        self.assertEqual(self.rows()[self.team_id]["points"], 50)
+
+    def test_native_end_revelation_never_marks_an_unpurchased_hint_as_used(self):
+        with self.app.app_context():
+            Hints.query.get(2).cost = 0
+            db.session.commit()
+        self.begin()
+        self.solve(self.alice, 1)
+        self.assertEqual(self.buy(hint_id=2).status_code, 200)
+        with self.app.app_context():
+            cutoff = datetime.utcnow()
+            QuestEvent.query.get(1).end_at = cutoff
+            set_config("end", int(cutoff.replace(tzinfo=timezone.utc).timestamp()))
+            set_config("view_after_ctf", True)
+            db.session.commit()
+        # The scheduled cutoff passes while Quest is still live. Native CTFd
+        # exposes every hint's content, even though this team never bought #1.
+        for phase in ("live", "closed"):
+            if phase == "closed":
+                self.action("close")
+            native = self.alice.get("/api/v1/challenges/2")
+            self.assertEqual(native.status_code, 200, native.get_data(as_text=True))
+            hint = next(h for h in native.json["data"]["hints"] if h["id"] == 1)
+            self.assertEqual(hint["content"], "Private hint")
+            room = self.alice.get(integration.PREFIX + "/rooms/openshift").json["data"]
+            self.assertEqual(room["progress"]["used_hint_ids"], [])
+            self.assertEqual(room["progress"]["used_hint_costs"], {})
+            other = self.alice.get(integration.PREFIX + "/rooms/ansible").json["data"]
+            self.assertEqual(other["progress"]["used_hint_ids"], [2])
+        with self.app.app_context():
+            self.assertEqual(HintUnlocks.query.filter_by(target=1).count(), 0)
+            self.assertEqual(QuestHintPurchase.query.filter_by(hint_id=1).count(), 0)
 
     def test_concurrent_same_hint_charges_once_and_different_hints_cannot_overspend(self):
         self.begin()
