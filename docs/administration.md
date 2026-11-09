@@ -82,6 +82,20 @@ uses `/manage/rooms/<slug>/challenges`. See
 and activity guards. Native editing remains subject to competition protections;
 room-editor authoring is not a live-event editing workflow.
 
+### Links in Markdown
+
+Links to another website open in a new tab automatically, so participants keep
+their challenge page open. Use ordinary Markdown:
+
+```md
+[Open the lab](https://lab.example.org)
+```
+
+Same-site links and fragments use the current tab. For an explicit target, use
+HTML, for example `<a href="/quest/standings" target="_blank">Standings</a>`.
+`?target=_blank` is a URL parameter; `{target="_blank"}` attribute syntax is not
+supported. New tabs receive opener protection automatically.
+
 ## Contributions and recovery
 
 A ban revokes access and removes that user's counted contributions without deleting

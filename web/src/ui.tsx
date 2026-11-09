@@ -7,6 +7,7 @@ import {
 } from "react";
 import DOMPurify from "dompurify";
 import { marked } from "marked";
+import { prepareMarkdownLinks } from "./markdown-links";
 import { navigate } from "./hooks";
 export function Link({
   href = "",
@@ -106,7 +107,7 @@ export function Markdown({
   source: string;
   omitTitle?: string;
 }) {
-  let html = DOMPurify.sanitize(
+  const html = DOMPurify.sanitize(
     marked.parse(source, { async: false }) as string,
     {
       ADD_ATTR: ["target"],
@@ -121,9 +122,9 @@ export function Markdown({
       ],
     },
   );
+  const template = document.createElement("template");
+  template.innerHTML = html;
   if (omitTitle) {
-    const template = document.createElement("template");
-    template.innerHTML = html;
     const heading = template.content.firstElementChild;
     const normalize = (value: string) =>
       value
@@ -136,10 +137,15 @@ export function Markdown({
       normalize(heading.textContent || "") === normalize(omitTitle)
     ) {
       heading.remove();
-      html = template.innerHTML;
     }
   }
-  return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />;
+  prepareMarkdownLinks(template.content, window.location.href);
+  return (
+    <div
+      className="prose"
+      dangerouslySetInnerHTML={{ __html: template.innerHTML }}
+    />
+  );
 }
 export function Confirm({
   label,
