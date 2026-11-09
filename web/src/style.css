@@ -1129,6 +1129,31 @@ textarea {
 .page-heading .lede {
   margin-bottom: 0;
 }
+.standings-order {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 20px 0 16px;
+}
+.standing-table .hint-cost-breakdown {
+  display: block;
+  margin: 4px 0 0;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.room-ranking td.score-col {
+  font-weight: 600;
+}
+.room-ranking .team-points-col {
+  color: var(--muted);
+}
+.room-award-metrics > * {
+  display: block;
+  margin-top: 6px;
+}
+.room-award-metrics strong {
+  font-weight: 600;
+  color: var(--ink);
+}
 .standings-scroll {
   overflow: auto;
   border: 1px solid var(--line);
@@ -1182,8 +1207,10 @@ textarea {
   color: #006a77;
 }
 .time-col {
-  width: 124px;
+  width: 144px;
   text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 .standing-table small {
   font-size: 12px;
@@ -1288,8 +1315,12 @@ textarea {
   flex: 1;
   align-items: start;
 }
+.stage-columns.single-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
 .stage-panel {
   border: 1px solid var(--line);
+  container-type: inline-size;
 }
 .stage-table {
   font-size: 14px;
@@ -1307,7 +1338,7 @@ textarea {
   width: 44px;
 }
 .stage-table .room-col {
-  width: 72px;
+  width: clamp(48px, calc((100cqw - 448px) / var(--room-count, 1)), 80px);
 }
 .stage-table .score-col {
   width: 56px;
@@ -1317,7 +1348,7 @@ textarea {
   width: 80px;
 }
 .stage-table .time-col {
-  width: 88px;
+  width: 132px;
 }
 .stage-table .cell-progress {
   font-size: 13px;
@@ -1348,6 +1379,10 @@ textarea {
 }
 .stage-room .stage-table .score-col {
   width: 80px;
+}
+.stage-room .stage-table .points-col,
+.stage-room .stage-table .team-points-col {
+  width: 104px;
 }
 .stage-room .stage-table thead th {
   height: 64px;
@@ -1902,14 +1937,12 @@ fieldset {
     height: 32px;
     font-size: 16px;
   }
-  .stage-table .room-col {
-    width: 80px;
-  }
+
   .stage-table .score-col {
     width: 64px;
   }
   .stage-table .time-col {
-    width: 104px;
+    width: 132px;
   }
   .stage-table .rank-col {
     width: 52px;
@@ -1981,11 +2014,9 @@ fieldset {
   .stage-columns {
     gap: 16px;
   }
-  .stage-table .room-col {
-    width: 52px;
-  }
+
   .stage-table .time-col {
-    width: 76px;
+    width: 120px;
   }
   .stage-table th,
   .stage-table td {
@@ -2274,7 +2305,7 @@ fieldset {
     display: none;
   }
   .stage-table .time-col {
-    width: 96px;
+    width: 132px;
   }
   .stage-table th,
   .stage-table td {

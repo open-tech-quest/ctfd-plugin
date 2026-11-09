@@ -661,12 +661,18 @@ function ProjectorControls({
               {
                 id: "overall",
                 label: "Overall standings",
-                detail: "All qualifying solves and milestone time",
+                detail:
+                  data.standings.scoring_version === 2
+                    ? "Net points across rooms, then active time"
+                    : "All qualifying solves and milestone time",
               },
               {
                 id: "room",
                 label: "One room",
-                detail: "Focus on a single challenge path",
+                detail:
+                  data.standings.scoring_version === 2
+                    ? "Challenges solved, room net points, then active time"
+                    : "Focus on a single challenge path",
               },
               {
                 id: "awards",

@@ -1,5 +1,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { dateTime, duration } from "./api";
+import { dateTime } from "./api";
+import {
+  orderedTeams,
+  rankingDuration,
+  rankingOrder,
+} from "./standings-presentation";
 import { useResource } from "./hooks";
 import type { Projector, StandingTeam, Standings } from "./types";
 import { Empty, Link, Notice } from "./ui";
@@ -7,7 +12,7 @@ import { milestoneLayout, progressFraction } from "./stage-progress";
 type StandingRoom = Standings["rooms"][number];
 export function StandingsPage() {
   const state = useResource<Standings>("/standings", 10000),
-    [roomSlug, setRoomSlug] = useState("overall");
+    [roomId, setRoomId] = useState<number | null>(null);
   if (!state.data)
     return state.error ? (
       <Notice tone="error" retry={() => void state.refresh()}>
@@ -17,7 +22,7 @@ export function StandingsPage() {
       <p role="status">Loading standings…</p>
     );
   const data = state.data;
-  const room = data.rooms.find((r) => r.slug === roomSlug);
+  const room = data.rooms.find((r) => r.id === roomId);
   const teams = orderedTeams(data.teams, room);
   return (
     <>
@@ -43,20 +48,21 @@ export function StandingsPage() {
       <nav className="room-tabs" aria-label="Standings category">
         <button
           className={!room ? "active" : ""}
-          onClick={() => setRoomSlug("overall")}
+          onClick={() => setRoomId(null)}
         >
           Overall
         </button>
         {data.rooms.map((r) => (
           <button
             key={r.id}
-            className={r.slug === roomSlug ? "active" : ""}
-            onClick={() => setRoomSlug(r.slug)}
+            className={r.id === roomId ? "active" : ""}
+            onClick={() => setRoomId(r.id)}
           >
             {r.name}
           </button>
         ))}
       </nav>
+      <p className="standings-order">{rankingOrder(data, !!room)}</p>
       {!teams.length ? (
         <Empty title="The standings are waiting">
           Teams appear after roster release. A first qualifying solve makes a
@@ -74,22 +80,6 @@ export function StandingsPage() {
       <AwardRules data={data} />
     </>
   );
-}
-function orderedTeams(teams: StandingTeam[], room?: StandingRoom) {
-  if (!room)
-    return [...teams].sort(
-      (a, b) =>
-        (a.rank ?? Infinity) - (b.rank ?? Infinity) ||
-        a.name.localeCompare(b.name),
-    );
-  return [...teams].sort((a, b) => {
-    const x = a.room_progress.find((p) => p.room_id === room.id),
-      y = b.room_progress.find((p) => p.room_id === room.id);
-    return (
-      (x?.rank ?? Infinity) - (y?.rank ?? Infinity) ||
-      a.name.localeCompare(b.name)
-    );
-  });
 }
 function StandingTable({
   data,
@@ -122,16 +112,18 @@ function StandingTable({
   );
   return (
     <table
-      className={`standing-table${stage ? " stage-table" : ""}`}
+      className={`standing-table${stage ? " stage-table" : ""}${room ? " room-ranking" : ""}`}
       style={
-        !room && !overall
-          ? {
-              minWidth:
-                (stage ? 360 : 400) +
-                (points ? 88 : 0) +
-                data.rooms.length * (stage ? 80 : 100),
-            }
-          : undefined
+        room && !stage
+          ? { minWidth: 640 }
+          : !room && !overall
+            ? {
+                minWidth:
+                  (stage ? 360 : 440) +
+                  (points ? 88 : 0) +
+                  data.rooms.length * (stage ? 48 : 100),
+              }
+            : undefined
       }
     >
       <thead>
@@ -142,6 +134,16 @@ function StandingTable({
           <th scope="col" className="team-col">
             Team
           </th>
+          {!room && points && (
+            <>
+              <th scope="col" className="points-col">
+                Net points
+              </th>
+              <th scope="col" className="time-col">
+                Active time
+              </th>
+            </>
+          )}
           {!room &&
             !overall &&
             data.rooms.map((r) => (
@@ -151,7 +153,7 @@ function StandingTable({
             ))}
           {stage && room && (
             <th scope="col" className="path-col" ref={pathHeading}>
-              <span>Challenge path</span>
+              <span>Challenge progress</span>
               <span
                 className={`stage-path-axis ${milestones.individual ? "individual" : "grouped"}`}
                 aria-hidden="true"
@@ -179,19 +181,25 @@ function StandingTable({
           <th scope="col" className="score-col">
             Solved
           </th>
-          {points && (
+          {points && room && (
             <th scope="col" className="points-col">
-              {room ? "Room pts" : "Points"}
+              Room net pts
+            </th>
+          )}
+          {(room || !points) && (
+            <th scope="col" className="time-col">
+              Active time
             </th>
           )}
           {points && stage && room && (
-            <th scope="col" className="team-points-col">
-              Team pts
+            <th
+              scope="col"
+              className="team-points-col"
+              title="Overall score; not used for the room rank"
+            >
+              Team net pts
             </th>
           )}
-          <th scope="col" className="time-col">
-            Time
-          </th>
         </tr>
       </thead>
       <tbody>
@@ -200,12 +208,45 @@ function StandingTable({
             ? team.room_progress.find((p) => p.room_id === room.id)
             : undefined;
           const rank = room ? progress?.rank : team.rank;
+          const score = room ? progress : team;
+          const pointCell = points && (
+            <td
+              className="points-col"
+              title={`${score?.gross_points ?? 0} earned − ${score?.hint_costs ?? 0} in hints`}
+            >
+              {(score?.points ?? 0).toLocaleString()}
+              {!stage && (
+                <small className="hint-cost-breakdown">
+                  {(score?.hint_costs ?? 0).toLocaleString()} in hints
+                </small>
+              )}
+            </td>
+          );
+          const timeCell = (
+            <td className="time-col">
+              {rankingDuration(
+                room ? progress?.milestone_elapsed_ms : team.overall_elapsed_ms,
+              )}
+            </td>
+          );
+          const solvedCell = (
+            <td className="score-col">
+              {room ? progress?.solved || 0 : team.total}
+              {room && <small>/{progress?.total ?? room.total}</small>}
+            </td>
+          );
           return (
             <tr key={team.id}>
               <td className="rank-col">{rank ?? "—"}</td>
               <th scope="row" title={team.name}>
                 {team.name}
               </th>
+              {!room && points && (
+                <>
+                  {pointCell}
+                  {timeCell}
+                </>
+              )}
               {!room &&
                 !overall &&
                 data.rooms.map((r) => {
@@ -272,33 +313,26 @@ function StandingTable({
                   </span>
                 </td>
               )}
-              <td className="score-col">
-                {room ? progress?.solved || 0 : team.total}
-                {room && <small>/{progress?.total ?? room.total}</small>}
-              </td>
-              {points && (
-                <td
-                  className="points-col"
-                  title={`${(room ? progress?.gross_points : team.gross_points) ?? 0} earned − ${(room ? progress?.hint_costs : team.hint_costs) ?? 0} in hints`}
-                >
-                  {(room
-                    ? (progress?.points ?? 0)
-                    : (team.points ?? 0)
-                  ).toLocaleString()}
-                </td>
+              {room ? (
+                <>
+                  {solvedCell}
+                  {pointCell}
+                  {timeCell}
+                </>
+              ) : (
+                <>
+                  {solvedCell}
+                  {!points && timeCell}
+                </>
               )}
               {points && stage && room && (
-                <td className="team-points-col">
+                <td
+                  className="team-points-col"
+                  title="Overall net points across all rooms; not a room ranking measure"
+                >
                   {(team.points ?? 0).toLocaleString()}
                 </td>
               )}
-              <td className="time-col">
-                {duration(
-                  room
-                    ? progress?.milestone_elapsed_ms
-                    : team.overall_elapsed_ms,
-                )}
-              </td>
             </tr>
           );
         })}
@@ -396,7 +430,9 @@ export function Stage() {
         <div className="stage-title">
           <h1>
             {view === "awards"
-              ? "The quest awards"
+              ? data.event.results_published
+                ? "The quest awards"
+                : "Award leaders"
               : view === "room" && room
                 ? `${room.name} standings`
                 : view === "overall"
@@ -444,8 +480,18 @@ export function Stage() {
       ) : view === "awards" ? (
         <Awards data={data} />
       ) : (
-        <div className="stage-columns">
-          {[teams.slice(0, split), teams.slice(split)].map((part, index) => (
+        <div
+          className={`stage-columns${teams.length <= 25 ? " single-panel" : ""}`}
+          style={
+            {
+              "--room-count": Math.max(1, data.rooms.length),
+            } as React.CSSProperties
+          }
+        >
+          {(teams.length <= 25
+            ? [teams]
+            : [teams.slice(0, split), teams.slice(split)]
+          ).map((part, index) => (
             <div className="stage-panel" key={index}>
               <StandingTable
                 data={data}
@@ -462,7 +508,7 @@ export function Stage() {
         <span>
           {view === "room" && room
             ? data.scoring_version === 2
-              ? "Progress → room points → active time · "
+              ? "Solved → room net points → active time · "
               : "Consecutive challenges solved · "
             : view === "overall"
               ? data.scoring_version === 2
@@ -470,7 +516,9 @@ export function Stage() {
                 : "Distinct challenges solved · "
               : view === "awards"
                 ? "Prize standings · "
-                : "Room progress: solved / total · "}
+                : data.scoring_version === 2
+                  ? "Overall: net points → active time · Room progress: solved / total · "
+                  : "Room progress: solved / total · "}
           {data.teams.length} teams · {data.rooms.length} rooms ·{" "}
           {data.event.results_published
             ? "Published results"
@@ -506,7 +554,11 @@ function Awards({ data }: { data: Standings }) {
   return (
     <div className="stage-awards">
       <section className="overall-award">
-        <span>Overall quest</span>
+        <span>
+          {data.scoring_version === 2
+            ? "Overall · most net points"
+            : "Overall quest"}
+        </span>
         <h2>
           {overall.length
             ? overall.map((t) => t.name).join(" · ")
@@ -514,15 +566,9 @@ function Awards({ data }: { data: Standings }) {
         </h2>
         <p>
           {overall.length
-            ? `${data.scoring_version === 2 ? `${(overall[0].points ?? 0).toLocaleString()} net points` : `${overall[0].total} challenges solved`} · ${duration(overall[0].overall_elapsed_ms)}`
+            ? `${data.scoring_version === 2 ? `${(overall[0].points ?? 0).toLocaleString()} net points` : `${overall[0].total} challenges solved`} · ${rankingDuration(overall[0].overall_elapsed_ms)} active time`
             : "Teams need a qualifying solve to enter the awards"}
         </p>
-        {data.scoring_version === 2 && overall.length > 0 && (
-          <p className="award-points">
-            {overall[0].total} challenges solved · {overall[0].hint_costs ?? 0}{" "}
-            points spent on hints
-          </p>
-        )}
         {overall.length > 1 && <span>Shared first place</span>}
       </section>
       <div className="room-awards">
@@ -531,6 +577,9 @@ function Awards({ data }: { data: Standings }) {
             const p = team.room_progress.find((p) => p.room_id === room.id);
             return p?.rank === 1 && p.solved > 0;
           });
+          const leader = winners[0]?.room_progress.find(
+            (p) => p.room_id === room.id,
+          );
           return (
             <section key={room.id}>
               <span>{room.name}</span>
@@ -538,26 +587,19 @@ function Awards({ data }: { data: Standings }) {
                 {winners.map((t) => t.name).join(" · ") ||
                   "Awaiting a qualifying solve"}
               </h3>
-              {winners.length > 0 && (
-                <p>
-                  {
-                    winners[0].room_progress.find((p) => p.room_id === room.id)
-                      ?.solved
-                  }{" "}
-                  / {room.total} challenges solved ·{" "}
-                  {duration(
-                    winners[0].room_progress.find((p) => p.room_id === room.id)
-                      ?.milestone_elapsed_ms,
+              {leader && (
+                <p className="room-award-metrics">
+                  <strong>
+                    {leader.solved} / {room.total} solved
+                  </strong>
+                  {data.scoring_version === 2 && (
+                    <span>
+                      {(leader.points ?? 0).toLocaleString()} net room points
+                    </span>
                   )}
-                </p>
-              )}
-              {data.scoring_version === 2 && winners.length > 0 && (
-                <p className="award-points">
-                  {(
-                    winners[0].room_progress.find((p) => p.room_id === room.id)
-                      ?.points ?? 0
-                  ).toLocaleString()}{" "}
-                  room points after hints
+                  <span>
+                    {rankingDuration(leader.milestone_elapsed_ms)} active time
+                  </span>
                 </p>
               )}
               {winners.length > 1 && <small>Shared first place</small>}

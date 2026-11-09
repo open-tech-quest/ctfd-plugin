@@ -21,8 +21,11 @@ To explore this process with dummy accounts and a repeatable reset, use the
 5. Set maximum team size (default five). Participant naming defaults off: generated
    Team 1, Team 2, … names are final. Enable member naming only if wanted.
 6. Test `/quest/stage` on the actual projector. Organizer controls select overview,
-   room, overall or awards. Fifty teams use two panels of 25. Long room chains use
-   proportional progress and numbered milestones when individual marks do not fit.
+   room, overall or awards. Fifty teams use two panels of 25; up to 25 use one
+   panel. Overall emphasizes net points; room views show solved count, net room
+   points and active time in ranking order. Long chains use proportional progress
+   and numbered milestones when individual marks do not fit. Large room matrices
+   scroll within their panels.
 
 Room titles, subtitles and themes are independent of competition identity.
 Preview Markdown before saving. A blank Hero image URL uses the bundled scene;
@@ -120,7 +123,9 @@ Use **Submission history** for protected original and recovery records.
   clear always leads every partial clear. Overall ranks by net points, then
   overall milestone time. Net points subtract paid hints from earned challenge
   values. Hints are shared team purchases, charged once. Zero qualifying solves
-  have no prize rank; genuine ties share rank.
+  have no prize rank; genuine ties share rank. Standings show ranking times to
+  milliseconds and hint deductions beneath participant net scores. The awards
+  screen shows provisional leaders until publication, then final results.
 - Revealing a new hint asks for confirmation with its cost, team balance and
   resulting balance. Paid hints require sufficient overall points; free hints
   can be revealed at zero. Used hints are marked and shared with teammates.

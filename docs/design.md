@@ -130,9 +130,12 @@ Participant room paths scroll within a bounded horizontal rail with navigation
 controls. Cards fit their titles within a bounded width; long titles wrap in full,
 including locked steps. The home screen balances any room count into rows of two
 or three, uses a horizontal card for a single room, and stacks cards on phones.
-Standings overview presents room-level progress;
-room projector views show individual challenge marks when readable and proportional
-tracks with numbered milestones for long chains. Long paths must not create
+Standings put the relevant award measures first: overall net points/time and
+room solved count/net points/time. Ranking times retain millisecond precision;
+contextual progress totals never act as additional overall tie breakers. Shared
+award summaries show only measures common to all tied leaders. Overview retains
+room-level progress; room projector views show individual challenge marks when
+readable and proportional tracks with numbered milestones for long chains. Long paths must not create
 one column per challenge or page-wide participant overflow. Projector, organizer,
 participant and exports use the same authoritative ranking projection.
 
