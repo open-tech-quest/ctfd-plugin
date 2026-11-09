@@ -30,6 +30,12 @@ reasoned corrections/exclusions and sanitized public/export data. Fifty teams ar
 exercised with 50 concurrent-client standings requests (concurrency 10), reporting
 p95/max latency and bounding the shared projection to 12 SQL statements.
 
+Points regressions exercise unequal challenge weights, progress/points/time room
+ordering, net-points overall ordering, zero/negative balances, concurrent shared
+hint purchases, immutable purchase prices, native-route ID aliases, legacy charge
+migration and versioned publication/CSV results. Disposable browser challenges
+have varied point values and paid hints after each room's free first hint.
+
 Read-cache and sync regressions cover concurrent roster removal, old-snapshot
 cache fills, transaction rollback, ORM/bulk/raw-SQL invalidation, immediate bans
 and visibility changes, per-team isolation, scheduled privacy/cutoff transitions,
@@ -61,7 +67,8 @@ fixture accounts use the public password `quest-demo-only`: organizer account
 `atlas-two`. Restart running workers after reseeding to clear process caches.
 Use `--challenges-per-room 14` or `--challenges-per-room 30` to verify long
 challenge paths and projector progress at realistic team counts. The default
-remains five challenges per room. The fixture is excluded from the production
+remains five challenges per room. Add `--members-per-team 8` for 400 native
+accounts across the same 50 teams. The fixture is excluded from the production
 image and is never auto-seeded.
 
 Organizer timing corrections are cumulative per team/room, limited to ±24 hours,

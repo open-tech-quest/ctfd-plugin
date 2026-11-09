@@ -61,6 +61,15 @@ fall back to the database. Scheduled privacy/cutoff boundaries also affect visib
 revisions. Use supported APIs during events; out-of-band SQL edits require cache
 clearing/restarting readers.
 
+Challenge values and immutable hint receipts feed the same batched projection
+as solves. `scoring.py` handles event hint purchases through the guarded native
+unlock route, using fresh Quest net balance and native unlock/award records.
+Migration `0010_points` links legacy native purchases to their recorded charges;
+ambiguous/missing charges stop migration with the unlock ID for operator review,
+rather than guessing a price. Receipts retain their original cost. Published
+snapshots and CSV exports carry the scoring version; legacy published results
+continue to display their original count-based rules.
+
 ## Frontend and assets
 
 The React/Vite app is copied into the plugin's `assets/app/`; the Jinja shell

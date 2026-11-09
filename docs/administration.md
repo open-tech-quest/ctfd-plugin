@@ -56,11 +56,13 @@ refuses starts, activity or referenced history. Topology/order changes are draft
 only. Theme edits cannot change IDs, starts or submissions.
 
 The room editor creates standard challenges with static, any-flag grading and a
-fixed value of 100. It supports Hidden/Visible/Locked, Markdown descriptions and
+default value of 100, editable as a nonnegative whole number. It supports
+Hidden/Visible/Locked, Markdown descriptions and
 case-sensitive or explicitly case-insensitive flags. Unsupported native challenge
 or flag types remain read-only there; administrators use native CTFd for advanced
 settings, attachments and hints. The editor never silently normalizes them.
-Editing existing challenges preserves their native files, hints and value.
+Editing existing challenges preserves native files and hints; unchanged point
+values are preserved. Advanced native scoring remains managed in CTFd.
 
 New authoring requires draft status, no relevant activity and no loaded demo.
 Every challenge ID must belong to the requested room. Reordering updates Quest

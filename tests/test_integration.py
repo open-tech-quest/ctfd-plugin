@@ -225,7 +225,8 @@ class QuestIntegration(unittest.TestCase):
             self.assertEqual([t["rank"] for t in result["teams"]], [1, 1])
             red = next(t for t in result["teams"] if t["id"] == self.team_id)
             blue = next(t for t in result["teams"] if t["id"] == self.other_id)
-            self.assertIsNone(red["room_progress"][0]["rank"])
+            self.assertEqual(red["room_progress"][0]["rank"], 1)
+            self.assertEqual(red["room_progress"][0]["path_solved"], 0)
             self.assertEqual(blue["room_progress"][0]["milestone_elapsed_ms"], 20000)
             self.assertEqual(blue["overall_elapsed_ms"], 20000)
             self.assertEqual(blue["room_progress"][0]["rank"], 1)
@@ -2671,7 +2672,9 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(self.account_action(2,"access",active=False).status_code,200)
         without_alice=standing()
         self.assertEqual(without_alice["total"],1)
-        self.assertEqual(without_alice["room_progress"][0]["solved"],0)
+        self.assertEqual(without_alice["room_progress"][0]["solved"],1)
+        self.assertEqual(without_alice["room_progress"][0]["path_solved"],0)
+        self.assertEqual(without_alice["room_progress"][0]["solved_steps"],[2])
         relocked=self.bob.get(PREFIX+"/rooms/openshift").json["data"]["steps"]
         self.assertEqual([step["state"] for step in relocked],["available","locked"])
         self.assertIsNotNone(relocked[1]["solved_at"])
@@ -2798,9 +2801,10 @@ class QuestIntegration(unittest.TestCase):
         banned=self.timing_standings()
         self.assertEqual(banned[self.team_id]["total"],1)
         self.assertEqual(banned[self.team_id]["overall_elapsed_ms"],40000)
-        self.assertEqual(banned[self.team_id]["rank"],2)  # Count wins despite the earlier remaining milestone.
-        self.assertEqual(banned[self.team_id]["room_progress"][0]["solved"],0)
-        self.assertIsNone(banned[self.team_id]["room_progress"][0]["milestone_elapsed_ms"])
+        self.assertEqual(banned[self.team_id]["rank"],2)  # Higher net points win despite the earlier remaining milestone.
+        self.assertEqual(banned[self.team_id]["room_progress"][0]["solved"],1)
+        self.assertEqual(banned[self.team_id]["room_progress"][0]["path_solved"],0)
+        self.assertEqual(banned[self.team_id]["room_progress"][0]["milestone_elapsed_ms"],30000)
         with self.app.app_context():
             at=base+timedelta(seconds=70)
             db.session.add(QuestRecoverySolve(user_id=3,credited_user_id=3,team_id=self.team_id,challenge_id=1,original_solve_id=original_id,date=at,credited_at=at))
@@ -2852,7 +2856,8 @@ class QuestIntegration(unittest.TestCase):
             db.session.commit()
         cutoff=self.timing_standings()
         self.assertEqual(cutoff[self.team_id]["total"],1)
-        self.assertEqual(cutoff[self.team_id]["room_progress"][0]["solved"],0)
+        self.assertEqual(cutoff[self.team_id]["room_progress"][0]["solved"],1)
+        self.assertEqual(cutoff[self.team_id]["room_progress"][0]["path_solved"],0)
         self.assertEqual(cutoff[self.other_id]["room_progress"][0]["solved"],1)
         self.assertEqual(cutoff[self.team_id]["rank"],2)
         with self.app.app_context():
@@ -2861,7 +2866,8 @@ class QuestIntegration(unittest.TestCase):
             db.session.commit()
         paused=self.timing_standings()
         self.assertEqual(paused[self.team_id]["total"],1)
-        self.assertEqual(paused[self.team_id]["room_progress"][0]["solved"],0)
+        self.assertEqual(paused[self.team_id]["room_progress"][0]["solved"],1)
+        self.assertEqual(paused[self.team_id]["room_progress"][0]["path_solved"],0)
         self.assertEqual(paused[self.other_id]["total"],1)
 
     def test_lifecycle_normal_native_solve_precision_never_predates_room_start(self):

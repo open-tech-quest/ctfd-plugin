@@ -115,6 +115,16 @@ class AuthoringIntegration(unittest.TestCase):
             self.assertEqual(row.requirements["prerequisites"], [1])
             self.assertEqual([f.data for f in Flags.query.filter_by(challenge_id=2).order_by(Flags.id)], ["", "case_insensitive"])
 
+    def test_room_editor_creates_and_updates_validated_point_values(self):
+        created = self.create(value=250)
+        self.assertEqual(created["value"], 250)
+        changed = self.post(self.maintainer, self.path(created["id"]), {"value": 0}, "PATCH")
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(changed.json["data"]["value"], 0)
+        for value in (True, "100", -1, 1.5, 2147483648, None):
+            response = self.post(self.maintainer, self.path(created["id"]), {"value": value}, "PATCH")
+            self.assertEqual(response.status_code, 400, repr(value))
+
     def test_preview_matches_native_case_rules_without_progress_or_answer_logs(self):
         created = self.create(flags=[{"content": "ExactCase", "case_insensitive": False},
                                     {"content": "MixedCase", "case_insensitive": True}])
@@ -236,7 +246,7 @@ class AuthoringIntegration(unittest.TestCase):
             {"flags": [{"content": "x" * 1025, "case_insensitive": False}]},
             {"flags": [{"content": "a", "case_insensitive": False}] * 21},
             {"flags": [{"content": "\x00secret-invalid-input", "case_insensitive": False}]},
-            {"value": 999}, {"requirements": {"prerequisites": []}},
+            {"value": -1}, {"requirements": {"prerequisites": []}},
         ]
         for overrides in invalid:
             response = self.post(self.maintainer, self.path(), self.payload(**overrides))

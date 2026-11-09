@@ -26,11 +26,20 @@ export interface Viewer {
 export interface Step {
   id: number;
   title: string;
+  value: number;
   position: number;
   state: "locked" | "available" | "solved";
   solved_at: string | null;
 }
-export interface Progress {
+export interface Score {
+  points: number;
+  gross_points: number;
+  hint_costs: number;
+}
+export interface Progress extends Score {
+  available_points: number;
+  credited_solved: number;
+  score_elapsed_ms: number | null;
   solved: number;
   total: number;
   started_at: string | null;
@@ -57,6 +66,7 @@ export interface Room {
   };
   steps: Step[];
   progress: Progress;
+  team_score: Score;
   startable: boolean;
 }
 export interface RegistrationState {
@@ -73,15 +83,17 @@ export interface QuestSync {
 export interface Bootstrap extends QuestSync {
   rooms: Room[];
 }
-export interface RoomProgress {
+export interface RoomProgress extends Partial<Score> {
   room_id: number;
   solved: number;
+  path_solved?: number;
+  solved_steps?: number[];
   total: number;
   milestone_elapsed_ms: number | null;
   rank: number | null;
   complete: boolean;
 }
-export interface StandingTeam {
+export interface StandingTeam extends Partial<Score> {
   id: number;
   name: string;
   rank: number | null;
@@ -90,8 +102,13 @@ export interface StandingTeam {
   room_progress: RoomProgress[];
 }
 export interface Standings {
+  scoring_version?: number;
   event: QuestEvent;
-  rooms: (Pick<Room, "id" | "slug" | "name"> & { total: number })[];
+  rooms: (Pick<Room, "id" | "slug" | "name"> & {
+    total: number;
+    available_points?: number;
+    steps?: { id: number; value: number }[];
+  })[];
   teams: StandingTeam[];
   room_leaders: Record<string, StandingTeam[]>;
   as_of: string;
@@ -153,6 +170,7 @@ export interface DemoContentState {
 export interface Challenge {
   id: number;
   name: string;
+  value: number;
   description: string;
   files: string[];
   hints: { id: number; cost: number; content?: string }[];
@@ -247,6 +265,7 @@ export interface EditableFlag {
 export interface EditableChallenge {
   id: number;
   name: string;
+  value: number;
   description: string;
   state: "hidden" | "visible" | "locked";
   type: string;

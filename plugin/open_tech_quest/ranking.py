@@ -32,3 +32,24 @@ def assign_ranks(rows, count_key, time_key):
         row["rank"] = rank if row[count_key] else None
         last = key
     return rows
+
+
+def assign_point_ranks(rows, time_key, room=False):
+    """Progress precedes points inside rooms; overall compares net points."""
+    def sporting(row):
+        return ((-row["solved"],) if room else ()) + (
+            -row["points"], row[time_key] if row[time_key] is not None else float("inf"))
+    # Ineligible rows cannot consume a sporting rank, including negative scores.
+    rows.sort(key=lambda r: (not bool(r["solved"] if room else r["total"]),
+                            *sporting(r), r.get("name", ""), r.get("id", 0)))
+    last, rank, eligible = None, None, 0
+    for row in rows:
+        if not (row["solved"] if room else row["total"]):
+            row["rank"] = None
+            continue
+        eligible += 1
+        key = sporting(row)
+        if key != last:
+            rank = eligible
+        row["rank"], last = rank, key
+    return rows

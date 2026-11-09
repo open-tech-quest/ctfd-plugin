@@ -14,6 +14,6 @@ def upgrade_sqlite_attendance():
             # Serialize introspection and ALTERs across starting workers.
             connection.execute(text("BEGIN IMMEDIATE"))
             operations = Operations(MigrationContext.configure(connection))
-            for name in ("0005_attendance", "0008_attendance_first"):
+            for name in ("0005_attendance", "0008_attendance_first", "0010_points"):
                 migration = import_module("CTFd.plugins.open_tech_quest.migrations." + name)
                 migration.upgrade(operations)

@@ -4,8 +4,8 @@ from types import SimpleNamespace
 from sqlalchemy import exists, or_
 from CTFd.models import Awards, Challenges, Solves, Submissions, Teams, Unlocks, Users
 from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
-                     QuestExclusion, QuestCorrection, QuestMaintainer)
-from .ranking import active_ms, prefix, assign_ranks
+                     QuestExclusion, QuestCorrection, QuestMaintainer, QuestHintPurchase)
+from .ranking import active_ms, prefix, assign_point_ranks
 from . import read_cache
 
 
@@ -98,10 +98,10 @@ def _metadata_inputs():
     rooms = QuestRoom.query.order_by(QuestRoom.position, QuestRoom.id).all()
     steps = QuestStep.query.order_by(QuestStep.position).all()
     mapped = [step.challenge_id for step in steps]
-    challenges = Challenges.query.with_entities(Challenges.id, Challenges.name, Challenges.state).filter(Challenges.id.in_(mapped)).all()
+    challenges = Challenges.query.with_entities(Challenges.id, Challenges.name, Challenges.state, Challenges.value).filter(Challenges.id.in_(mapped)).all()
     return {"rooms": [{key: getattr(room, key) for key in ("id", "slug", "name", "subtitle", "description", "position", "theme")} for room in rooms],
             "steps": [{"room_id": step.room_id, "challenge_id": step.challenge_id, "position": step.position} for step in steps],
-            "challenges": [{"id": cid, "name": name, "state": state} for cid, name, state in challenges]}
+            "challenges": [{"id": cid, "name": name, "state": state, "value": value or 0} for cid, name, state, value in challenges]}
 
 
 def _history_inputs(mapped, counted_ids, team_id, challenge_id):
@@ -126,7 +126,13 @@ def _history_inputs(mapped, counted_ids, team_id, challenge_id):
         if challenge_id is not None:
             query = query.filter(model.challenge_id == challenge_id)
         contributions.extend(query.all())
-    return {"starts": [[s.team_id, s.room_id, _stamp(s.started_at)] for s in starts.all()],
+    purchases = QuestHintPurchase.query.filter(QuestHintPurchase.challenge_id.in_(counted_ids))
+    if team_id is not None:
+        purchases = purchases.filter_by(team_id=team_id)
+    if challenge_id is not None:
+        purchases = purchases.filter_by(challenge_id=challenge_id)
+    return {"purchases": [[p.team_id, p.challenge_id, p.cost, _stamp(p.purchased_at)] for p in purchases.all()],
+            "starts": [[s.team_id, s.room_id, _stamp(s.started_at)] for s in starts.all()],
             "pauses": [[_stamp(p.started_at), _stamp(p.ended_at)] for p in QuestPause.query.order_by(QuestPause.started_at).all()],
             "corrections": [[c.team_id, c.room_id, c.adjustment_ms] for c in corrections.all()],
             "contributions": [[tid, cid, _stamp(at)] for tid, cid, at in contributions]}
@@ -166,7 +172,7 @@ class Projection:
         for tid, rid, adjustment in history["corrections"]:
             key = tid, rid
             self.corrections[key] = self.corrections.get(key, 0) + adjustment
-        self.solves = {}
+        self.solves, self.hint_costs = {}, {}
         if not self.event.start_at:
             return
         e = self.event
@@ -183,6 +189,22 @@ class Projection:
                 continue
             solves = self.solves.setdefault(team_id, {})
             solves[challenge_id] = min(at, solves.get(challenge_id, at))
+        for tid, cid, cost, stamp in history["purchases"]:
+            at = parse_time(stamp)
+            start = self.starts.get((tid, self.mapped[cid]))
+            if not start or not at or at < max(start, e.start_at) or at > self.at or (e.end_at and at > e.end_at):
+                continue
+            if any(left <= at < (right or self.at) for left, right in self.pauses):
+                continue
+            costs = self.hint_costs.setdefault(tid, {})
+            costs[cid] = costs.get(cid, 0) + cost
+
+    def score(self, team_id, ids=None):
+        ids = set(self.mapped if ids is None else ids)
+        solves = self.solves.get(team_id, {})
+        gross = sum(self.challenges[cid].value for cid in ids if cid in solves)
+        costs = sum(cost for cid, cost in self.hint_costs.get(team_id, {}).items() if cid in ids)
+        return {"gross_points": gross, "hint_costs": costs, "points": gross - costs}
 
     def progress(self, room, team_id, solves=None):
         e = self.event
@@ -197,7 +219,14 @@ class Projection:
             elapsed = max(0, elapsed + self.corrections.get((team_id, room.id), 0))
         complete = bool(ids) and len(milestones) == len(ids)
         clock_to = milestone if complete else min(self.at, e.end_at or self.at)
-        return {"solved": len(milestones), "total": len(ids), "started_at": iso(start),
+        counted = [solves[cid] for cid in ids if cid in solves]
+        score_time = active_ms(origin, max(counted) if counted else None, self.pauses)
+        if score_time is not None:
+            score_time = max(0, score_time + self.corrections.get((team_id, room.id), 0))
+        return {**self.score(team_id, ids), "available_points": sum(self.challenges[cid].value for cid in ids),
+                "solved_steps": [index + 1 for index, cid in enumerate(ids) if cid in solves],
+                "credited_solved": len(counted), "score_elapsed_ms": score_time,
+                "solved": len(milestones), "total": len(ids), "started_at": iso(start),
                 "elapsed_ms": active_ms(origin, clock_to, self.pauses) if start else None,
                 "milestone_elapsed_ms": elapsed,
                 "status": "complete" if complete else ("active" if start else "not_started")}
@@ -221,11 +250,11 @@ class Projection:
             else:
                 state = "solved" if solved else ("available" if admin or (enabled and visible) else "locked")
             data.append({"id": step.challenge_id, "title": challenge.name, "position": step.position if admin else position,
-                         "state": state, "solved_at": iso(solves.get(step.challenge_id))})
+                         "state": state, "value": challenge.value, "solved_at": iso(solves.get(step.challenge_id))})
             prefix_open = prefix_open and solved
         result = {"id": room.id, "slug": room.slug, "name": room.name, "subtitle": room.subtitle,
                   "description": room.description, "position": room.position, "theme": room.theme,
-                  "steps": data, "progress": p,
+                  "steps": data, "progress": p, "team_score": self.score(team_id),
                   "startable": bool(participant_steps) and self.challenges[participant_steps[0].challenge_id].state == "visible"}
         if admin:
             result["challenge_ids"] = [s.challenge_id for s in steps]
@@ -278,6 +307,7 @@ def standings(e=None, public=False):
     e = e or event()
     if e.status == "published" and e.snapshot:
         data = dict(e.snapshot)
+        data.setdefault("scoring_version", 1)
         data["event"] = event_data(e)
         if public and not released(e):
             data["teams"], data["room_leaders"] = [], []
@@ -299,11 +329,13 @@ def standings(e=None, public=False):
         rp = []
         for room in rooms:
             p = view.progress(room, team.id, solves)
-            rp.append({"room_id": room.id, "solved": p["solved"], "total": p["total"],
-                       "milestone_elapsed_ms": p["milestone_elapsed_ms"], "rank": None,
+            rp.append({"room_id": room.id, "solved": p["credited_solved"], "path_solved": p["solved"], "total": p["total"],
+                       "solved_steps": p["solved_steps"],
+                       "points": p["points"], "gross_points": p["gross_points"], "hint_costs": p["hint_costs"],
+                       "milestone_elapsed_ms": p["score_elapsed_ms"], "rank": None,
                        "complete": p["status"] == "complete"})
-        teams.append({"id": team.id, "name": team.name, "total": len(solves), "overall_elapsed_ms": elapsed, "room_progress": rp})
-    assign_ranks(teams, "total", "overall_elapsed_ms")
+        teams.append({**view.score(team.id), "id": team.id, "name": team.name, "total": len(solves), "overall_elapsed_ms": elapsed, "room_progress": rp})
+    assign_point_ranks(teams, "overall_elapsed_ms")
     leaders = []
     by_id = {t["id"]: t for t in teams}
     for room in rooms:
@@ -311,12 +343,18 @@ def standings(e=None, public=False):
         for team in teams:
             p = next(x for x in team["room_progress"] if x["room_id"] == room.id)
             rows.append(dict(p, id=team["id"], name=team["name"]))
-        assign_ranks(rows, "solved", "milestone_elapsed_ms")
+        assign_point_ranks(rows, "milestone_elapsed_ms", room=True)
         for row in rows:
             next(p for p in by_id[row["id"]]["room_progress"] if p["room_id"] == room.id)["rank"] = row["rank"]
         leaders.append({"room_id": room.id, "room_slug": room.slug,
                         "teams": [row for row in rows if row["rank"] == 1]})
     if public and not released(e):
         teams, leaders = [], []
-    return {"event": event_data(e), "rooms": [{"id": r.id, "slug": r.slug, "name": r.name, "total": len(view.participant_steps.get(r.id, []))} for r in rooms],
+    return {"scoring_version": 2, "event": event_data(e), "rooms": [
+                {"id": r.id, "slug": r.slug, "name": r.name,
+                 "total": len(view.participant_steps.get(r.id, [])),
+                 "steps": [{"id": step.challenge_id, "value": view.challenges[step.challenge_id].value}
+                           for step in view.participant_steps.get(r.id, [])],
+                 "available_points": sum(view.challenges[step.challenge_id].value for step in view.participant_steps.get(r.id, []))}
+                for r in rooms],
             "teams": teams, "room_leaders": leaders, "as_of": iso(view.at)}

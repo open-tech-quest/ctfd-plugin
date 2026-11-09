@@ -170,6 +170,11 @@ image against a disposable copy before an event. Preserve session keys, database
 credentials, resource identities and storage. Image rollback does not undo a
 schema migration; check compatibility or restore a matching backup.
 
+The points upgrade links existing native hint purchases to their recorded
+charges. An ambiguous or missing charge stops startup with the unlock ID;
+restore the previous image and review that purchase against your backup before
+retrying. It never guesses historical prices or recalculates published results.
+
 Releases **v0.1.22–v0.1.23** included a reusable `deploy/` package. For deployments
 consuming it, copy those manifests and any bootstrap configuration from your
 existing pinned tag into your infrastructure repository. Compare rendered

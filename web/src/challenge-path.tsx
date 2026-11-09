@@ -172,6 +172,9 @@ export function ChallengePath({
                       : "Available"}
                 </small>
                 <strong>{step.title}</strong>
+                <span className="step-points">
+                  {step.value.toLocaleString()} pts
+                </span>
               </span>
             </button>
           </li>

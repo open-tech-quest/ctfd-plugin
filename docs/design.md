@@ -38,14 +38,33 @@ Naming defaults to fixed generated names; member naming is optional. See the
 
 ## Progress, timing and awards
 
-| Ranking | Primary measure | Tie breaker |
-|---|---|---|
-| Room | Longest consecutively solved challenge prefix, descending | Active time to that prefix's final solve, ascending |
-| Overall | Distinct eligible mapped challenge solves, descending | Active time to the last counted solve, ascending |
+| Ranking | Order, from first to last |
+|---|---|
+| Room | Eligible challenges solved in the room, descending; room net points, descending; active time to the last counted room solve, ascending |
+| Overall | Net points across all rooms, descending; active time to the last counted solve, ascending |
 
 A complete room outranks an incomplete one. A zero-solve room has no prize rank.
-True count/time ties share rank; database ID is not a sporting tie breaker.
-Counts are solves, not CTFd points. A stuck team's milestone time does not grow.
+Net points are native challenge values earned once per eligible team solve,
+minus paid hint costs. A room's hint costs affect its room score and the overall
+score. Incomplete rooms remain eligible: 9/10 always outranks 8/10 regardless of
+points or time. True ties across every ranking measure share rank; database ID
+is not a sporting tie breaker. Counts remain separate from points. A stuck
+team's milestone time does not grow. Sequential path access still uses the
+consecutive solved prefix, independently of credited solve counts.
+
+Hints are purchased once per team and shared. Fresh net balance must cover the
+price; purchases serialize with event changes and record a native unlock,
+native negative award and immutable receipt atomically. Only genuine hint
+purchases affect scores, not arbitrary native bonus/penalty awards. Charges stay
+with the team if the purchasing member is later banned; revoked solve credit
+can leave a negative score. Hidden challenges withdraw both credit and associated
+hint costs, without deleting history. Locked challenges retain both.
+
+The room editor supports fixed point values, including zero. Scoring and hint
+prices are frozen after competition activity; supported native dynamic scoring
+retains CTFd's automatic value changes. New publication snapshots include point
+breakdowns and a scoring version. Existing published count-based snapshots keep
+their original rankings until an explicit reasoned unpublish/review/republish.
 
 Room timing defaults to explicit room start; common event origin is configurable.
 Overall timing defaults to common event start; team-first-room origin is an

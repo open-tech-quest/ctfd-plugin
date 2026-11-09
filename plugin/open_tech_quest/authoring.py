@@ -21,7 +21,7 @@ NAME_LIMIT = 80
 DESCRIPTION_LIMIT = 10000
 FLAG_LIMIT = 1024
 FLAG_COUNT_LIMIT = 20
-EDIT_FIELDS = {"name", "description", "state", "flags"}
+EDIT_FIELDS = {"name", "description", "state", "flags", "value"}
 
 
 @authoring_api.after_request
@@ -41,6 +41,8 @@ def flag_rows(challenge):
 def unsupported_reason(challenge, flags=None):
     if challenge.type != "standard" or challenge.logic != "any":
         return "This challenge uses unsupported native challenge type or flag logic. Manage it in native CTFd."
+    if challenge.function != "static":
+        return "This challenge uses dynamic scoring. Manage its value in native CTFd."
     flags = flags if flags is not None else flag_rows(challenge)
     if any(f.type != "static" or f.data not in (None, "", "case_insensitive") for f in flags):
         return "This challenge uses unsupported native flag behavior. Manage it in native CTFd."
@@ -72,7 +74,7 @@ def editable(room, challenge, e=None):
     edit_reason = mutation_reason(room, challenge, e)
     delete_reason = edit_reason or topology_reason(room, e) or outside_dependency(room, challenge)
     return {"id": challenge.id, "name": challenge.name, "description": challenge.description or "",
-            "state": challenge.state, "type": challenge.type,
+            "state": challenge.state, "type": challenge.type, "value": challenge.value,
             "flags": [] if unsupported else [{"content": f.content, "case_insensitive": f.data == "case_insensitive"} for f in flags],
             "can_edit": edit_reason is None, "edit_reason": edit_reason,
             "can_delete": delete_reason is None, "delete_reason": delete_reason}
@@ -96,10 +98,14 @@ def checked_text(value, label, limit, empty=False):
 
 def checked_payload(data, create=False):
     if set(data) - EDIT_FIELDS or not data:
-        fail("Use only name, description, state and flags")
-    if create and set(data) != EDIT_FIELDS:
+        fail("Use only name, description, state, flags and value")
+    if create and not (EDIT_FIELDS - {"value"}) <= set(data):
         fail("A new challenge requires name, description, state and flags")
     result = {}
+    if "value" in data:
+        if type(data["value"]) is not int or not 0 <= data["value"] <= 2147483647:
+            fail("Challenge points must be a whole number from 0 to 2147483647")
+        result["value"] = data["value"]
     if "name" in data:
         result["name"] = checked_text(data["name"], "Challenge name", NAME_LIMIT).strip()
     if "description" in data:
@@ -126,7 +132,7 @@ def checked_payload(data, create=False):
 
 
 def apply_fields(challenge, data):
-    for field in ("name", "description", "state"):
+    for field in ("name", "description", "state", "value"):
         if field in data:
             setattr(challenge, field, data[field])
     if "flags" in data:

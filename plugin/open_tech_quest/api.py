@@ -655,14 +655,17 @@ def export():
     data = standings()
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(("competition", "team_id", "team_name", "rank", "solved", "total", "active_elapsed_ms"))
+    writer.writerow(("competition", "team_id", "team_name", "rank", "solved", "total", "active_elapsed_ms",
+                     "gross_points", "hint_costs", "net_points", "scoring_version"))
     def safe_name(name):
         return "'" + name if name.startswith(("=", "+", "-", "@", "\t", "\r")) else name
     for team in data["teams"]:
-        writer.writerow(("overall", team["id"], safe_name(team["name"]), team["rank"], team["total"], sum(r["total"] for r in data["rooms"]), team["overall_elapsed_ms"]))
+        writer.writerow(("overall", team["id"], safe_name(team["name"]), team["rank"], team["total"], sum(r["total"] for r in data["rooms"]), team["overall_elapsed_ms"],
+                         team.get("gross_points", ""), team.get("hint_costs", ""), team.get("points", ""), data.get("scoring_version", 1)))
         for p in team["room_progress"]:
             room = next(r for r in data["rooms"] if r["id"] == p["room_id"])
-            writer.writerow((room["slug"], team["id"], safe_name(team["name"]), p["rank"], p["solved"], p["total"], p["milestone_elapsed_ms"]))
+            writer.writerow((room["slug"], team["id"], safe_name(team["name"]), p["rank"], p["solved"], p["total"], p["milestone_elapsed_ms"],
+                             p.get("gross_points", ""), p.get("hint_costs", ""), p.get("points", ""), data.get("scoring_version", 1)))
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=quest-standings.csv"})
 
 

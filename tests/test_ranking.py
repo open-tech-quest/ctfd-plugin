@@ -26,3 +26,26 @@ class RankingRules(unittest.TestCase):
     def test_competition_ties_and_zero_solve_ineligibility(self):
         rows = [{"id": i, "count": count, "time": duration} for i, count, duration in ((1, 2, 100), (2, 2, 100), (3, 1, 10), (4, 0, None))]
         self.assertEqual([r["rank"] for r in rules.assign_ranks(rows, "count", "time")], [1, 1, 3, None])
+
+    def test_room_progress_then_net_points_then_active_time(self):
+        rows = [
+            dict(id=1, solved=8, points=900, time=10),
+            dict(id=2, solved=9, points=500, time=40),
+            dict(id=3, solved=9, points=550, time=50),
+            dict(id=4, solved=9, points=550, time=45),
+            dict(id=5, solved=9, points=550, time=45),
+            dict(id=6, solved=10, points=100, time=100),
+        ]
+        ranked = rules.assign_point_ranks(rows, 'time', room=True)
+        self.assertEqual([r['id'] for r in ranked], [6, 4, 5, 3, 2, 1])
+        self.assertEqual([r['rank'] for r in ranked], [1, 2, 2, 4, 5, 6])
+
+    def test_overall_uses_net_points_and_zero_negative_solvers_remain_eligible(self):
+        rows = [dict(id=1, total=0, points=0, time=None),
+                dict(id=2, total=2, points=0, time=10),
+                dict(id=3, total=1, points=-50, time=20),
+                dict(id=4, total=1, points=500, time=30),
+                dict(id=5, total=8, points=400, time=10)]
+        ranked = rules.assign_point_ranks(rows, 'time')
+        self.assertEqual([r['id'] for r in ranked], [4, 5, 2, 3, 1])
+        self.assertEqual([r['rank'] for r in ranked], [1, 2, 3, 4, None])

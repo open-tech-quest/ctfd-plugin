@@ -21,6 +21,7 @@ from CTFd.plugins.open_tech_quest.models import QuestEvent, QuestRoom, QuestStep
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--draft", action="store_true")
+    parser.add_argument("--members-per-team", type=int, default=2, choices=range(2, 11), metavar="2..10")
     parser.add_argument("--challenges-per-room", type=int, default=5, choices=range(1, 101), metavar="1..100")
     args = parser.parse_args()
     database = os.environ.get("DATABASE_URL", "")
@@ -45,7 +46,7 @@ def main():
             set_config(key, value)
         e = QuestEvent(id=1, name="Open Tech Quest", status="draft" if args.draft else "live", start_at=None if args.draft else at)
         db.session.add(e)
-        db.session.add(QuestOnboarding(id=1, phase="check_in" if args.draft else "finalized", team_size=5, grandfathered=not args.draft))
+        db.session.add(QuestOnboarding(id=1, phase="check_in" if args.draft else "finalized", team_size=max(5, args.members_per_team), grandfathered=not args.draft))
         password = hash_password("quest-demo-only")
         names = ["Atlas", "Aurora", "Beacon", "Binary", "Bluebird", "Bridge", "Cedar", "Circuit", "Cloudwalk", "Cobalt", "Comet", "Compass", "Core", "Cosmos", "Crimson", "Delta", "Discovery", "Echo", "Elm", "Ember", "Falcon", "Fern", "Flux", "Forge", "Glider", "Harbor", "Helix", "Horizon", "Indigo", "Juniper", "Keystone", "Kite", "Lighthouse", "Maple", "Meridian", "Meteor", "Nimbus", "Nova", "Orbit", "Pioneer", "Pixel", "Quartz", "Relay", "River", "Signal", "Skyline", "Sparrow", "Summit", "Vector", "Willow"]
         db.session.execute(Users.__table__.insert(), {"id": 1, "name": "organizer", "email": "organizer@example.test", "password": password, "type": "admin", "verified": True, "banned": False, "hidden": False})
@@ -58,9 +59,9 @@ def main():
             if not args.draft:
                 db.session.add(QuestTeamName(team_id=team.id, name_locked=True))
             rows = []
-            for member in range(2):
-                uid = 2 + index * 2 + member
-                username = ("atlas-one" if member == 0 else "atlas-two") if index == 0 else f"{name.lower()}-{member + 1}"
+            for member in range(args.members_per_team):
+                uid = 2 + index * args.members_per_team + member
+                username = ("atlas-one" if member == 0 else "atlas-two") if index == 0 and member < 2 else f"{name.lower()}-{member + 1}"
                 rows.append({"id": uid, "name": username, "email": username + "@example.test", "password": password, "type": "user", "verified": True, "banned": False, "hidden": False, "team_id": team.id})
             db.session.execute(Users.__table__.insert(), rows)
             if not args.draft:
@@ -73,12 +74,12 @@ def main():
             db.session.flush()
             ids = [position * args.challenges_per_room + step + 1 for step in range(args.challenges_per_room)]
             for step, cid in enumerate(ids):
-                db.session.add(Challenges(id=cid, name=(["Find your bearings", "Inspect the system", "Make a change", "Connect the pieces", "Complete the mission"][step] if args.challenges_per_room == 5 else f"Step {step + 1}: " + ["Inspect the cluster operators and review the deployment configuration", "Read the application logs and trace the failing service", "Configure network policies for a protected workload", "Deploy an application from a Git repository and verify its health", "Investigate the image registry and complete the recovery procedure"][step % 5]), description=f"## {name}: step {step + 1}\n\nThis is an isolated test fixture. Submit **demo-{slug}-{step + 1}** to verify the native challenge flow.\n\nExplore the attachment and hint for this practice task.", value=100, category=name, type="standard", state="visible", requirements={"prerequisites": ids[:step], "anonymize": False}, position=step, next_id=None))
+                db.session.add(Challenges(id=cid, name=(["Find your bearings", "Inspect the system", "Make a change", "Connect the pieces", "Complete the mission"][step] if args.challenges_per_room == 5 else f"Step {step + 1}: " + ["Inspect the cluster operators and review the deployment configuration", "Read the application logs and trace the failing service", "Configure network policies for a protected workload", "Deploy an application from a Git repository and verify its health", "Investigate the image registry and complete the recovery procedure"][step % 5]), description=f"## {name}: step {step + 1}\n\nThis is an isolated test fixture. Submit **demo-{slug}-{step + 1}** to verify the native challenge flow.\n\nExplore the attachment and hint for this practice task.", value=100 * (step + 1), category=name, type="standard", state="visible", requirements={"prerequisites": ids[:step], "anonymize": False}, position=step, next_id=None))
                 db.session.flush()
                 if step:
                     Challenges.query.get(ids[step - 1]).next_id = cid
                 db.session.add(Flags(challenge_id=cid, type="static", content=f"demo-{slug}-{step + 1}", data=""))
-                db.session.add(Hints(challenge_id=cid, title="Practice clue", content=f"Use demo-{slug}-{step + 1} for this isolated test.", cost=0))
+                db.session.add(Hints(id=cid, challenge_id=cid, title="Practice clue", content=f"Use demo-{slug}-{step + 1} for this isolated test.", cost=0 if step == 0 else 25))
                 db.session.add(QuestStep(room_id=room.id, challenge_id=cid, position=step))
                 location = f"quest-demo-{slug}-{step + 1}/instructions.txt"
                 path = Path(app.config["UPLOAD_FOLDER"]) / location
@@ -93,9 +94,9 @@ def main():
                     db.session.add(QuestStart(team_id=team_id, room_id=room.id, started_at=started))
                     solved = (team_index + position * 2) % (args.challenges_per_room + 1)
                     for step in range(solved):
-                        db.session.add(Solves(challenge_id=ids[step], user_id=2 + team_index * 2, team_id=team_id, date=started + timedelta(seconds=60 * (step + 1) + team_index)))
+                        db.session.add(Solves(challenge_id=ids[step], user_id=2 + team_index * args.members_per_team, team_id=team_id, date=started + timedelta(seconds=60 * (step + 1) + team_index)))
         db.session.commit()
-        print(f"Disposable fixture ready: 50 teams, 100 participants, {5 * args.challenges_per_room} challenges; " + ("draft" if args.draft else "live") + ".")
+        print(f"Disposable fixture ready: 50 teams, {50 * args.members_per_team} participants, {5 * args.challenges_per_room} challenges; " + ("draft" if args.draft else "live") + ".")
         print("Login: organizer / quest-demo-only; participants atlas-one and atlas-two / quest-demo-only.")
 
 

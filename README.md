@@ -1,7 +1,7 @@
 # Open Tech Quest
 
 A CTFd plugin for team escape-room events: themed rooms, sequential challenges,
-shared team progress, timed standings and a projector view. Built on CTFd 3.8.9;
+shared team progress, points and time rankings, and a projector view. Built on CTFd 3.8.9;
 CTFd handles accounts, teams, flags, hints and solves.
 
 ## Features
@@ -9,7 +9,8 @@ CTFd handles accounts, teams, flags, hints and solves.
 - Customizable rooms with ordered challenges, Markdown introductions and themes.
 - Participant check-in, organizer team allocation and optional team naming.
 - Shared room starts and solves, server-side clocks, pauses and closing cutoffs.
-- Room and overall rankings with shared ties, plus projector and awards views.
+- Room progress/points/time rankings and overall net-points rankings, with shared
+  ties, team-paid hints, projector and awards views.
 - Organizer controls for challenges, maintainers, late arrivals and CSV exports.
 
 New installations start in **draft** with five empty rooms: OpenShift, Ansible,

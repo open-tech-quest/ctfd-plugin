@@ -15,6 +15,12 @@ def denied(message, status=403):
     return jsonify(success=False, error=message), status
 
 
+def native_id(value):
+    if isinstance(value, str) and len(value) <= 10 and value.isascii() and value.isdigit():
+        value = int(value)
+    return value if type(value) is int and 1 <= value <= 2147483647 else None
+
+
 def controlled_config_write(names, controlled):
     names = [name for name in names if isinstance(name, str)]
     if any(name.casefold() in controlled for name in names):
@@ -41,6 +47,19 @@ def install_guards(app):
             g.quest_administrator = True
         data = request.get_json(silent=True) if request.is_json else request.form
         data = data if isinstance(data, dict) or hasattr(data, "get") else {}
+        resource_id = re.match(r"^/api/v1/(challenges|hints|solutions|awards)/([^/]+)(?:/|$)", path)
+        if resource_id:
+            resource, raw_id = resource_id.groups()
+            named = resource == "challenges" and raw_id in ("attempt", "types")
+            if not named and native_id(raw_id) is None:
+                return denied("Use a positive integer resource ID", 400)
+        unlock_model, unlock_target_id = None, None
+        if path == "/api/v1/unlocks" and write:
+            kind = data.get("type")
+            unlock_model = {"hints": Hints, "solutions": Solutions}.get(kind) if isinstance(kind, str) else None
+            unlock_target_id = native_id(data.get("target"))
+            if unlock_model is None or unlock_target_id is None:
+                return denied("Use a valid unlock type and positive integer target", 400)
         if path == "/":
             return redirect("/quest")
         if path == "/register":
@@ -122,6 +141,15 @@ def install_guards(app):
         # authoring is used for the actual descriptions, files and flags.
         match = re.fullmatch(r"/api/v1/challenges/(\d+)", path)
         if administrator:
+            if write:
+                from .scoring import protect_native_score_write
+                rejection = protect_native_score_write(path, data)
+                if rejection is not None:
+                    return rejection
+                if path == "/api/v1/unlocks" and data.get("type") == "hints":
+                    target_hint = Hints.query.get(unlock_target_id)
+                    if target_hint and QuestStep.query.filter_by(challenge_id=target_hint.challenge_id).first():
+                        return denied("Use organizer preview to read event hints without a purchase")
             if write and (path.startswith("/api/v1/configs") or path.startswith("/admin/plugins/")):
                 controlled = {"user_mode", "start", "end", "paused", registration.KEY}
                 names = [path.rsplit("/", 1)[-1], *data.keys(), data.get("key")]
@@ -130,8 +158,15 @@ def install_guards(app):
             if match and write:
                 mapped = QuestStep.query.filter_by(challenge_id=int(match[1])).first()
                 if mapped:
-                    event(lock=True)
+                    e = event(lock=True)
                     challenge = Challenges.query.get(int(match[1]))
+                    price_fields = ("value", "function", "initial", "minimum", "decay", "type")
+                    price_changed = any(k in data and str(data[k]) != str(getattr(challenge, k)) for k in price_fields)
+                    if price_changed:
+                        from .room_topology import activity_reason
+                        from .models import QuestRoom
+                        if e.status != "draft" or activity_reason(QuestRoom.query.get(mapped.room_id), [challenge.id]):
+                            return denied("Challenge scoring is frozen after competition activity", 409)
                     changed = "requirements" in data and data["requirements"] != challenge.requirements
                     # Native edit forms serialize numeric values as strings and
                     # always send position, even when only description changed.
@@ -193,8 +228,10 @@ def install_guards(app):
             protected_solution = solution
             challenge_id = solution.challenge_id if solution else None
         elif path == "/api/v1/unlocks" and write:
-            model = {"hints": Hints, "solutions": Solutions}.get(data.get("type"))
-            target = model.query.get(data.get("target")) if model and str(data.get("target", "")).isdigit() else None
+            model = unlock_model
+            target = model.query.get(unlock_target_id)
+            if target is None:
+                return denied("This unlock is not available", 404)
             challenge_id = target.challenge_id if target else None
             protected_solution = target if model is Solutions else None
         elif path.startswith("/files/"):
@@ -226,6 +263,15 @@ def install_guards(app):
         except (ValueError, TypeError, OverflowError):
             return denied("Invalid challenge ID", 400)
         e = event(lock=write)
+        if path == "/api/v1/unlocks" and write:
+            # The final lock discards the earlier read transaction. Targets can
+            # have moved or disappeared while waiting: authorize the fresh row.
+            model = {"hints": Hints, "solutions": Solutions}.get(data.get("type"))
+            target = model.query.populate_existing().get(unlock_target_id) if model else None
+            if target is None:
+                return denied("This unlock is no longer available", 404)
+            challenge_id = target.challenge_id
+            protected_solution = target if model is Solutions else None
         step = QuestStep.query.filter_by(challenge_id=challenge_id).first()
         if step is None:
             # Unmapped challenges stay in native authoring, never in the event.
@@ -256,6 +302,9 @@ def install_guards(app):
             return denied("Solve the previous steps before opening this challenge")
         if protected_solution and protected_solution.state == "solved" and challenge_id not in solved:
             return denied("Solve this challenge with an eligible team member before opening its solution")
+        if path == "/api/v1/unlocks" and write and data.get("type") == "hints":
+            from .scoring import purchase_hint
+            return purchase_hint(user, target, e)
         if attempt:
             from .recovery import prepare_attempt
             return prepare_attempt(user, challenge, e, solved)

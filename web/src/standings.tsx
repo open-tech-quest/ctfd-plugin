@@ -115,7 +115,11 @@ function StandingTable({
     observer.observe(element);
     return () => observer.disconnect();
   }, [stage, room?.id]);
-  const milestones = milestoneLayout(room?.total || 0, pathWidth);
+  const points = data.scoring_version === 2;
+  const milestones = milestoneLayout(
+    room?.total || 0,
+    pathWidth * (points ? 0.5 : 1),
+  );
   return (
     <table
       className={`standing-table${stage ? " stage-table" : ""}`}
@@ -123,7 +127,9 @@ function StandingTable({
         !room && !overall
           ? {
               minWidth:
-                (stage ? 360 : 400) + data.rooms.length * (stage ? 80 : 100),
+                (stage ? 360 : 400) +
+                (points ? 88 : 0) +
+                data.rooms.length * (stage ? 80 : 100),
             }
           : undefined
       }
@@ -160,6 +166,11 @@ function StandingTable({
                     }
                   >
                     {value}
+                    {points && milestones.individual && (
+                      <small>
+                        {room.steps?.[value - 1]?.value.toLocaleString()} pts
+                      </small>
+                    )}
                   </span>
                 ))}
               </span>
@@ -168,6 +179,16 @@ function StandingTable({
           <th scope="col" className="score-col">
             Solved
           </th>
+          {points && (
+            <th scope="col" className="points-col">
+              {room ? "Room pts" : "Points"}
+            </th>
+          )}
+          {points && stage && room && (
+            <th scope="col" className="team-points-col">
+              Team pts
+            </th>
+          )}
           <th scope="col" className="time-col">
             Time
           </th>
@@ -194,7 +215,7 @@ function StandingTable({
                       <span
                         className={`cell-progress ${p?.complete ? "complete" : ""}`}
                         role="img"
-                        aria-label={`${r.name}: ${p?.solved || 0} of ${p?.total ?? r.total} consecutive challenges solved`}
+                        aria-label={`${r.name}: ${p?.solved || 0} of ${p?.total ?? r.total} challenges solved`}
                       >
                         <span>
                           {p?.solved || 0}
@@ -214,14 +235,20 @@ function StandingTable({
                   <span
                     className={`stage-path-progress ${milestones.individual ? "individual" : "grouped"} ${progress?.complete ? "complete" : ""}`}
                     role="img"
-                    aria-label={`${progress?.solved || 0} of ${progress?.total ?? room.total} consecutive challenges solved`}
+                    aria-label={`${progress?.solved ?? 0} of ${progress?.total ?? room.total} challenges solved`}
                   >
                     {milestones.individual ? (
                       milestones.labels.map((value) => (
                         <i
                           key={value}
                           className={
-                            value <= (progress?.solved || 0) ? "filled" : ""
+                            (
+                              progress?.solved_steps
+                                ? progress.solved_steps.includes(value)
+                                : value <= (progress?.solved ?? 0)
+                            )
+                              ? "filled"
+                              : ""
                           }
                         />
                       ))
@@ -230,7 +257,7 @@ function StandingTable({
                         <i
                           className="stage-path-fill"
                           style={{
-                            width: `${100 * progressFraction(progress?.solved || 0, progress?.total ?? room.total)}%`,
+                            width: `${100 * progressFraction(progress?.solved ?? 0, progress?.total ?? room.total)}%`,
                           }}
                         />
                         {milestones.labels.slice(1, -1).map((value) => (
@@ -249,6 +276,22 @@ function StandingTable({
                 {room ? progress?.solved || 0 : team.total}
                 {room && <small>/{progress?.total ?? room.total}</small>}
               </td>
+              {points && (
+                <td
+                  className="points-col"
+                  title={`${(room ? progress?.gross_points : team.gross_points) ?? 0} earned − ${(room ? progress?.hint_costs : team.hint_costs) ?? 0} in hints`}
+                >
+                  {(room
+                    ? (progress?.points ?? 0)
+                    : (team.points ?? 0)
+                  ).toLocaleString()}
+                </td>
+              )}
+              {points && stage && room && (
+                <td className="team-points-col">
+                  {(team.points ?? 0).toLocaleString()}
+                </td>
+              )}
               <td className="time-col">
                 {duration(
                   room
@@ -271,9 +314,9 @@ function AwardRules({ data }: { data: Standings }) {
         <article>
           <h3>Each room</h3>
           <p>
-            Teams rank by the longest consecutively solved challenge path, then
-            by active time to their last qualifying solve. A completed room
-            leads every incomplete path.
+            {data.scoring_version === 2
+              ? "Most challenges solved comes first, then room points minus that room’s hint costs, then active time to the last counted solve. A full clear leads every partial clear."
+              : "Teams rank by the longest consecutively solved challenge path, then by active time to their last qualifying solve. A completed room leads every incomplete path."}
           </p>
           <p className="meta">
             Room time starts{" "}
@@ -286,8 +329,9 @@ function AwardRules({ data }: { data: Standings }) {
         <article>
           <h3>Overall</h3>
           <p>
-            Distinct challenge solves come first, then active time to the last
-            qualifying solve. Simultaneous room clocks are never added together.
+            {data.scoring_version === 2
+              ? "Challenge points across all rooms, minus paid hints, come first. Active time to the last counted solve breaks ties. Simultaneous room clocks are never added together."
+              : "Distinct challenge solves come first, then active time to the last qualifying solve. Simultaneous room clocks are never added together."}
           </p>
           <p className="meta">
             Overall time starts{" "}
@@ -360,6 +404,12 @@ export function Stage() {
                   : "Every team. Every room."}
           </h1>
           <span>
+            {view === "room" && room && data.scoring_version === 2 && (
+              <>
+                {room.available_points?.toLocaleString()} room points available
+                ·{" "}
+              </>
+            )}
             {data.event.results_published
               ? "Final results"
               : data.event.status === "paused"
@@ -411,9 +461,13 @@ export function Stage() {
       <footer className="stage-footer">
         <span>
           {view === "room" && room
-            ? "Consecutive challenges solved · "
+            ? data.scoring_version === 2
+              ? "Progress → room points → active time · "
+              : "Consecutive challenges solved · "
             : view === "overall"
-              ? "Distinct challenges solved · "
+              ? data.scoring_version === 2
+                ? "Net points → active time · "
+                : "Distinct challenges solved · "
               : view === "awards"
                 ? "Prize standings · "
                 : "Room progress: solved / total · "}
@@ -460,9 +514,15 @@ function Awards({ data }: { data: Standings }) {
         </h2>
         <p>
           {overall.length
-            ? `${overall[0].total} challenges solved · ${duration(overall[0].overall_elapsed_ms)}`
+            ? `${data.scoring_version === 2 ? `${(overall[0].points ?? 0).toLocaleString()} net points` : `${overall[0].total} challenges solved`} · ${duration(overall[0].overall_elapsed_ms)}`
             : "Teams need a qualifying solve to enter the awards"}
         </p>
+        {data.scoring_version === 2 && overall.length > 0 && (
+          <p className="award-points">
+            {overall[0].total} challenges solved · {overall[0].hint_costs ?? 0}{" "}
+            points spent on hints
+          </p>
+        )}
         {overall.length > 1 && <span>Shared first place</span>}
       </section>
       <div className="room-awards">
@@ -484,11 +544,20 @@ function Awards({ data }: { data: Standings }) {
                     winners[0].room_progress.find((p) => p.room_id === room.id)
                       ?.solved
                   }{" "}
-                  challenges solved ·{" "}
+                  / {room.total} challenges solved ·{" "}
                   {duration(
                     winners[0].room_progress.find((p) => p.room_id === room.id)
                       ?.milestone_elapsed_ms,
                   )}
+                </p>
+              )}
+              {data.scoring_version === 2 && winners.length > 0 && (
+                <p className="award-points">
+                  {(
+                    winners[0].room_progress.find((p) => p.room_id === room.id)
+                      ?.points ?? 0
+                  ).toLocaleString()}{" "}
+                  room points after hints
                 </p>
               )}
               {winners.length > 1 && <small>Shared first place</small>}

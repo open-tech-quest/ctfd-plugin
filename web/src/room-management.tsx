@@ -171,7 +171,11 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
                 {item.name}
                 <span>
                   {item.steps.length} challenge
-                  {item.steps.length === 1 ? "" : "s"}
+                  {item.steps.length === 1 ? "" : "s"} ·{" "}
+                  {item.steps
+                    .reduce((sum, step) => sum + step.value, 0)
+                    .toLocaleString()}{" "}
+                  pts
                 </span>
               </button>
             ))}

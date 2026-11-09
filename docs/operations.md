@@ -8,7 +8,8 @@
    maintainer** to people who should author rooms without administering the event.
    Staff are excluded from attendance, teams and play.
 3. In **Organize → Rooms**, configure the room set and ordered standard challenges.
-   Edit Markdown descriptions, accepted flags and answer-check previews there.
+   Edit points, Markdown descriptions, accepted flags and answer-check previews
+   there. Review each room's point budget and hint costs before play.
    Administrators use native CTFd for attachments, hints and advanced challenge
    types. Keep answers in the database, never Git or container builds.
 4. Configure event name, start/end, roster release and clock policy before play.
@@ -111,9 +112,12 @@ Use **Submission history** for protected original and recovery records.
   history. Restoring visibility restores eligible original solves. **Locked**
   retains the step and prior credit but blocks content/submissions. Configure
   visibility before play where possible; later changes can alter chains/rankings.
-- An incomplete room ranks by consecutive solved prefix, then active time to its
-  last counted solve. Overall ranks by distinct eligible solves, then overall
-  milestone time. Zero room solves have no prize rank; genuine ties share rank.
+- Rooms rank by eligible challenges solved, then net room points, then active
+  time to the last counted room solve. Incomplete rooms remain eligible; a full
+  clear always leads every partial clear. Overall ranks by net points, then
+  overall milestone time. Net points subtract paid hints from earned challenge
+  values. Hints are shared team purchases, charged once. Zero qualifying solves
+  have no prize rank; genuine ties share rank.
 - Supply a reason for time corrections/exclusions. Corrections adjust room time,
   not native solve dates or overall timing. See [ranking rules](design.md#progress-timing-and-awards).
 - **Close** records the cutoff. Review room/overall standings and CSV exports,

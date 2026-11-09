@@ -10,6 +10,7 @@ import type {
 import { Confirm, Empty, Markdown, Notice } from "./ui";
 interface Draft {
   name: string;
+  value: number | "";
   description: string;
   state: EditableChallenge["state"];
   flags: EditableFlag[];
@@ -17,6 +18,7 @@ interface Draft {
 function draftOf(challenge?: EditableChallenge): Draft {
   return {
     name: challenge?.name || "",
+    value: challenge?.value ?? 100,
     description: challenge?.description || "",
     state: challenge?.state || "hidden",
     flags: challenge?.flags.map((flag) => ({ ...flag })) || [
@@ -245,6 +247,10 @@ function ChallengeForm({
   }, [dirty]);
   const valid =
     draft.name.trim().length > 0 &&
+    typeof draft.value === "number" &&
+    Number.isInteger(draft.value) &&
+    draft.value >= 0 &&
+    draft.value <= 2147483647 &&
     draft.flags.length > 0 &&
     draft.flags.length <= 20 &&
     draft.flags.every(
@@ -318,6 +324,27 @@ function ChallengeForm({
                 setDraft({ ...draft, name: event.target.value })
               }
             />
+          </label>
+          <label className="field">
+            <span>Points</span>
+            <input
+              type="number"
+              min={0}
+              max={2147483647}
+              step={1}
+              required
+              value={draft.value}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  value:
+                    event.target.value === "" ? "" : event.target.valueAsNumber,
+                })
+              }
+            />
+            <small>
+              Points count once per team. Paid hints reduce the team’s score.
+            </small>
           </label>
           <label className="field">
             <span>Instructions (Markdown)</span>

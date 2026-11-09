@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError, dateTime, decode, duration, fileUrl, request } from "./api";
-import type { Bootstrap, Challenge, Room, Step } from "./types";
+import type { Bootstrap, Challenge, Room, Step, Score } from "./types";
 import { useResource } from "./hooks";
 import { Arrow, Check, Empty, Link, Markdown, Notice } from "./ui";
 import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
@@ -67,7 +67,7 @@ export function EventNotice({ data }: { data: Bootstrap }) {
   );
 }
 export function Lobby({ data }: { data: Bootstrap }) {
-  const solved = data.rooms.reduce((a, r) => a + r.progress.solved, 0),
+  const solved = data.rooms.reduce((a, r) => a + r.progress.credited_solved, 0),
     total = data.rooms.reduce((a, r) => a + r.progress.total, 0);
   return (
     <>
@@ -103,9 +103,12 @@ export function Lobby({ data }: { data: Bootstrap }) {
           {data.viewer.team_name && (
             <>
               <div className="summary-value">
-                {solved}
-                <span> / {total} challenges solved</span>
+                {(data.rooms[0]?.team_score.points ?? 0).toLocaleString()}
+                <span> team points</span>
               </div>
+              <p className="meta">
+                {solved} / {total} challenges solved · Paid hints are deducted
+              </p>
               <ProgressLine solved={solved} total={total} />
             </>
           )}
@@ -148,7 +151,7 @@ export function Lobby({ data }: { data: Bootstrap }) {
               <div className="room-card-progress">
                 <span>
                   {room.progress.total
-                    ? `${room.progress.solved} of ${room.progress.total} solved`
+                    ? `${room.progress.credited_solved} of ${room.progress.total} solved`
                     : "Challenges being prepared"}
                 </span>
                 <span>
@@ -159,8 +162,14 @@ export function Lobby({ data }: { data: Bootstrap }) {
                       : "Not started"}
                 </span>
               </div>
+              <div className="room-card-points">
+                <strong>{room.progress.points.toLocaleString()} pts</strong>
+                <span>
+                  {room.progress.available_points.toLocaleString()} available
+                </span>
+              </div>
               <ProgressLine
-                solved={room.progress.solved}
+                solved={room.progress.credited_solved}
                 total={room.progress.total}
               />
             </div>
@@ -326,9 +335,16 @@ export function RoomPage({
             />
           </div>
           <div className="room-facts">
+            <span>
+              Room <strong>{room.progress.points.toLocaleString()} pts</strong>
+            </span>
+            <span>
+              Team{" "}
+              <strong>{room.team_score.points.toLocaleString()} pts</strong>
+            </span>
             <strong>{data.viewer.team_name || "Shared team progress"}</strong>
             <span>
-              {room.progress.solved} of {room.progress.total} solved
+              {room.progress.credited_solved} of {room.progress.total} solved
             </span>
             {started && (
               <span>
@@ -441,6 +457,10 @@ export function RoomPage({
               step={step}
               enabled={preview || data.event.status === "live"}
               preview={preview}
+              score={room.team_score}
+              onHintPurchased={async () => {
+                await Promise.all([resource.refresh(), onRefresh()]);
+              }}
               onSolved={async (message) => {
                 setSolveMessage(message);
                 setSelected(null);
@@ -463,10 +483,14 @@ function ChallengePanel({
   enabled,
   preview,
   onSolved,
+  score,
+  onHintPurchased,
 }: {
   step: Step;
   enabled: boolean;
   preview: boolean;
+  score: Score;
+  onHintPurchased: () => Promise<void>;
   onSolved: (message: string) => Promise<void>;
 }) {
   const content = useResource<Challenge>(
@@ -549,6 +573,9 @@ function ChallengePanel({
             {step.state === "solved" ? "Solved challenge" : "Current challenge"}
           </span>
           <h2>{challenge?.name || step.title}</h2>
+          <span className="challenge-points">
+            {(challenge?.value ?? step.value).toLocaleString()} points
+          </span>
         </div>
         {step.state === "solved" && (
           <span className="solved-label">
@@ -562,6 +589,15 @@ function ChallengePanel({
         </Notice>
       )}
       {!challenge && !content.error && <p role="status">Loading challenge…</p>}
+      {!preview && (
+        <p className="team-points-balance">
+          <strong>Your team: {score.points.toLocaleString()} points</strong>
+          <span>
+            {score.gross_points.toLocaleString()} earned −{" "}
+            {score.hint_costs.toLocaleString()} in hints
+          </span>
+        </p>
+      )}
       {challenge && (
         <>
           <Markdown source={challenge.description} omitTitle={challenge.name} />
@@ -659,7 +695,7 @@ function ChallengePanel({
                             if (
                               hint.cost > 0 &&
                               !window.confirm(
-                                `Reveal hint ${i + 1} for ${hint.cost} native CTFd points? This cannot be undone.`,
+                                `Reveal hint ${i + 1} for ${hint.cost} points from your team? This is paid once and shared with every teammate.`,
                               )
                             )
                               return;
@@ -687,6 +723,7 @@ function ChallengePanel({
                             ...previous,
                             [hint.id]: result.content!,
                           }));
+                          if (!preview) await onHintPurchased();
                         } catch (e) {
                           setHintError((e as Error).message);
                         } finally {

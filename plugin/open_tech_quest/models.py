@@ -148,3 +148,17 @@ class QuestReadVersion(db.Model):
     __tablename__ = "quest_read_versions"
     key = db.Column(db.String(80), primary_key=True)
     value = db.Column(db.String(32), nullable=False)
+
+
+class QuestHintPurchase(db.Model):
+    """Link native unlocks/charges without repricing historical purchases."""
+    __tablename__ = "quest_hint_purchases"
+    id = db.Column(db.Integer, primary_key=True)
+    team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="RESTRICT"), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="RESTRICT"), nullable=False)
+    hint_id = db.Column(db.Integer, db.ForeignKey("hints.id", ondelete="RESTRICT"), nullable=False)
+    unlock_id = db.Column(db.Integer, db.ForeignKey("unlocks.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    award_id = db.Column(db.Integer, db.ForeignKey("awards.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    cost = db.Column(db.Integer, nullable=False)
+    purchased_at = db.Column(UTCDateTime, nullable=False)
+    __table_args__ = (db.UniqueConstraint("team_id", "hint_id"),)

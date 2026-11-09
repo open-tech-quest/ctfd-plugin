@@ -539,6 +539,18 @@ svg {
   color: var(--muted);
   margin-bottom: 12px;
 }
+.room-card-points {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.room-card-points > span {
+  color: var(--muted);
+}
 .rules-strip {
   display: grid;
   grid-template-columns: 180px 1fr 220px;
@@ -821,6 +833,10 @@ svg {
 .step-label > small {
   font-size: 12px;
 }
+.step-points {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
 .step-label > strong {
   font-size: 14px;
   line-height: 1.45;
@@ -866,6 +882,23 @@ svg {
 .challenge-heading h2 {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
+}
+.challenge-points {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.team-points-balance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 0 0 24px;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.team-points-balance > span {
+  color: var(--muted);
 }
 .challenge-heading > div {
   min-width: 0;
@@ -1084,6 +1117,16 @@ textarea {
   width: 84px;
   text-align: right;
 }
+.points-col,
+.team-points-col {
+  width: 104px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.standing-table td.points-col {
+  font-weight: 600;
+  color: #006a77;
+}
 .time-col {
   width: 124px;
   text-align: right;
@@ -1215,6 +1258,10 @@ textarea {
 .stage-table .score-col {
   width: 56px;
 }
+.stage-table .points-col,
+.stage-table .team-points-col {
+  width: 80px;
+}
 .stage-table .time-col {
   width: 88px;
 }
@@ -1271,6 +1318,18 @@ textarea {
   display: flex;
   gap: 3px;
   text-align: center;
+}
+.stage-path-axis.individual:has(small) {
+  height: 34px;
+}
+.stage-room .stage-table:has(.points-col) {
+  min-width: 740px;
+}
+.stage-path-axis.individual > span > small {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 10px;
+  font-weight: 400;
 }
 .stage-path-axis.grouped > span {
   position: absolute;
@@ -3498,7 +3557,7 @@ body:has(.participant-attendance-bar) {
   .accepted-answer .text-button {
     justify-self: start;
   }
-  .stage-table {
+  .stage-table:not(:has(.points-col)) {
     min-width: 0 !important;
   }
   .staff-room-preview a {
