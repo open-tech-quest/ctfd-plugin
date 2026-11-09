@@ -104,8 +104,9 @@ excluding OpenShift. The CTFd pod needs a node with room for its full 4-CPU /
 1-GiB request; limits do not reserve capacity. Storage requests were 10 GiB for
 uploads/logs, 10 GiB MariaDB and 1 GiB Redis; adjust for content and retention.
 
-Before an event, repeat steady polling, simultaneous flags, reconnects and cold
-loads against a disposable instance with representative history. Inspect tail
+Before an event, repeat steady polling, simultaneous flags and paid hint
+purchases, reconnects and cold loads against a disposable instance with
+representative history. Inspect tail
 latency and errors alongside resources, traffic and DB lock waits. Validate from
 the venue network too. Shared read caching requires MariaDB/MySQL REPEATABLE READ;
 other database/isolation modes bypass it. Use supported APIs during the event;
