@@ -19,7 +19,7 @@ from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
 from .service import (event, event_data, now, iso, parse_time, released,
                       room_data, room_steps, participant_steps, standings, Projection, projection)
 
-from . import demo, onboarding, registration, roles, lifecycle
+from . import demo, onboarding, registration, roles, lifecycle, projector
 from .models import QuestMaintainer
 from .lifecycle import current_user as get_current_user
 
@@ -46,6 +46,7 @@ def error(exc):
 
 
 @api.errorhandler(onboarding.OnboardingError)
+@api.errorhandler(projector.ProjectorError)
 def onboarding_error(exc):
     db.session.rollback()
     return jsonify(success=False, error=exc.message), exc.status
@@ -271,7 +272,7 @@ def standings_view():
 
 @api.route("/projector")
 def projector_view():
-    return success(event().projector)
+    return success(projector.serialize(event().projector, now()))
 
 
 def team_data(team, readiness=None, name_locks=None):
@@ -298,7 +299,7 @@ def admin_state():
                                       "late": bool(u.id in readiness and readiness[u.id].late),
                                       "banned": bool(u.banned)} for u in Users.query.filter_by(type="user").order_by(Users.id).all() if not roles.is_maintainer(u)],
                     "audit": [{"id": a.id, "actor_id": a.actor_id, "action": a.action, "detail": a.detail, "created_at": iso(a.created_at)} for a in QuestAudit.query.order_by(QuestAudit.id.desc()).limit(200).all()],
-                    "standings": standings(), "projector": event().projector, "demo": demo.status(event()), "onboarding": onboarding.summary(event()), "registration": registration.status()})
+                    "standings": standings(), "projector": projector.serialize(event().projector, now()), "demo": demo.status(event()), "onboarding": onboarding.summary(event()), "registration": registration.status()})
 
 
 @api.route("/admin/event", methods=["PATCH"])
@@ -615,17 +616,17 @@ def configure_team(team_id):
 @admin
 def configure_projector():
     data, e = body(), event(lock=True)
-    if data.get("view") not in ("overview", "room", "overall", "awards"):
-        fail("Unknown projector view")
-    slug = data.get("room_slug")
-    if data["view"] == "room":
+    at = now()
+    config = projector.configure(e.projector, data, at)
+    slug = config["room_slug"]
+    if config["view"] == "room":
         room_by_slug(slug)
     elif slug is not None:
         room_by_slug(slug)
-    e.projector = {"view": data["view"], "room_slug": slug}
+    e.projector = config
     audit("projector.configure", e.projector)
     db.session.commit()
-    return success(e.projector)
+    return success(projector.serialize(e.projector, at))
 
 
 @api.route("/admin/corrections", methods=["POST"])
@@ -1005,7 +1006,7 @@ def delete_room(slug):
     from .room_topology import set_challenge_order
     set_challenge_order(room, [])
     if (e.projector or {}).get("room_slug") == slug:
-        e.projector = {"view": "overview", "room_slug": None}
+        e.projector = projector.remove_room(e.projector, slug)
     db.session.delete(room)
     audit("room.delete", {"room_slug": slug})
     db.session.commit()

@@ -3786,3 +3786,406 @@ body:has(.participant-attendance-bar) {
   max-width: 880px;
   margin: 8px 0 0;
 }
+
+/* Progress is the participant landing view; comparisons are explicitly selected. */
+.progress-views {
+  margin-bottom: 24px;
+}
+.progress-views button {
+  white-space: nowrap;
+}
+.results-status {
+  color: var(--muted);
+  font-size: 14px;
+  margin: -16px 0 24px;
+}
+.personal-progress > header h2 {
+  overflow-wrap: anywhere;
+  margin-bottom: 8px;
+}
+.personal-progress > header p {
+  color: var(--muted);
+}
+.personal-score {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 64px;
+  padding: 24px 0;
+  border-block: 1px solid var(--line);
+  margin: 24px 0;
+}
+.personal-score dt {
+  color: var(--muted);
+  font-size: 14px;
+}
+.personal-score dd {
+  margin: 8px 0 0;
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.personal-score > div:first-child dd {
+  color: #006a77;
+  font-weight: 600;
+}
+.award-explanation {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.personal-room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
+  gap: 24px;
+  margin-top: 28px;
+}
+.personal-room {
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--cyan);
+  background: #fff;
+  padding: 24px;
+  min-width: 0;
+}
+.personal-room h3 {
+  overflow-wrap: anywhere;
+  margin-bottom: 6px;
+}
+.personal-room header > span {
+  color: var(--muted);
+  font-size: 14px;
+}
+.personal-solved {
+  margin: 24px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+.personal-solved strong {
+  font-size: 28px;
+}
+.personal-room progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  appearance: none;
+  border: none;
+  background: #e6e6eb;
+  color: var(--cyan);
+}
+.personal-room progress::-webkit-progress-bar {
+  background: #e6e6eb;
+}
+.personal-room progress::-webkit-progress-value {
+  background: var(--cyan);
+}
+.personal-room progress::-moz-progress-bar {
+  background: var(--cyan);
+}
+.personal-room dl {
+  font-size: 14px;
+  margin: 24px 0;
+}
+.personal-room dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-top: 12px;
+}
+.personal-room dt {
+  color: var(--muted);
+}
+.personal-room dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.personal-room-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
+}
+.personal-room-actions .text-button {
+  font-size: 14px;
+}
+.standings-room-picker {
+  max-width: 460px;
+  margin-bottom: 24px;
+}
+.standing-table .own-team-row > * {
+  background: #edf8f8;
+  border-block-color: #a6d5d8;
+}
+.your-team-label {
+  display: block;
+  font-size: 12px;
+  color: #006a77;
+  margin-top: 4px;
+  font-weight: 400;
+}
+.room-leaders {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--cyan);
+  padding: 20px 24px;
+  background: #fff;
+}
+.room-leaders > header h2 {
+  font-size: 26px;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+.room-leaders > header p {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.leader-caption,
+.leader-page {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.leader-list {
+  margin: 0;
+  padding-left: 28px;
+}
+.leader-list li {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.leader-list li::marker {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.leader-name {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.leader-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  align-items: baseline;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.leader-metrics strong {
+  font-weight: 600;
+}
+.leader-metrics > span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.leader-empty {
+  color: var(--muted);
+  margin: 24px 0;
+}
+.leader-page {
+  margin: 12px 0 0;
+}
+.room-overview {
+  flex: 1;
+  min-width: 0;
+}
+.room-overview > .award-explanation {
+  margin: 0 0 20px;
+  font-size: 16px;
+}
+.room-leader-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 20px;
+}
+.room-leader-grid > * {
+  grid-column: span 2;
+}
+.room-leader-grid > :last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
+}
+.room-leader-grid:has(> :last-child:nth-child(3n + 2))
+  > :nth-last-child(-n + 2) {
+  grid-column: span 3;
+}
+.projected-room {
+  padding: 16px 20px;
+}
+.projected-room > header h2 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.projected-room .leader-name {
+  display: block;
+  font-size: 24px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.projected-room .leader-list li {
+  padding-block: 6px;
+}
+.projected-room .leader-metrics {
+  font-size: 16px;
+}
+.projected-room .leader-metrics {
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.overview-page {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.stage-comparison-note {
+  color: var(--muted);
+  font-size: 16px;
+}
+.stage-overall:not(.many-teams) .stage-table tbody > tr > * {
+  height: 56px;
+  font-size: 22px;
+}
+.stage-title {
+  min-width: 0;
+}
+.stage-title h1 {
+  overflow-wrap: anywhere;
+}
+.overall-award h2 {
+  overflow-wrap: anywhere;
+}
+.rotation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  border-block: 1px solid var(--line);
+  padding: 20px 0;
+  margin-bottom: 24px;
+}
+.rotation-actions > span {
+  color: var(--muted);
+}
+.rotation-durations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 24px 0;
+}
+.projector-settings .checkbox-row {
+  margin-bottom: 24px;
+}
+@media (max-width: 1150px) {
+  .room-leader-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .room-leader-grid > *,
+  .room-leader-grid > :last-child:nth-child(3n + 1),
+  .room-leader-grid:has(> :last-child:nth-child(3n + 2))
+    > :nth-last-child(-n + 2) {
+    grid-column: auto;
+  }
+}
+@media (max-width: 700px) {
+  .personal-score {
+    gap: 20px 32px;
+  }
+  .personal-score dd {
+    font-size: 24px;
+  }
+  .personal-room {
+    padding: 20px;
+  }
+  .room-leader-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .room-leaders {
+    padding: 20px;
+  }
+  .leader-metrics {
+    gap: 8px 16px;
+  }
+  .rotation-durations {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .stage-overall:not(.many-teams) .stage-table tbody > tr > * {
+    font-size: 14px;
+  }
+}
+
+.stage-overview .stage-footer {
+  margin-top: 20px;
+}
+.stage-overview .overview-page {
+  margin-top: 8px;
+}
+.projected-room .leader-page {
+  margin-top: 8px;
+}
+.additional-leaders {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.additional-leaders summary {
+  cursor: pointer;
+}
+.additional-leaders .leader-list {
+  margin-top: 16px;
+  color: var(--ink);
+}
+.projected-room > header p,
+.projected-room .leader-caption {
+  margin-bottom: 8px;
+}
+
+.stage-awards .overall-award {
+  padding: 24px 32px;
+  margin-bottom: 20px;
+}
+.stage-awards .overall-award h2 {
+  font-size: 42px;
+  margin: 12px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stage-awards .overall-award p {
+  font-size: 18px;
+}
+.stage-awards .room-leader-grid > * {
+  grid-column: span 2;
+}
+.stage-awards .room-leader-grid > :last-child:nth-child(3n + 1) {
+  grid-column: 1 / -1;
+}
+@media (max-width: 700px) {
+  .stage-awards .overall-award {
+    padding: 20px;
+  }
+  .stage-awards .overall-award h2 {
+    font-size: 30px;
+  }
+  .stage-awards .room-leader-grid > * {
+    grid-column: 1;
+  }
+}
+.stage-overall:not(.many-teams) .time-col {
+  width: 188px;
+}
+.stage-overall:not(.many-teams) .points-col {
+  width: 132px;
+}
+.stage-overall:not(.many-teams) .stage-table {
+  min-width: 560px;
+}
+@media (max-width: 700px) {
+  .stage-overall:not(.many-teams) .time-col {
+    width: 144px;
+  }
+  .stage-overall:not(.many-teams) .points-col {
+    width: 104px;
+  }
+}

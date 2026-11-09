@@ -116,8 +116,17 @@ export interface Standings {
   as_of: string;
 }
 export interface Projector {
-  view: "overview" | "room" | "overall" | "awards";
+  view: "overview" | "matrix" | "room" | "overall" | "awards";
   room_slug: string | null;
+  server_now?: string;
+  rotation?: {
+    enabled: boolean;
+    anchor_at: string | null;
+    paused_at: string | null;
+    overview_seconds: number;
+    room_seconds: number;
+    overall_seconds: number;
+  };
 }
 export interface Team {
   hidden: boolean;

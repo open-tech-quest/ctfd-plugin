@@ -130,14 +130,27 @@ Participant room paths scroll within a bounded horizontal rail with navigation
 controls. Cards fit their titles within a bounded width; long titles wrap in full,
 including locked steps. The home screen balances any room count into rows of two
 or three, uses a horizontal card for a single room, and stacks cards on phones.
-Standings put the relevant award measures first: overall net points/time and
-room solved count/net points/time. Ranking times retain millisecond precision;
-contextual progress totals never act as additional overall tie breakers. Shared
-award summaries show only measures common to all tied leaders. Overview retains
-room-level progress; room projector views show individual challenge marks when
-readable and proportional tracks with numbered milestones for long chains. Long paths must not create
-one column per challenge or page-wide participant overflow. Projector, organizer,
-participant and exports use the same authoritative ranking projection.
+Progress & standings opens on an assigned participant’s own points, hint costs and
+room progress, without ranks. Room and overall comparisons remain available by
+choice and highlight the viewer’s team. Other teams’ hint-cost breakdowns are not
+emphasized in the interface; public aggregate scores and award rules stay transparent.
+Unassigned participants see a release/assignment message, not another team’s data.
+
+The projector defaults to a room-award overview: leading three ranks including
+all ties, completed-team counts and an explanation of room/overall awards. Overall
+leaders show five places including ties; the complete matrix is a manual view.
+Room views show solved count, net room points and active time in ranking order.
+Final awards appear only after publication; other results are labelled provisional.
+
+Organizers can enable a server-anchored overview → featured room → overall cycle
+(default 60/30/20 seconds), pause/resume without losing its position, restart it,
+or select a manual view. Each cycle features the next room. Room and tied-leader
+pages share display time fairly; empty rooms and changing room sets remain safe.
+Manual overview pages have their own pause control. Motion uses plain view changes,
+with no decorative animation. Ranking times retain millisecond precision; published
+legacy count-based snapshots retain their original ranking and explanations.
+Projector, organizer, participant and exports use the same authoritative projection.
+
 
 ## Design process attribution
 

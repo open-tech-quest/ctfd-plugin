@@ -6,7 +6,8 @@ import { useQuestSession } from "./use-quest-session";
 import { viewerIdentity } from "./quest-session";
 import { Link, Notice } from "./ui";
 import { Lobby, RoomPage } from "./participant";
-import { StandingsPage, Stage } from "./standings";
+import { StandingsPage } from "./standings";
+import { Stage } from "./stage";
 import { Admin } from "./admin";
 import { StaffHome } from "./staff-home";
 import { ParticipantSession } from "./participant-session";
@@ -34,7 +35,7 @@ function App() {
       onChanged={bootstrap.refresh}
     >
       {stage ? (
-        <Stage />
+        <Stage viewer={bootstrap.live?.viewer} />
       ) : (
         <>
           <a className="skip-link" href="#main">
@@ -69,7 +70,7 @@ function App() {
                   href="/quest/standings"
                   className={path.includes("standings") ? "active" : ""}
                 >
-                  Standings
+                  Progress & standings
                 </Link>
                 {data?.viewer.can_manage_rooms && (
                   <Link
@@ -136,7 +137,7 @@ function App() {
                     />
                   )
                 ) : path === "/quest/standings" ? (
-                  <StandingsPage />
+                  <StandingsPage viewer={data.viewer} />
                 ) : path === "/quest/admin" ? (
                   data.viewer.can_manage_rooms ? (
                     <Admin

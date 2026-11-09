@@ -18,7 +18,7 @@ schemas into feature documents.
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
 | Browser API types and transport | [`types.ts`](../web/src/types.ts), [`api.ts`](../web/src/api.ts) |
 | Shared session/polling coordinator | [`quest-session.ts`](../web/src/quest-session.ts), [`polling.ts`](../web/src/polling.ts) |
-| Room paths and public display | [`challenge-path.tsx`](../web/src/challenge-path.tsx), [`standings.tsx`](../web/src/standings.tsx), [`stage-progress.ts`](../web/src/stage-progress.ts) |
+| Room paths and public display | [`challenge-path.tsx`](../web/src/challenge-path.tsx), [`standings.tsx`](../web/src/standings.tsx), [`stage.tsx`](../web/src/stage.tsx), [`stage-progress.ts`](../web/src/stage-progress.ts) |
 
 ## Native CTFd integration
 
@@ -79,7 +79,12 @@ serves `/quest` and its routes. Only safe viewer/CSRF data belongs in
 Use the existing shared session resource and sanitized Markdown renderer. Keep
 unsaved editor state on polling refreshes. Room and projector progress derive
 from server counts, with bounded, horizontally scrollable participant paths and
-adaptive long-chain marks.
+adaptive long-chain marks. Projector settings live in the existing event JSON;
+`projector.py` normalizes old settings without rewriting them. Rotation uses a
+server anchor and durable pause timestamp, while frontend `projector-rotation.ts`
+resolves views and fair room/tie paging without extra HTTP polling. The existing
+shared session supplies viewer identity for personal progress; comparisons use the
+same public standings projection, not a new ranking or access policy.
 The bundled Dockerfile passes its `PLUGIN_VERSION` build argument to Vite; direct
 frontend builds can set `VITE_PLUGIN_VERSION`. Unset versions show **Development
 build** in the footer.

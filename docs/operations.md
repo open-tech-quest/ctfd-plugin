@@ -20,12 +20,17 @@ To explore this process with dummy accounts and a repeatable reset, use the
    release means assignments become visible immediately.
 5. Set maximum team size (default five). Participant naming defaults off: generated
    Team 1, Team 2, … names are final. Enable member naming only if wanted.
-6. Test `/quest/stage` on the actual projector. Organizer controls select overview,
-   room, overall or awards. Fifty teams use two panels of 25; up to 25 use one
-   panel. Overall emphasizes net points; room views show solved count, net room
-   points and active time in ranking order. Long chains use proportional progress
-   and numbered milestones when individual marks do not fit. Large room matrices
-   scroll within their panels.
+6. Test `/quest/stage` on the actual projector. **Organize → Projector** offers
+   room-award overview, featured room, overall leaders, full matrix and published
+   awards. Enable automatic rotation for a 60-second overview, 30-second featured
+   room and 20-second overall view; each cycle features the next room. Durations
+   are editable. Pause/resume preserves the cycle across reloads/projectors;
+   changing durations or restarting begins a new cycle. Disable rotation to choose
+   a manual view. Manual overview pages can be paused on that screen. Detailed
+   room/matrix views fit 50 teams in two panels of 25 at 1080p. Large room sets and
+   ties page without dropping leaders; long challenge chains use sparse milestones.
+   Published awards page through room winners and shared overall winners, with a
+   pause control on the projector.
 
 Room titles, subtitles and themes are independent of competition identity.
 Preview Markdown before saving. A blank Hero image URL uses the bundled scene;
@@ -123,9 +128,11 @@ Use **Submission history** for protected original and recovery records.
   clear always leads every partial clear. Overall ranks by net points, then
   overall milestone time. Net points subtract paid hints from earned challenge
   values. Hints are shared team purchases, charged once. Zero qualifying solves
-  have no prize rank; genuine ties share rank. Standings show ranking times to
-  milliseconds and hint deductions beneath participant net scores. The awards
-  screen shows provisional leaders until publication, then final results.
+  have no prize rank; genuine ties share rank. Ranking times show milliseconds.
+  **Progress & standings** starts with a participant’s own progress, points and
+  hint deductions, without rank. Room/overall comparisons are optional and keep
+  the team highlighted; other teams’ hint expenses are not displayed. All live
+  comparisons are provisional. The awards screen is reserved for published results.
 - Revealing a new hint asks for confirmation with its cost, team balance and
   resulting balance. Paid hints require sufficient overall points; free hints
   can be revealed at zero. Used hints are marked and shared with teammates.

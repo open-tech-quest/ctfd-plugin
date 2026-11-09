@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { dateTime, request } from "./api";
 import { useResource } from "./hooks";
+import { ProjectorControls } from "./projector-controls";
 import { DemoControls } from "./demo";
 import { Attendance } from "./attendance";
 import { RegistrationControls } from "./registration";
@@ -12,7 +13,6 @@ import type {
   AdminState,
   AttendanceState,
   DemoContentState,
-  Projector,
   QuestEvent,
   RegistrationState,
 } from "./types";
@@ -164,7 +164,7 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
         ) : tab === "Awards" ? (
           <AwardControls data={data} busy={busy} execute={execute} />
         ) : tab === "Projector" ? (
-          <ProjectorControls data={data} busy={busy} execute={execute} />
+          <ProjectorControls data={data} busy={busy} mutate={mutate} />
         ) : (
           <AuditControls data={data} />
         )}
@@ -609,114 +609,6 @@ function AwardControls({
         </form>
       </section>
     </>
-  );
-}
-function ProjectorControls({
-  data,
-  busy,
-  execute,
-}: {
-  data: AdminState;
-  busy: boolean;
-  execute: Execute;
-}) {
-  const [view, setView] = useState<Projector["view"]>(data.projector.view);
-  return (
-    <section className="admin-panel">
-      <div className="section-heading">
-        <h2>The room’s shared screen</h2>
-        <a
-          href="/quest/stage"
-          className="button secondary"
-          target="_blank"
-          rel="noopener"
-        >
-          Open stage <Arrow />
-        </a>
-      </div>
-      <p>
-        The projector uses the same standings as every participant. At 1080p,
-        two stable panels fit 50 teams without rotating pages.
-      </p>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          execute(
-            "/admin/projector",
-            "PATCH",
-            { view, room_slug: view === "room" ? text(f, "room_slug") : null },
-            "Projector display updated",
-          );
-        }}
-      >
-        <div className="projector-options">
-          {(
-            [
-              {
-                id: "overview",
-                label: "Every room",
-                detail: "The full team progress matrix",
-              },
-              {
-                id: "overall",
-                label: "Overall standings",
-                detail:
-                  data.standings.scoring_version === 2
-                    ? "Net points across rooms, then active time"
-                    : "All qualifying solves and milestone time",
-              },
-              {
-                id: "room",
-                label: "One room",
-                detail:
-                  data.standings.scoring_version === 2
-                    ? "Challenges solved, room net points, then active time"
-                    : "Focus on a single challenge path",
-              },
-              {
-                id: "awards",
-                label: "Award winners",
-                detail: "Overall and room leaders, including ties",
-              },
-            ] as const
-          ).map((option) => (
-            <label
-              key={option.id}
-              className={view === option.id ? "selected" : ""}
-            >
-              <input
-                type="radio"
-                name="view"
-                value={option.id}
-                checked={view === option.id}
-                onChange={() => setView(option.id)}
-              />
-              <strong>{option.label}</strong>
-              <span>{option.detail}</span>
-            </label>
-          ))}
-        </div>
-        {view === "room" && (
-          <label className="field">
-            <span>Featured room</span>
-            <select
-              name="room_slug"
-              defaultValue={data.projector.room_slug || data.rooms[0]?.slug}
-            >
-              {data.rooms.map((r) => (
-                <option value={r.slug} key={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button className="button" disabled={busy}>
-          Update projector
-        </button>
-      </form>
-    </section>
   );
 }
 function AuditControls({ data }: { data: AdminState }) {
