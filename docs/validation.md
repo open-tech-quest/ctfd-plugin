@@ -22,6 +22,10 @@ complete administrator/participant browser journey or event-scale capacity.
 
 ## Isolated acceptance for behavior changes
 
+For a complete manual run with fresh accounts, editable challenges and reset,
+follow the [rehearsal walkthrough](rehearsal.md). The browser fixture preassigns
+teams, including in draft mode, and serves targeted UI verification instead.
+
 Use disposable accounts/data and real native sessions for affected journeys:
 
 - Shared teammate starts/solves; future challenge, hint and known-file-URL denial.

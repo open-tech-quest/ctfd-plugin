@@ -8,6 +8,12 @@ Use `docs/rosters.md` and `docs/administration.md` for their security/lifecycle
 contracts; API types and routes are defined in the source. `docs/README.md` maps
 the guides by audience. Keep current guidance separate from historical evidence.
 
+For a full manual test, exploration session or feature rehearsal, read
+`docs/rehearsal.md`. Use a dedicated test instance and the operator’s setup/reset
+runbook when available. Inspect the active run before changing it; preserve an
+in-progress rehearsal and perform only the setup, check-in or reset requested.
+Keep operator access, snapshots and deployment commands out of public guidance.
+
 ## Rules
 
 - Never commit credentials, participant exports, browser state, internal

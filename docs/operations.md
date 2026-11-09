@@ -1,5 +1,8 @@
 # Running an event
 
+To explore this process with dummy accounts and a repeatable reset, use the
+[full-event rehearsal](rehearsal.md).
+
 ## Prepare
 
 1. Set up [hosting and backups](deployment.md). Test restoration with matching

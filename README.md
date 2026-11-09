@@ -38,6 +38,9 @@ accounts and check in; organizers review team allocation, finalize rosters and
 start the event. See [event operations](docs/operations.md) for preparation, staffing, attendance
 and play, or the [documentation index](docs/README.md) for developer contracts.
 
+For an end-to-end practice run, use the [rehearsal guide](docs/rehearsal.md):
+50 test accounts, editable challenges, team formation, play and a complete reset.
+
 The bundled image includes CTFd and the plugin. To use an existing CTFd instance
 or combine multiple plugins, follow the [installation instructions](docs/deployment.md#install-into-an-existing-ctfd).
 
