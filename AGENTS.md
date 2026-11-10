@@ -11,7 +11,9 @@ the guides by audience. Keep current guidance separate from historical evidence.
 For a full manual test, exploration session or feature rehearsal, read
 `docs/rehearsal.md`. Use a dedicated test instance and the operator’s setup/reset
 runbook when available. Inspect the active run before changing it; preserve an
-in-progress rehearsal and perform only the setup, check-in or reset requested.
+in-progress rehearsal and perform only the requested setup, check-in, synthetic
+progress or reset. Reserve users 01–09 for manual tests; automation uses eligible
+run-owned users 10 and higher and never changes their mixed teams.
 Keep operator access, snapshots and deployment commands out of public guidance.
 
 ## Rules
