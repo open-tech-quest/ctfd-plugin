@@ -11,7 +11,7 @@ CTFd handles accounts, teams, flags, hints and solves.
 - Shared room starts and solves, server-side clocks, pauses and closing cutoffs.
 - Room progress/points/time rankings and overall net-points rankings, with shared
   ties, team-paid hints, projector and awards views.
-- Organizer controls for challenges, maintainers, late arrivals and CSV exports.
+- Organizer authoring, staff controls, CSV exports, JSON archives and round resets.
 
 New installations start in **draft** with five empty rooms: OpenShift, Ansible,
 RHEL, Security and AI. Rooms can be renamed, added or removed. An optional demo

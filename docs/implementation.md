@@ -16,9 +16,11 @@ schemas into feature documents.
 | Roles, account safety and recovery | [`roles.py`](../plugin/open_tech_quest/roles.py), [`lifecycle.py`](../plugin/open_tech_quest/lifecycle.py), [`recovery.py`](../plugin/open_tech_quest/recovery.py) |
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
+| Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
 | Browser API types and transport | [`types.ts`](../web/src/types.ts), [`api.ts`](../web/src/api.ts) |
 | Shared session/polling coordinator | [`quest-session.ts`](../web/src/quest-session.ts), [`polling.ts`](../web/src/polling.ts) |
 | Room paths and public display | [`challenge-path.tsx`](../web/src/challenge-path.tsx), [`standings.tsx`](../web/src/standings.tsx), [`stage.tsx`](../web/src/stage.tsx), [`stage-progress.ts`](../web/src/stage-progress.ts) |
+| Local archive validation and viewer | [`archive-format.ts`](../web/src/archive-format.ts), [`event-archive.tsx`](../web/src/event-archive.tsx) |
 
 ## Native CTFd integration
 
@@ -85,7 +87,7 @@ server anchor and durable pause timestamp, while frontend `projector-rotation.ts
 resolves views and fair room/tie paging without extra HTTP polling. The existing
 shared session supplies viewer identity for personal progress; comparisons use the
 same public standings projection, not a new ranking or access policy.
-The bundled Dockerfile passes its `PLUGIN_VERSION` build argument to Vite; direct
+The bundled Dockerfile passes `PLUGIN_VERSION` to Vite and the runtime archive producer; direct
 frontend builds can set `VITE_PLUGIN_VERSION`. Unset versions show **Development
 build** in the footer.
 
