@@ -64,6 +64,12 @@ Use Quest's supported challenge API above for Maintainer automation. Advanced
 challenge/flag/hint types, attachments, solutions and tags/topics require native
 administrator tooling; they have no Maintainer authoring route at present.
 
+Even a standard challenge can need fields outside the bounded Quest editor:
+`connection_info`, `attribution` and `max_attempts` are not currently accepted.
+A full catalog importer using these fields, writeups or images therefore needs
+more than replacing native challenge CRUD calls. It needs scoped Quest metadata,
+solution and asset support before it can run entirely as a Maintainer.
+
 An administrator's native importer can create challenges, then map/order their
 IDs with `PATCH /admin/rooms/<slug>` and `{"challenge_ids":[12,13,14]}`. This list
 replaces the room's complete order. Native `category` alone does not assign a
@@ -80,3 +86,8 @@ relevant activity and no loaded demo. Room creation and room position changes al
 require draft; room presentation has separate rules.
 Treat a refusal as a workflow constraint, rather than changing the event phase or
 deleting history automatically. See [administration](administration.md#room-and-challenge-authoring).
+
+Importers should check the account's role and required capabilities before their
+first write. In particular, do not unmap a room and then discover that the account
+cannot delete or recreate its native challenges. Prefer ID-based room ownership
+and normal challenge updates over deleting everything with a matching category.
