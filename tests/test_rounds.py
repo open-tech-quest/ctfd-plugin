@@ -11,7 +11,7 @@ from CTFd.utils import get_config
 from CTFd.plugins.open_tech_quest import archive, rounds
 from CTFd.plugins.open_tech_quest.models import (QuestAudit, QuestCorrection,
     QuestExclusion, QuestHintPurchase, QuestMaintainer, QuestOnboarding,
-    QuestPause, QuestReadiness, QuestStart, QuestTeamName)
+    QuestPause, QuestReadiness, QuestRoom, QuestStart, QuestTeamName)
 from CTFd.plugins.open_tech_quest.recovery_models import QuestRecoverySolve
 import test_integration as integration
 
@@ -35,7 +35,7 @@ class RoundIntegration(unittest.TestCase):
         self.assertEqual(self.post(self.alice,'/api/v1/unlocks',{'type':'hints','target':1}).status_code,200)
         self.solve(self.alice,2)
         with self.app.app_context():
-            db.session.add_all([QuestCorrection(team_id=self.team_id,room_id=1,adjustment_ms=1000,reason='clock correction'),
+            db.session.add_all([QuestCorrection(team_id=self.team_id,room_id=QuestRoom.query.filter_by(slug='openshift').one().id,adjustment_ms=1000,reason='clock correction'),
                 QuestExclusion(team_id=self.other_id,reason='practice'),Ratings(user_id=2,challenge_id=1,value=1,review='Helpful'),
                 TeamComments(team_id=self.team_id,author_id=1,content='Team note'),
                 ChallengeComments(challenge_id=1,author_id=1,content='Keep this challenge note'),
