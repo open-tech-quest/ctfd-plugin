@@ -119,8 +119,8 @@ class RoundIntegration(unittest.TestCase):
         self.assertEqual(self.reset(preview).status_code,409)
 
     def test_live_or_paused_event_cannot_be_cleared_and_invalid_csrf_cannot_store(self):
-        for state in ['draft','live','paused']:
-            if state!='draft':self.action('start' if state=='live' else 'pause')
+        for state in ['live','paused']:
+            self.action('start' if state=='live' else 'pause')
             preview=self.preview();self.assertFalse(preview['allowed'])
             self.assertEqual(self.reset(preview).status_code,409)
         self.assertIn(self.admin.post(P+'/admin/archives',json={}).status_code,[400,403])
@@ -276,3 +276,20 @@ class RoundIntegration(unittest.TestCase):
             self.assertEqual(QuestRecoverySolve.query.count(),0)
             self.assertEqual(Submissions.query.count(),0)
             self.assertEqual(Users.query.count(),1)
+
+    def test_another_round_then_restore_defaults_without_starting_another_event(self):
+        self.finish()
+        first=self.reset();self.assertEqual(first.status_code,200)
+        first_id=first.json['data']['archive_id']
+        original=self.admin.get(P+f'/admin/archives/{first_id}').json
+        preview=self.admin.get(P+'/admin/round/preview?mode=defaults').json['data']
+        self.assertTrue(preview['allowed'])
+        self.assertEqual(preview['counts']['accounts_removed'],0)
+        second=self.reset(preview)
+        self.assertEqual(second.status_code,200,second.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertEqual(Users.query.count(),1)
+            self.assertEqual(Challenges.query.count(),0)
+            self.assertEqual(QuestRoom.query.count(),5)
+        self.assertEqual(self.admin.get(P+f'/admin/archives/{first_id}').json,original)
+        self.assertEqual(len(self.admin.get(P+'/admin/archives').json['data']['archives']),2)

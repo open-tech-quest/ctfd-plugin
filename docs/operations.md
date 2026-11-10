@@ -147,12 +147,13 @@ Use **Submission history** for protected original and recovery records.
 After review/publication, use **Organize → Archives → Save and download archive**
 and check the private download in the local viewer. Keep a full database/uploads
 backup if restoration may be needed. When the organizer explicitly intends to
-clear the closed/published event, **Danger zone** can start another round with the
-same content or restore five empty default rooms. **Both delete every other
+clear a draft, closed or published event, **Danger zone** can start another round
+with the same content or restore five empty default rooms. **Both delete every other
 account, including other administrators and maintainers**, and clear teams/play.
 They automatically save a server archive first; the JSON is a report, not a restore
 file. Read the exact [scope and confirmation steps](archives.md#two-danger-actions)
-before proceeding. Deploying an upgrade does not request or perform a reset.
+before proceeding; close live/paused events first. A new draft can be reset again
+without starting play. Deploying an upgrade does not request or perform a reset.
 
 Public/projector views contain team names and aggregate results, not emails,
 answers, session tokens or admin capabilities. Before roster release, team data

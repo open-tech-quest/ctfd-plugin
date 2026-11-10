@@ -23,7 +23,8 @@ who produced a file.
 
 ## Two danger actions
 
-Both actions require a **closed or published** event. Review their current counts,
+Both actions allow a **draft, closed or published** event; close a live or paused
+event first. Review their current counts,
 type the exact current event name and supply a reason. The preview is bound to
 the selected mode, administrator and current source state. If anything changes,
 review again. Administrator/session authority and CSRF are checked on the server,

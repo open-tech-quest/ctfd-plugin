@@ -79,7 +79,7 @@ def unsupported_dependents(mode):
 def reset_reason(e, mode):
     if mode not in ('new_round', 'defaults'):
         raise RoundError('Choose another round or restore default rooms.', 400)
-    if e.status not in ('closed', 'published'):
+    if e.status not in ('draft', 'closed', 'published'):
         return 'Close the event before preparing another round.'
     unsupported = sorted({c.type for c in Challenges.query.all()} - {'standard', 'dynamic'})
     if unsupported:

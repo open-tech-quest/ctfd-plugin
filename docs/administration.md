@@ -30,13 +30,14 @@ with self/last-usable-admin and history protections.
 
 Those per-account/history protections remain in force during ordinary operation.
 The explicit [end-of-event reset](archives.md#two-danger-actions) is a separate
-admin-only exception: only in closed/published state, after an atomic archive,
+admin-only exception: in draft, closed or published state, after an atomic archive,
 it removes every other account (including staff/admins) and teams/play. Defaults
 mode also clears challenge content and restores empty default rooms. A mode-bound
 fresh preview, typed event name, reason, CSRF and post-lock administrator validation
 are mandatory. The executing administrator and existing server archives remain;
 unsupported dependent plugin tables cause safe refusal. Native metadata writes
 serialize with this transaction rather than racing account/content deletion.
+Live or paused events must be closed first.
 
 User role/access/delete writes require `identity` (account incarnation) and
 `confirm:true`. Reused numeric IDs cannot authorize stale actions. Every write

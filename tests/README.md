@@ -41,7 +41,8 @@ current credit, preserved authored metadata, excluded native secrets, flag-bound
 fingerprints and checksums. Round-reset tests exercise both modes on disposable
 data: archive/delete atomicity, stale previews, administrator/CSRF checks,
 additional-plugin refusal, one retained acting administrator and the correct
-content/default-room outcome. Frontend checks cover local JSON parsing, integrity
+content/default-room outcome, including draft and consecutive reset modes while
+live/paused resets remain blocked. Frontend checks cover local JSON parsing, integrity
 verification and bounded safe viewing; these reports are not restore backups.
 
 Read-cache and sync regressions cover concurrent roster removal, old-snapshot

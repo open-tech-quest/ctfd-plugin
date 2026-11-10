@@ -34,7 +34,8 @@ Keep operator access, snapshots and deployment commands out of public guidance.
   demo must be removed before competition start. It never creates participants,
   teams or progress. Bulk participant/progress fixtures remain isolated tests.
 - Theme changes must preserve room IDs, memberships, starts, and solves.
-- Only explicit closed/published-event danger actions may clear round history:
+- Only explicit danger actions in draft, closed or published state may clear history
+  (close live/paused events first):
   archive atomically first, retain the acting administrator and saved archives,
   delete every other account and teams/play; defaults also clears challenge/room
   content and restores five empty rooms. Never run either reset as an upgrade,

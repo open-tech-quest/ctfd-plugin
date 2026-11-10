@@ -43,6 +43,8 @@ Use disposable accounts/data and real native sessions for affected journeys:
   both end-of-event reset modes with the retained acting administrator, archived
   source/results, deleted other accounts, content-preservation/default differences,
   stale-preview/role/CSRF rejection, dependent-plugin refusal and atomic rollback.
+  Include draft resets and consecutive another-round/defaults actions; live/paused
+  events must be closed first.
   Run destructive checks only in disposable fixtures, never the active event.
 
 Automated accessibility scans and development screenshots do not establish venue

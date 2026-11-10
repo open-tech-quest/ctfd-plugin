@@ -144,12 +144,14 @@ simulation automatically.
 ## Reset and repeat
 
 Choose the reset that matches the requested outcome. **Organize → Danger zone**
-is an application action for a closed/published event, not a return to the original
-rehearsal baseline. Both modes archive first, remove every account except the
+is an application action for a draft, closed or published event, not a return to
+the original rehearsal baseline. Both modes archive first, remove every account except the
 executing administrator and clear teams/play; **Start another round** retains
 content, while **Restore defaults** also removes challenges/custom rooms and
 restores five empty default rooms. Read [the exact scope](archives.md) first.
-Neither mode recreates the rehearsal's sample accounts or staff grants.
+Close a live/paused event first. Neither mode recreates the rehearsal's sample
+accounts or staff grants. A new draft can be cleared again or restored to defaults
+without starting play.
 
 For the disposable Compose project above, remove **its** database, uploads and
 logs, then start it again:
