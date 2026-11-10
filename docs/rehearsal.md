@@ -83,16 +83,18 @@ prerequisites.
 
 ## Exercise the full flow
 
-1. Sign in as the administrator and promote any five test accounts to maintainer
-   in **Organize → Users**. Sign in as a maintainer and edit/preview a challenge.
+1. Sign in as the administrator and promote five accounts from `quest-test-01`
+   through `quest-test-09` to maintainer in **Organize → Users**. Sign in as a maintainer and edit/preview a challenge.
    Staff should be excluded from attendance and competing teams.
 2. Open attendance. Sign in as the remaining participants and explicitly confirm
-   presence. For bulk simulations, an operator helper should use a separate native
-   session for each account and the normal ready endpoint, with login throttling.
-   It must exclude staff and leave team formation to the organizer.
-3. Move to attendance review, preview the server's plan and apply it. With all
-   45 participants checked in, expect nine teams of five. If member naming is
-   enabled, confirm names as participants; otherwise use the generated names.
+   presence. Reserve accounts 01–09 for manual tests; bulk check-in uses only
+   run-owned accounts 10 and higher, with separate native sessions and the normal
+   ready endpoint. Exclude staff and throttle logins; leave team formation to the
+   organizer.
+3. Move to attendance review, preview the server's plan and apply it. For
+   eligible participants, use the actual ready count in the server preview rather
+   than assuming every sample account is present. If member naming is enabled,
+   confirm names as participants; otherwise use the generated names.
    Finalize, then start the event separately. These are distinct actions.
 4. Use two teammates to check shared room starts, prerequisite locks and duplicate
    flags. Solve a room's first challenge for 100 points; buy its second challenge's
@@ -110,6 +112,34 @@ For feature work, record the plugin version, user role, event/roster phase,
 expected result and observed result. Reproduce with dummy data and add a focused
 regression test when fixing a bug. A rehearsal checks behavior; resource estimates
 still need a separate [load test](sizing.md).
+
+## Agent-assisted triggers
+
+An operator runbook can persist two separate instructions:
+
+- **“Check in the rehearsal bots”**: only while draft attendance is open, confirm
+  presence for eligible sample users 10 and higher. Never touch 01–09 or advance
+  allocation, naming, finalization or event start.
+- **“Create the mid-event rehearsal snapshot”**: only during live, unpublished
+  play, fill untouched bot-only teams with full clears, partial paths and unopened
+  rooms. Skip any team with a reserved/non-bot member or existing activity, because
+  progress is shared by the whole team.
+
+Inspect the current run and preview the scope before either action. For synthetic
+progress, use current challenge order/points and clearly mark generated native
+history in an audit record. Keep dates chronological, within elapsed event time
+and outside pauses; preserve manual progress. Allow one atomic, repeat-safe
+snapshot per run and retain a backup. For a newly started disposable rehearsal
+with no competition activity anywhere, an operator may backdate the Quest and
+native CTFd start together to provide a realistic 45-minute window. Preview this
+change, audit it with the fixture and commit it atomically. Existing activity must
+prevent backdating; use elapsed history, wait or choose a shorter window instead.
+
+Synthetic history populates standings; it does not test browser traffic or native
+submission grading. Use the reserved accounts for those manual flows. Keep these
+operator-only tools outside the production plugin/API, and run them only when
+explicitly requested. Installing a helper or opening attendance must not trigger
+simulation automatically.
 
 ## Reset and repeat
 
