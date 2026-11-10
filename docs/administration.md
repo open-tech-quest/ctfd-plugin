@@ -93,6 +93,9 @@ uses `/manage/rooms/<slug>/challenges`. See
 and activity guards. Native editing remains subject to competition protections;
 room-editor authoring is not a live-event editing workflow.
 
+For scripts, the [automation guide](automation.md) maps these endpoints and native
+CTFd permissions, including access-token and session/CSRF authentication.
+
 ### Links in Markdown
 
 Links to another website open in a new tab automatically, so participants keep

@@ -48,6 +48,10 @@ and CSRF protection. Native challenge content/attempt APIs remain native. Errors
 use HTTP status plus a human-readable message; a native `success:true` field does
 not make a non-2xx response successful.
 
+CTFd's native access-token hook also authenticates Quest management routes when
+`Content-Type: application/json` is present, including GET requests. Tokens do not
+grant native administrator privileges to Maintainers. See [automation](automation.md).
+
 `/bootstrap` supplies full initial metadata. `/sync` supplies live event/viewer,
 registration, attendance, CSRF and opaque content/roster/progress revisions without
 resending rooms. The shared coordinator accepts viewer and CSRF together, merges
