@@ -12,7 +12,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          TeamFieldEntries, Teams, Tokens, Tracking, Unlocks, UserComments,
                          UserFieldEntries, Users, db)
 from . import archive, projector, registration
-from .models import (QuestAudit, QuestCorrection, QuestExclusion,
+from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestExclusion,
                      QuestHintPurchase, QuestMaintainer, QuestOnboarding, QuestPause,
                      QuestDemoBatch, QuestDemoChallenge, QuestRoom, QuestStep,
                      QuestReadiness, QuestStart, QuestTeamName)
@@ -52,6 +52,7 @@ def save_archive(e, source, actor_id, kind='snapshot'):
 # Explicit pinned native/plugin coverage. Dynamically registered plugin models do
 # not silently become supported just because they share SQLAlchemy metadata.
 KNOWN_TABLES = set("awards brackets challenge_topics challenges comments config dynamic_challenge field_entries fields files flags hints notifications pages ratings solutions solves submissions tags teams tokens topics tracking unlocks users quest_events quest_rooms quest_steps quest_starts quest_pauses quest_exclusions quest_corrections quest_audit quest_demo_batches quest_demo_challenges quest_onboarding quest_readiness quest_team_names quest_maintainers quest_read_versions quest_hint_purchases quest_recovery_solves".split())
+KNOWN_TABLES.update({"quest_assets", "quest_challenge_sources"})
 
 
 def unsupported_dependents(mode):
@@ -188,6 +189,8 @@ def reset_round(e, data, actor_id):
         from CTFd.plugins.dynamic_challenges import DynamicChallenge
         # Foreign keys are explicit so behavior is identical with SQLite's
         # optional enforcement and MariaDB's mandatory constraints.
+        db.session.execute(QuestAsset.__table__.delete())
+        db.session.execute(QuestChallengeSource.__table__.delete())
         db.session.execute(QuestDemoChallenge.__table__.delete())
         db.session.execute(QuestDemoBatch.__table__.delete())
         db.session.execute(QuestStep.__table__.delete())

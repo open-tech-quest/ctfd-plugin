@@ -1010,6 +1010,8 @@ def delete_room(slug):
     set_challenge_order(room, [])
     if (e.projector or {}).get("room_slug") == slug:
         e.projector = projector.remove_room(e.projector, slug)
+    from .models import QuestChallengeSource
+    QuestChallengeSource.query.filter_by(room_id=room.id).delete(synchronize_session=False)
     db.session.delete(room)
     audit("room.delete", {"room_slug": slug})
     db.session.commit()

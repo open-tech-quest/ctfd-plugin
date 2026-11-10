@@ -15,6 +15,7 @@ schemas into feature documents.
 | Registration, attendance and grouping | [`registration.py`](../plugin/open_tech_quest/registration.py), [`onboarding.py`](../plugin/open_tech_quest/onboarding.py), [`onboarding_math.py`](../plugin/open_tech_quest/onboarding_math.py) |
 | Roles, account safety and recovery | [`roles.py`](../plugin/open_tech_quest/roles.py), [`lifecycle.py`](../plugin/open_tech_quest/lifecycle.py), [`recovery.py`](../plugin/open_tech_quest/recovery.py) |
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
+| Owned native assets and automation contract | [`assets.py`](../plugin/open_tech_quest/assets.py), [automation guide](automation.md) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
 | Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
 | Browser API types and transport | [`types.ts`](../web/src/types.ts), [`api.ts`](../web/src/api.ts) |
@@ -51,6 +52,15 @@ not make a non-2xx response successful.
 CTFd's native access-token hook also authenticates Quest management routes when
 `Content-Type: application/json` is present, including GET requests. Tokens do not
 grant native administrator privileges to Maintainers. See [automation](automation.md).
+
+Automation version 1 keeps standard content in native records. Migration
+`0011_catalog` adds durable room-scoped source keys and file-kind ownership
+metadata; SQLite applies the same idempotent upgrade. New-round reset retains
+them; defaults clears them after archiving. Their mutations invalidate content
+revisions. Scoped JSON base64 uploads use native storage without upload helpers'
+internal commits. Metadata-only deletion preserves rollback and leaves provider
+garbage collection to the operator. See the canonical
+[payload, ownership and reconciliation contract](automation.md).
 
 `/bootstrap` supplies full initial metadata. `/sync` supplies live event/viewer,
 registration, attendance, CSRF and opaque content/roster/progress revisions without

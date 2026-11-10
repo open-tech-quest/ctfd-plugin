@@ -12,6 +12,7 @@ CTFd handles accounts, teams, flags, hints and solves.
 - Room progress/points/time rankings and overall net-points rankings, with shared
   ties, team-paid hints, projector and awards views.
 - Organizer authoring, staff controls, CSV exports, JSON archives and round resets.
+- [Maintainer automation](docs/automation.md) for owned challenges, metadata and assets.
 
 New installations start in **draft** with five empty rooms: OpenShift, Ansible,
 RHEL, Security and AI. Rooms can be renamed, added or removed. An optional demo

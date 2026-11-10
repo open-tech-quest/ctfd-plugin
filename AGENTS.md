@@ -34,6 +34,10 @@ Keep operator access, snapshots and deployment commands out of public guidance.
   demo must be removed before competition start. It never creates participants,
   teams or progress. Bulk participant/progress fixtures remain isolated tests.
 - Theme changes must preserve room IDs, memberships, starts, and solves.
+- Maintainer automation uses explicit source keys and owned native content/assets;
+  never adopt by name or widen native admin permissions. Preserve unmapped keys,
+  preflight reattachment/whole-room cleanup, and keep asset byte cleanup separate
+  from transactional metadata deletion. See `docs/automation.md`.
 - Only explicit danger actions in draft, closed or published state may clear history
   (close live/paused events first):
   archive atomically first, retain the acting administrator and saved archives,

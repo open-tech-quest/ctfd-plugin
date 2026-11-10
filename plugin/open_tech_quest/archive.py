@@ -18,7 +18,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          TeamFieldEntries, TeamFields, Teams, Topics, Unlocks,
                          UserComments, UserFieldEntries, UserFields, Users, db)
 from . import read_cache, registration
-from .models import (QuestAudit, QuestCorrection, QuestDemoBatch, QuestDemoChallenge, QuestExclusion,
+from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestDemoBatch, QuestDemoChallenge, QuestExclusion,
                      QuestHintPurchase, QuestMaintainer, QuestOnboarding,
                      QuestPause, QuestReadiness, QuestRoom, QuestStart,
                      QuestStep, QuestTeamName)
@@ -54,7 +54,7 @@ _TEAM_FIELDS = "name user_ids excluded reason".split()
 _SCALARS = {"team_id", "user_id", "challenge_id", "hint_id", "room_id", "room_slug", "batch_id",
             "original_solve_id", "detached_team_id", "cost", "adjustment_ms", "reason", "at", "late",
             "name", "old", "new", "source", "generation", "new_team", "joined_at", "fingerprint",
-            "team_size", "allow_team_naming"}
+            "team_size", "allow_team_naming", "file_id", "kind"}
 _LISTS = {"user_ids", "challenge_ids", "unassigned_user_ids", "fields"}
 
 
@@ -71,7 +71,7 @@ def _audit_detail(action, raw):
                  "attendance.configure", "registration.configure", "room.create", "room.delete",
                  "room.configure", "team.configure", "teams.allocate", "projector.configure",
                  "ranking.correct", "user.access", "user.delete", "user.role", "hint.purchase",
-                 "challenge.create", "challenge.update", "challenge.delete", "challenge.recover"})
+                 "challenge.create", "challenge.update", "challenge.delete", "challenge.recover", "challenge.clear", "asset.upload", "asset.delete"})
     if not known:
         return {}
     result = _flat(raw, _SCALARS | (set(_EVENT_FIELDS) if action == "event.configure" else set()))
@@ -211,6 +211,8 @@ def collect_event(e):
         "topics": [_row(row, "id value") for row in Topics.query.order_by(Topics.id).all()],
         "challenge_topics": [_row(row, "id challenge_id topic_id") for row in ChallengeTopics.query.order_by(ChallengeTopics.id).all()],
         "attachments": sorted(attachments, key=lambda row: row["id"]),
+        "challenge_sources": [_row(row, "challenge_id room_id source_key") for row in QuestChallengeSource.query.order_by(QuestChallengeSource.challenge_id).all()],
+        "managed_assets": [_row(row, "file_id challenge_id kind name size sha256 created_at") for row in QuestAsset.query.order_by(QuestAsset.file_id).all()],
         "attempts": attempts,
         "scoring_credits": [{"team_id": team_id, "challenge_id": challenge_id, "at": timestamp(at)}
                             for team_id, solves in sorted(view.solves.items()) for challenge_id, at in sorted(solves.items())],

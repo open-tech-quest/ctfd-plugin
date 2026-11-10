@@ -47,9 +47,12 @@ def load(app):
     app.register_blueprint(api, url_prefix="/api/v1/quest")
     from .authoring import authoring_api
     app.register_blueprint(authoring_api, url_prefix="/api/v1/quest")
+    from .assets import assets_api, install as install_assets
+    app.register_blueprint(assets_api, url_prefix="/api/v1/quest")
     install_guards(app)
     from .recovery import install_recovery
     install_recovery(app)
+    install_assets(app)
     register_plugin_stylesheet("/plugins/open_tech_quest/assets/app/native-auth.css")
     register_plugin_script("/plugins/open_tech_quest/assets/app/native-brand.js")
     register_admin_plugin_script("/plugins/open_tech_quest/assets/app/native-brand.js")

@@ -374,7 +374,7 @@ class AuthoringIntegration(unittest.TestCase):
         self.assertEqual(self.post(self.maintainer, self.path(challenge["id"], preview=True), {"submission": challenge["flags"][0]["content"]}).json["data"]["status"], "correct")
         self.assertTrue(self.admin.get(PREFIX + "/admin/state").json["data"]["demo"]["active"])
 
-    def test_unsupported_flag_logic_and_type_are_read_only_without_normalizing(self):
+    def test_advanced_flags_stay_editor_read_only_and_automation_preserves_native_type(self):
         with self.app.app_context():
             Challenges.query.get(1).logic = "all"
             Flags.query.filter_by(challenge_id=2).one().type = "regex"
@@ -382,11 +382,13 @@ class AuthoringIntegration(unittest.TestCase):
         workspace = self.maintainer.get(self.path()).json["data"]
         for challenge in workspace["challenges"]:
             self.assertFalse(challenge["can_edit"])
-            self.assertFalse(challenge["can_delete"])
+            self.assertEqual(challenge["can_delete"], challenge["id"] == 2)
             self.assertEqual(challenge["flags"], [])
             self.assertIn("unsupported", challenge["edit_reason"])
-            self.assertEqual(self.post(self.maintainer, self.path(challenge["id"]), {"name": "Normalize"}, "PATCH").status_code, 409)
-            self.assertEqual(self.post(self.maintainer, self.path(challenge["id"], preview=True), {"submission": "fixture-answer"}).status_code, 409)
+            automated = challenge["id"] == 2
+            self.assertEqual(challenge["can_automate"], automated)
+            self.assertEqual(self.post(self.maintainer, self.path(challenge["id"]), {"name": "Normalize"}, "PATCH").status_code, 200 if automated else 409)
+            self.assertEqual(self.post(self.maintainer, self.path(challenge["id"], preview=True), {"submission": "fixture-answer"}).status_code, 200 if automated else 409)
         with self.app.app_context():
             self.assertEqual(Challenges.query.get(1).logic, "all")
             self.assertEqual(Flags.query.filter_by(challenge_id=2).one().type, "regex")

@@ -249,6 +249,14 @@ def install_guards(app):
             protected_solution = target if model is Solutions else None
         elif path.startswith("/files/"):
             file = Files.query.filter_by(location=path[len("/files/"):]).first()
+            if file and request.method in ("GET", "HEAD"):
+                from .models import QuestAsset
+                from .roles import can_manage_rooms
+                managed = QuestAsset.query.get(file.id)
+                if managed and can_manage_rooms() and QuestStep.query.filter_by(challenge_id=managed.challenge_id).first():
+                    from .assets import download_file, member_file
+                    # Recheck native ownership, including solution linkage.
+                    return download_file(member_file(managed.challenge_id, file.id), managed)
             challenge_id = getattr(file, "challenge_id", None)
             if file and file.type == "solution":
                 solution = Solutions.query.get(file.solution_id)
@@ -315,6 +323,18 @@ def install_guards(app):
             return denied("Solve the previous steps before opening this challenge")
         if protected_solution and protected_solution.state == "solved" and challenge_id not in solved:
             return denied("Solve this challenge with an eligible team member before opening its solution")
+        if path.startswith("/files/") and protected_solution and protected_solution.state in ("visible", "solved"):
+            from .models import QuestAsset
+            managed = QuestAsset.query.get(file.id)
+            if managed and managed.challenge_id == challenge_id:
+                from CTFd.models import SolutionUnlocks
+                if not SolutionUnlocks.query.filter_by(team_id=user.team_id, target=protected_solution.id).first():
+                    return denied("Unlock this solution before opening its files")
+                from .assets import download_file, member_file
+                # Native files only recognizes visible solutions. Managed solved
+                # writeups use the effective-solve checks above, never a weaker
+                # native unlock or the fact that somebody knows the file URL.
+                return download_file(member_file(challenge_id, file.id), managed)
         if path == "/api/v1/unlocks" and write and data.get("type") == "hints":
             from .scoring import purchase_hint
             return purchase_hint(user, target, e)

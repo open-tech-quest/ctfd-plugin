@@ -162,3 +162,25 @@ class QuestHintPurchase(db.Model):
     cost = db.Column(db.Integer, nullable=False)
     purchased_at = db.Column(UTCDateTime, nullable=False)
     __table_args__ = (db.UniqueConstraint("team_id", "hint_id"),)
+
+
+class QuestChallengeSource(db.Model):
+    """Explicit catalog identity; a matching display name never grants ownership."""
+    __tablename__ = "quest_challenge_sources"
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey("quest_rooms.id", ondelete="CASCADE"), nullable=False)
+    source_key = db.Column(db.String(255, collation="utf8mb4_bin").with_variant(db.String(255), "sqlite"), nullable=False)
+    __table_args__ = (db.UniqueConstraint("room_id", "source_key"),)
+
+
+class QuestAsset(db.Model):
+    """Kind and bounded metadata for a native, challenge-owned uploaded file."""
+    __tablename__ = "quest_assets"
+    file_id = db.Column(db.Integer, db.ForeignKey("files.id", ondelete="CASCADE"), primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), nullable=False)
+    kind = db.Column(db.String(16), nullable=False)
+    name = db.Column(db.String(160, collation="utf8mb4_bin").with_variant(db.String(160), "sqlite"), nullable=False)
+    size = db.Column(db.Integer, nullable=False)
+    sha256 = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(UTCDateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (db.UniqueConstraint("challenge_id", "kind", "name"),)

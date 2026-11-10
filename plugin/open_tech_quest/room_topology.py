@@ -2,7 +2,7 @@
 from sqlalchemy import or_
 from CTFd.models import Challenges, Hints, Ratings, Solutions, Submissions, Unlocks, db
 from . import demo
-from .models import QuestCorrection, QuestStart, QuestStep
+from .models import QuestCorrection, QuestStart, QuestStep, QuestChallengeSource
 from .service import event, room_steps
 
 
@@ -123,6 +123,9 @@ def set_challenge_order(room, ids):
         challenge.requirements = {"prerequisites": ids[:position], "anonymize": False}
         challenge.next_id = ids[position + 1] if position + 1 < len(ids) else None
         challenge.position = position
+        source = QuestChallengeSource.query.get(challenge_id)
+        if source and source.room_id != room.id:
+            source.room_id = room.id
         db.session.add(QuestStep(room_id=room.id, challenge_id=challenge_id, position=position))
     db.session.flush()
     sync_native_chain(room.id)

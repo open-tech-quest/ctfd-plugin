@@ -110,6 +110,13 @@ earlier effective solve stops counting. Locked metadata never contains challenge
 content, saved flags or unreleased hint/file information. Staff have explicit
 preview access; being an administrator does not create participation credit.
 
+Maintainer automation uses explicit source identity and room/challenge-owned
+metadata/assets, without global native administrator access. Unmapping retains
+catalog identity; reattachment is explicit and history-checked. Bulk room cleanup
+validates all mapped content before deleting any of it. Native grading/solution
+eligibility stays authoritative, including supported regex flags. See the
+[automation contract](automation.md).
+
 ## Staff, demos and privacy
 
 Administrators manage the event and roles; maintainers manage rooms and supported

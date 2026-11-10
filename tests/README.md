@@ -36,6 +36,13 @@ hint purchases, immutable purchase prices, native-route ID aliases, legacy charg
 migration and versioned publication/CSV results. Disposable browser challenges
 have varied point values and paid hints after each room's free first hint.
 
+Maintainer automation regressions cover bounded metadata and native regex grading,
+token/session authentication and post-lock revocation, stable keys and explicit
+unmapped reattachment, owned assets/previews and solution unlocks, atomic room
+cleanup, unknown dependencies, rollback/queued-upload races, idempotent migration
+and archive/reset ownership preservation. Asset tests verify metadata-only removal
+preserves unrelated bytes and native private cache headers.
+
 Archive tests cover private source collection, microsecond history, published vs
 current credit, preserved authored metadata, excluded native secrets, flag-bound
 fingerprints and checksums. Round-reset tests exercise both modes on disposable

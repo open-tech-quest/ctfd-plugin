@@ -73,9 +73,11 @@ case-sensitive or explicitly case-insensitive flags. Accepted answers are readab
 in the authorized editor. Each challenge can have multiple native CTFd hints,
 with an optional title, Markdown text and nonnegative point cost; zero means free.
 Saving preserves existing hint IDs and prerequisites. Referenced or purchased
-hints cannot be removed. Unsupported native challenge, flag or hint types remain
-read-only; administrators use native CTFd for advanced settings, hint prerequisites
-and attachments. The editor never silently normalizes them. Editing preserves
+hints cannot be removed. Advanced flags remain read-only in the simple editor;
+the bounded [automation API](automation.md) also preserves native static/regex
+flags and supports metadata, solutions and owned assets. Unsupported custom
+challenge/flag/hint behavior and advanced settings/prerequisites remain native
+administrator work. The editor never silently normalizes them. Editing preserves
 native files and unchanged values; omitted hints are preserved by the API.
 
 New authoring requires draft status, no relevant activity and no loaded demo.
@@ -94,7 +96,12 @@ and activity guards. Native editing remains subject to competition protections;
 room-editor authoring is not a live-event editing workflow.
 
 For scripts, the [automation guide](automation.md) maps these endpoints and native
-CTFd permissions, including access-token and session/CSRF authentication.
+CTFd permissions, including access-token and session/CSRF authentication. Stable
+source keys never imply name-based adoption; unmapped owned entries require an
+explicit, eligible reattachment. Atomic room clearing preflights every mapped
+challenge and external dependency before deletion. Asset deletion removes owned
+metadata, never another file owner's bytes; provider cleanup remains an operator
+task. Maintainers do not gain global native authoring permissions.
 
 ### Links in Markdown
 
