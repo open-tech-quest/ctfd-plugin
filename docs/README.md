@@ -5,6 +5,7 @@
 | Try the plugin or install it into CTFd | [Project README](../README.md) |
 | Host the image, combine plugins or upgrade | [Hosting](deployment.md) |
 | Prepare and run an event | [Event operations](operations.md) |
+| Save event records, read archives or prepare another round | [Archives and reset](archives.md) |
 | Explore or test an event from setup through cleanup | [Full-event rehearsal](rehearsal.md) |
 | Estimate resources and understand the measurements | [Sizing](sizing.md) |
 | Understand timing, rankings and lifecycle rules | [Product contract](design.md) |

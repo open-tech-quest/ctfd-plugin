@@ -103,7 +103,8 @@ Use **Organize → Users** for maintainer promotion, **Return to participant**,
 safe unused-account deletion, and **Ban / Unban account**. Actual role changes
 clear readiness and safe provisional membership. Full admins are managed in native
 CTFd. Activity-bearing accounts or optimized/frozen memberships cannot be deleted;
-use access moderation to retain evidence.
+use access moderation to retain evidence. The explicit end-of-event danger
+actions are a separate bulk-deletion workflow; see [archives and reset](archives.md).
 
 Banning excludes that user's counted solves while retaining raw submissions,
 memberships and timing history. Teammates may re-solve affected steps with normal
@@ -142,6 +143,16 @@ Use **Submission history** for protected original and recovery records.
 - **Close** records the cutoff. Review room/overall standings and CSV exports,
   then **Publish** the immutable result snapshot. **Unpublish/Reopen** requires a
   reason; reopening enters paused state, so resume explicitly when ready.
+
+After review/publication, use **Organize → Archives → Save and download archive**
+and check the private download in the local viewer. Keep a full database/uploads
+backup if restoration may be needed. When the organizer explicitly intends to
+clear the closed/published event, **Danger zone** can start another round with the
+same content or restore five empty default rooms. **Both delete every other
+account, including other administrators and maintainers**, and clear teams/play.
+They automatically save a server archive first; the JSON is a report, not a restore
+file. Read the exact [scope and confirmation steps](archives.md#two-danger-actions)
+before proceeding. Deploying an upgrade does not request or perform a reset.
 
 Public/projector views contain team names and aggregate results, not emails,
 answers, session tokens or admin capabilities. Before roster release, team data

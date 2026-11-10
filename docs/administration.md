@@ -28,6 +28,16 @@ Actual role transitions clear attendance; demotion or unbanning never restores o
 readiness or invents a membership. Native administrators remain managed in CTFd,
 with self/last-usable-admin and history protections.
 
+Those per-account/history protections remain in force during ordinary operation.
+The explicit [end-of-event reset](archives.md#two-danger-actions) is a separate
+admin-only exception: only in closed/published state, after an atomic archive,
+it removes every other account (including staff/admins) and teams/play. Defaults
+mode also clears challenge content and restores empty default rooms. A mode-bound
+fresh preview, typed event name, reason, CSRF and post-lock administrator validation
+are mandatory. The executing administrator and existing server archives remain;
+unsupported dependent plugin tables cause safe refusal. Native metadata writes
+serialize with this transaction rather than racing account/content deletion.
+
 User role/access/delete writes require `identity` (account incarnation) and
 `confirm:true`. Reused numeric IDs cannot authorize stale actions. Every write
 rechecks persisted actor session/password, role and banned state after taking

@@ -5,7 +5,7 @@ from CTFd.models import Challenges, Configs, Files, Hints, Solutions, Submission
 from CTFd.utils.dates import ctftime
 from CTFd.utils.user import is_admin
 from CTFd.utils.security.signing import unserialize, BadSignature, BadTimeSignature, SignatureExpired
-from .models import QuestStep, QuestStart
+from .models import QuestStep, QuestStart, QuestAudit
 from .service import event, now, participant_steps, released, solve_map
 from . import onboarding, registration, lifecycle
 from .lifecycle import current_user as get_current_user
@@ -39,14 +39,27 @@ def install_guards(app):
         requested_uid = session.get("id")
         # Safely expire a deleted or replaced signed session before native
         # get_current_user can dereference a missing account's password.
-        get_current_user()
+        actor = get_current_user()
         administrator = is_admin()
         if administrator:
             # Apply the same post-lock session check to guarded native admin
             # writes, including team and submission mutations.
             g.quest_administrator = True
+        synchronize_native = (write and actor is not None and not actor.banned and
+                              path.startswith("/api/v1/") and not path.startswith("/api/v1/quest/") and
+                              (administrator or path == "/api/v1/tokens" or path.startswith("/api/v1/tokens/")))
+        if synchronize_native:
+            g.quest_native_round_epoch = db.session.query(db.func.max(QuestAudit.id)).filter_by(action="event.new_round").scalar()
+        # Read multipart bodies before holding the event lock: a slow native
+        # upload must not stall participant submissions while bytes arrive.
         data = request.get_json(silent=True) if request.is_json else request.form
         data = data if isinstance(data, dict) or hasattr(data, "get") else {}
+        if synchronize_native:
+            # Participant submissions retain their existing single lock path.
+            event(lock=True)
+            actor = get_current_user()
+            if actor is None or actor.banned:
+                return denied("This account is unavailable. Sign in again if your account is active.", 403)
         resource_id = re.match(r"^/api/v1/(challenges|hints|solutions|awards)/([^/]+)(?:/|$)", path)
         if resource_id:
             resource, raw_id = resource_id.groups()

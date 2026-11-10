@@ -4,6 +4,7 @@ import { useResource } from "./hooks";
 import { ProjectorControls } from "./projector-controls";
 import { DemoControls } from "./demo";
 import { Attendance } from "./attendance";
+import { ArchiveWorkspace } from "./event-archive";
 import { RegistrationControls } from "./registration";
 import { AttendanceWindowControls } from "./attendance-window";
 import { RoomManagement } from "./room-management";
@@ -24,6 +25,8 @@ const tabs = [
   "Users",
   "Awards",
   "Projector",
+  "Archives",
+  "Danger zone",
   "Audit",
 ] as const;
 function text(form: FormData, name: string) {
@@ -165,6 +168,18 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
           <AwardControls data={data} busy={busy} execute={execute} />
         ) : tab === "Projector" ? (
           <ProjectorControls data={data} busy={busy} mutate={mutate} />
+        ) : tab === "Archives" ? (
+          <ArchiveWorkspace
+            key="archives"
+            onChanged={resource.refresh}
+            pane="archives"
+          />
+        ) : tab === "Danger zone" ? (
+          <ArchiveWorkspace
+            key="danger"
+            onChanged={resource.refresh}
+            pane="danger"
+          />
         ) : (
           <AuditControls data={data} />
         )}

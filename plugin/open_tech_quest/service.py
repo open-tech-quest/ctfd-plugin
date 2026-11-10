@@ -60,6 +60,11 @@ def event(lock=False):
                     from .api import fail
                     fail("Administrator access required", 403)
                 abort(403, description="Administrator access required")
+        if has_request_context() and hasattr(g, 'quest_native_round_epoch'):
+            from .models import QuestAudit
+            epoch = db.session.query(db.func.max(QuestAudit.id)).filter_by(action='event.new_round').scalar()
+            if epoch != g.quest_native_round_epoch:
+                abort(409, description='A new round started while this request was waiting. Refresh before trying again.')
     return result
 
 

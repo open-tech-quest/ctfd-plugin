@@ -3,6 +3,8 @@ import csv
 import io
 import re
 import math
+import json
+import hmac
 from datetime import timezone
 from functools import wraps
 from urllib.parse import urlsplit
@@ -19,7 +21,7 @@ from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
 from .service import (event, event_data, now, iso, parse_time, released,
                       room_data, room_steps, participant_steps, standings, Projection, projection)
 
-from . import demo, onboarding, registration, roles, lifecycle, projector
+from . import demo, onboarding, registration, roles, lifecycle, projector, rounds, archive
 from .models import QuestMaintainer
 from .lifecycle import current_user as get_current_user
 
@@ -47,6 +49,7 @@ def error(exc):
 
 @api.errorhandler(onboarding.OnboardingError)
 @api.errorhandler(projector.ProjectorError)
+@api.errorhandler(rounds.RoundError)
 def onboarding_error(exc):
     db.session.rollback()
     return jsonify(success=False, error=exc.message), exc.status
@@ -298,7 +301,7 @@ def admin_state():
                                       "ready_at": iso(readiness[u.id].ready_at) if u.id in readiness else None,
                                       "late": bool(u.id in readiness and readiness[u.id].late),
                                       "banned": bool(u.banned)} for u in Users.query.filter_by(type="user").order_by(Users.id).all() if not roles.is_maintainer(u)],
-                    "audit": [{"id": a.id, "actor_id": a.actor_id, "action": a.action, "detail": a.detail, "created_at": iso(a.created_at)} for a in QuestAudit.query.order_by(QuestAudit.id.desc()).limit(200).all()],
+                    "audit": [{"id": a.id, "actor_id": a.actor_id, "action": a.action, "detail": a.detail, "created_at": iso(a.created_at)} for a in QuestAudit.query.filter(QuestAudit.action != rounds.ARCHIVE_ACTION).order_by(QuestAudit.id.desc()).limit(200).all()],
                     "standings": standings(), "projector": projector.serialize(event().projector, now()), "demo": demo.status(event()), "onboarding": onboarding.summary(event()), "registration": registration.status()})
 
 
@@ -1030,7 +1033,7 @@ def managed_user(user, e):
 
 @api.after_request
 def private_accounts(response):
-    if request.path.startswith("/api/v1/quest/admin/users"):
+    if request.path.startswith(("/api/v1/quest/admin/users", "/api/v1/quest/admin/archives", "/api/v1/quest/admin/round")):
         response.headers["Cache-Control"] = "private, no-store"
     return response
 
@@ -1129,3 +1132,67 @@ def delete_user(user_id):
     db.session.commit()
     lifecycle.invalidate(user_id, tid)
     return success({"id": user_id, "deleted": True})
+
+
+def archive_response(document):
+    response = Response(json.dumps(document, ensure_ascii=False, allow_nan=False), mimetype='application/json')
+    response.headers['Content-Disposition'] = 'attachment; filename="otq-event-' + document['archive_id'] + '.json"'
+    response.headers['Cache-Control'] = 'private, no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
+
+
+def archive_csrf():
+    expected, provided = session.get('nonce'), request.headers.get('CSRF-Token')
+    if not isinstance(expected, str) or not isinstance(provided, str) or not hmac.compare_digest(expected.encode(), provided.encode()):
+        fail('Refresh the organizer page before saving an archive or starting a new round.', 400)
+
+
+@api.route('/admin/archives')
+@admin
+def list_event_archives():
+    return success({'archives': rounds.stored_archives()})
+
+
+@api.route('/admin/archives', methods=['POST'])
+@admin
+def create_event_archive():
+    archive_csrf()
+    if body() != {}:
+        fail('This action takes an empty JSON object')
+    e = locked_administrator()
+    row, document, summary = rounds.save_archive(e, archive.collect_event(e), get_current_user().id)
+    db.session.commit()
+    return success({'id': row.id, 'summary': summary, 'document': document})
+
+
+@api.route('/admin/archives/export')
+@admin
+def export_current_event_archive():
+    e = locked_administrator()
+    return archive_response(archive.make_document(archive.collect_event(e)))
+
+
+@api.route('/admin/archives/<int:archive_id>')
+@admin
+def download_event_archive(archive_id):
+    row = QuestAudit.query.filter_by(id=archive_id, action=rounds.ARCHIVE_ACTION).first()
+    if row is None:
+        fail('Archive not found', 404)
+    return archive_response(row.detail['document'])
+
+
+@api.route('/admin/round/preview')
+@admin
+def preview_new_round():
+    e = locked_administrator()
+    return success(rounds.reset_preview(e, mode=request.args.get('mode', 'new_round'), actor_id=get_current_user().id))
+
+
+@api.route('/admin/round/reset', methods=['POST'])
+@admin
+def start_new_round():
+    archive_csrf()
+    data = body()
+    e = locked_administrator()
+    return success(rounds.reset_round(e, data, get_current_user().id))

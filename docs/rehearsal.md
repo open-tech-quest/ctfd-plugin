@@ -143,6 +143,14 @@ simulation automatically.
 
 ## Reset and repeat
 
+Choose the reset that matches the requested outcome. **Organize → Danger zone**
+is an application action for a closed/published event, not a return to the original
+rehearsal baseline. Both modes archive first, remove every account except the
+executing administrator and clear teams/play; **Start another round** retains
+content, while **Restore defaults** also removes challenges/custom rooms and
+restores five empty default rooms. Read [the exact scope](archives.md) first.
+Neither mode recreates the rehearsal's sample accounts or staff grants.
+
 For the disposable Compose project above, remove **its** database, uploads and
 logs, then start it again:
 
@@ -163,8 +171,18 @@ with web writers stopped, restore the matching snapshot and uploads, clear the
 dedicated application cache, restart and compare the baseline. Record these
 platform-specific commands in the operator's runbook. Resume an active run rather
 than reseeding it, and inspect its current state before reset. All changes since
-the snapshot will be discarded.
+the snapshot will be discarded, including server archives saved after that
+baseline. Download any archives that must survive before restoring it. This full
+undo is distinct from either application reset and includes credentials/uploads
+that an event JSON report deliberately excludes.
+
+After an application reset, old helper manifests, account IDs and native sessions
+refer to the previous round. Do not resume a helper against them or automatically
+reseed deleted accounts. Start a new, explicitly authorized rehearsal setup with
+fresh identities, or restore the operator's reviewed baseline when that is the
+requested outcome.
 
 Native CTFd's selective reset does not reset every Quest lifecycle/history table.
-Use the full snapshot or disposable-stack reset rather than deleting selected
-accounts/solves or disabling the plugin's history guards.
+Use the plugin's reviewed application reset for another round, or the full snapshot
+or disposable-stack reset for a complete undo; do not delete selected records or
+disable history guards.

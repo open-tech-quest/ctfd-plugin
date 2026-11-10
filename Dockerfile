@@ -9,6 +9,8 @@ RUN npm run check && npm run build \
     && test -s dist/quest.js && test -s dist/quest.css
 
 FROM ctfd/ctfd:3.8.9@sha256:84aff1e50b6a6f931b5da90c6f5b7c623ba4583217a9b00e9d4c1b7c53b9739f AS application
+ARG PLUGIN_VERSION=dev
+ENV OTQ_PLUGIN_VERSION=${PLUGIN_VERSION}
 LABEL org.opencontainers.image.source="https://github.com/open-tech-quest/ctfd-plugin" \
       org.opencontainers.image.title="Open Tech Quest" \
       org.opencontainers.image.licenses="MIT"

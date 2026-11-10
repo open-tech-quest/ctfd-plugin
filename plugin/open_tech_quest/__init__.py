@@ -20,9 +20,8 @@ def load(app):
         set_config("user_mode", "teams")
     if QuestEvent.query.get(1) is None:
         db.session.add(QuestEvent(id=1))
-        for position, (slug, name) in enumerate((("openshift", "OpenShift"), ("ansible", "Ansible"), ("rhel", "RHEL"), ("security", "Security"), ("ai", "AI"))):
-            db.session.add(QuestRoom(slug=slug, name=name, position=position,
-                                    theme={"accent": "#00a6b2", "layout": slug, "logo_url": None, "hero_url": None}))
+        from .defaults import default_rooms
+        db.session.add_all(default_rooms())
         try:
             db.session.commit()
         except IntegrityError:

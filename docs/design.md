@@ -31,6 +31,12 @@ The event moves through `draft → live ↔ paused → closed → published`.
   reopening enters paused state and accounts for the closed interval as a pause.
 - Publishing records a standings snapshot. Later database changes must not
   silently change announced results.
+- A separate, explicit closed/published-event reset first archives the source and
+  result snapshot atomically. It deletes all accounts except the executing admin
+  and clears teams/play; the defaults mode additionally replaces challenges and
+  configured rooms with five empty defaults. This is the deliberate exception to
+  ordinary history/identity preservation, never an automatic startup or upgrade
+  action. Existing server archives survive. See [archives](archives.md).
 
 Registration, attendance, team formation and event start are separate actions.
 Naming defaults to fixed generated names; member naming is optional. See the

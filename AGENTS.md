@@ -34,6 +34,11 @@ Keep operator access, snapshots and deployment commands out of public guidance.
   demo must be removed before competition start. It never creates participants,
   teams or progress. Bulk participant/progress fixtures remain isolated tests.
 - Theme changes must preserve room IDs, memberships, starts, and solves.
+- Only explicit closed/published-event danger actions may clear round history:
+  archive atomically first, retain the acting administrator and saved archives,
+  delete every other account and teams/play; defaults also clears challenge/room
+  content and restores five empty rooms. Never run either reset as an upgrade,
+  QA side effect or implicit rehearsal setup. Event JSON is not a restore backup.
 - Every finished unit is committed and pushed. Every release runs backend
   integration tests, frontend checks/build, and container smoke tests.
 - CI publishes tested versioned images and a `latest` alias for the Compose

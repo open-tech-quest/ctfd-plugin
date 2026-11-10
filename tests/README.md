@@ -36,6 +36,14 @@ hint purchases, immutable purchase prices, native-route ID aliases, legacy charg
 migration and versioned publication/CSV results. Disposable browser challenges
 have varied point values and paid hints after each room's free first hint.
 
+Archive tests cover private source collection, microsecond history, published vs
+current credit, preserved authored metadata, excluded native secrets, flag-bound
+fingerprints and checksums. Round-reset tests exercise both modes on disposable
+data: archive/delete atomicity, stale previews, administrator/CSRF checks,
+additional-plugin refusal, one retained acting administrator and the correct
+content/default-room outcome. Frontend checks cover local JSON parsing, integrity
+verification and bounded safe viewing; these reports are not restore backups.
+
 Read-cache and sync regressions cover concurrent roster removal, old-snapshot
 cache fills, transaction rollback, ORM/bulk/raw-SQL invalidation, immediate bans
 and visibility changes, per-team isolation, scheduled privacy/cutoff transitions,

@@ -39,6 +39,11 @@ Use disposable accounts/data and real native sessions for affected journeys:
   reduced motion and accessibility scans plus manual device checks.
 - Upgrade/restart persistence of accounts, settings, memberships, original/recovery
   submissions, room starts and timing values.
+- Private archive download/local viewing, checksum failure and safe rendering;
+  both end-of-event reset modes with the retained acting administrator, archived
+  source/results, deleted other accounts, content-preservation/default differences,
+  stale-preview/role/CSRF rejection, dependent-plugin refusal and atomic rollback.
+  Run destructive checks only in disposable fixtures, never the active event.
 
 Automated accessibility scans and development screenshots do not establish venue
 readability or assistive-technology usability. Production verification remains
