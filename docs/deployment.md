@@ -167,6 +167,8 @@ the namespace's default UID range includes 1001.
 
 A backup represents its capture time. Different content or software in the live
 instance is expected; choose the recovery scope before replacing anything.
+These are operator procedures. **Organize → Archives** exports event reports;
+it does not browse or restore infrastructure backups.
 
 | Problem | Recovery action |
 |---|---|
