@@ -4189,3 +4189,9 @@ body:has(.participant-attendance-bar) {
     width: 104px;
   }
 }
+
+.hints:focus-visible,
+.hints [role="status"]:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 4px;
+}

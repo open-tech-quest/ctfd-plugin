@@ -11,6 +11,27 @@ from .models import QuestAudit, QuestHintPurchase, QuestRoom, QuestStep
 from .service import now, projection
 
 
+def hint_access_reason(team_id, hint):
+    """Progress in native ID order, retaining authored native prerequisites."""
+    unlocked = {target for (target,) in db.session.query(HintUnlocks.target).filter_by(team_id=team_id)}
+    redeemed = hint.id in unlocked
+    if not redeemed:
+        earlier = {hid for (hid,) in db.session.query(Hints.id).filter(
+            Hints.challenge_id == hint.challenge_id, Hints.id < hint.id)}
+        if not earlier <= unlocked:
+            return "Reveal the earlier hints for this challenge first.", 403
+    requirements = hint.prerequisites or []
+    required = {hid for (hid,) in db.session.query(Hints.id).filter(Hints.id.in_(requirements))}
+    missing = required - unlocked
+    if missing:
+        if not redeemed and Hints.query.filter(Hints.id.in_(missing),
+                Hints.challenge_id == hint.challenge_id, Hints.id >= hint.id).first():
+            return ("This hint requires itself or a later hint in this challenge. "
+                    "Ask an organizer to review its native prerequisites.", 409)
+        return "Unlock this hint's required hints first.", 403
+    return None
+
+
 def purchase_hint(user, hint, e):
     """The native-route guard has locked the event and checked room access."""
     from .guards import denied
@@ -30,11 +51,9 @@ def purchase_hint(user, hint, e):
         return denied("Hints can be purchased only while the event is live", 409)
     if get_config("verify_emails") and not user.verified:
         return denied("Verify your email before buying a hint")
-    requirements = hint.prerequisites or []
-    existing_ids = {hid for (hid,) in db.session.query(Hints.id).filter(Hints.id.in_(requirements))}
-    unlocked_ids = {u.target for u in HintUnlocks.query.filter_by(team_id=user.team_id).all()}
-    if not unlocked_ids >= existing_ids:
-        return denied("Unlock the previous hints first")
+    reason = hint_access_reason(user.team_id, hint)
+    if reason:
+        return denied(*reason)
     if type(hint.cost) is not int or hint.cost < 0:
         return denied("This hint has an invalid price; ask an organizer", 409)
     balance = projection(e, team_id=user.team_id).score(user.team_id)["points"]

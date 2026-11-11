@@ -256,10 +256,17 @@ class AuthoringIntegration(unittest.TestCase):
         free, paid, exact, extra = response.json["data"]["hints"]
         self.action("start")
         self.start()
-        self.assertEqual(self.post(self.alice, "/api/v1/unlocks", {"type": "hints", "target": paid["id"]}).status_code, 400)
+        self.assertEqual(self.post(self.alice, "/api/v1/unlocks", {"type": "hints", "target": paid["id"]}).status_code, 403)
         with self.app.app_context():
             self.assertEqual((HintUnlocks.query.count(), Awards.query.count(), QuestHintPurchase.query.count()), (0, 0, 0))
         self.assertEqual(self.post(self.alice, "/api/v1/unlocks", {"type": "hints", "target": free["id"]}).status_code, 200)
+        # Once the earlier free clue is redeemed, the paid clue reaches the
+        # balance check and still cannot be purchased at zero points.
+        self.assertEqual(self.post(self.alice, "/api/v1/unlocks", {"type": "hints", "target": paid["id"]}).status_code, 400)
+        with self.app.app_context():
+            self.assertEqual((HintUnlocks.query.count(), Awards.query.count(), QuestHintPurchase.query.count()), (1, 1, 1))
+            self.assertEqual(QuestHintPurchase.query.one().hint_id, free["id"])
+            self.assertEqual(Awards.query.one().value, 0)
         self.solve(self.alice, 1)
         for client, hint in ((self.alice, paid), (self.alice, exact), (self.bob, paid)):
             response = self.post(client, "/api/v1/unlocks", {"type": "hints", "target": hint["id"]})

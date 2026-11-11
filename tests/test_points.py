@@ -107,7 +107,7 @@ class PointsIntegration(unittest.TestCase):
         self.assertNotIn("used_hint_costs", json.dumps(public))
         self.assertEqual(self.rows()[self.team_id]["points"], 50)
 
-    def test_native_end_revelation_never_marks_an_unpurchased_hint_as_used(self):
+    def test_native_end_revelation_does_not_expose_unpurchased_hints_or_mark_them_used(self):
         with self.app.app_context():
             Hints.query.get(2).cost = 0
             db.session.commit()
@@ -120,15 +120,17 @@ class PointsIntegration(unittest.TestCase):
             set_config("end", int(cutoff.replace(tzinfo=timezone.utc).timestamp()))
             set_config("view_after_ctf", True)
             db.session.commit()
-        # The scheduled cutoff passes while Quest is still live. Native CTFd
-        # exposes every hint's content, even though this team never bought #1.
+        # Native CTFd reveals all hints after its cutoff, including in view HTML.
+        # Quest preserves explicit redemption and strips those unpaid bodies.
         for phase in ("live", "closed"):
             if phase == "closed":
                 self.action("close")
             native = self.alice.get("/api/v1/challenges/2")
             self.assertEqual(native.status_code, 200, native.get_data(as_text=True))
             hint = next(h for h in native.json["data"]["hints"] if h["id"] == 1)
-            self.assertEqual(hint["content"], "Private hint")
+            self.assertNotIn("content", hint)
+            self.assertNotIn("Private hint", native.get_data(as_text=True))
+            self.assertEqual(native.json["data"]["view"], "")
             room = self.alice.get(integration.PREFIX + "/rooms/openshift").json["data"]
             self.assertEqual(room["progress"]["used_hint_ids"], [])
             self.assertEqual(room["progress"]["used_hint_costs"], {})

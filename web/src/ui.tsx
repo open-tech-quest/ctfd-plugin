@@ -189,6 +189,7 @@ export function ConfirmDialog({
   onClose,
   disabled = false,
   children,
+  focusFallback,
 }: {
   label: string;
   description: string;
@@ -196,6 +197,7 @@ export function ConfirmDialog({
   onClose: () => void;
   disabled?: boolean;
   children?: ReactNode;
+  focusFallback?: () => HTMLElement | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null),
     [busy, setBusy] = useState(false),
@@ -204,7 +206,15 @@ export function ConfirmDialog({
     const previous = document.activeElement;
     ref.current?.showModal();
     return () => {
-      if (previous instanceof HTMLElement) previous.focus();
+      const target =
+        previous instanceof HTMLElement &&
+        previous !== document.body &&
+        previous !== document.documentElement &&
+        previous.isConnected &&
+        !previous.matches(":disabled")
+          ? previous
+          : focusFallback?.();
+      target?.focus({ preventScroll: true });
     };
   }, []);
   return (

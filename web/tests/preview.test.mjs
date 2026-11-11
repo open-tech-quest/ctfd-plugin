@@ -190,3 +190,95 @@ test("fresh tabs, leaving and reload have no shared persisted progress; paths ca
     assert.equal(isPreviewPath(path), false);
   assert.equal(previewSlug("/quest/preview/rooms/%2fadmin"), null);
 });
+
+test("participant preview reveals hints in native order locally and refuses programmatic skips", () => {
+  const source = catalog();
+  source.challenges[0].hints = [
+    { id: 30, content: "Third", cost: 10, prerequisites: [] },
+    { id: 10, content: "First free", cost: 0, prerequisites: [] },
+    { id: 20, content: "Second paid", cost: 1000, prerequisites: [] },
+  ];
+  let state = startPreviewRoom(createPreviewState(source), "openshift");
+  assert.throws(
+    () => revealPreviewHint(state, "openshift", 20),
+    /earlier hints/,
+  );
+  state = revealPreviewHint(state, "openshift", 10);
+  assert.deepEqual(get(state).revealed, [10]);
+  assert.throws(
+    () => revealPreviewHint(state, "openshift", 30),
+    /earlier hints/,
+  );
+  state = revealPreviewHint(state, "openshift", 20);
+  state = revealPreviewHint(state, "openshift", 20);
+  state = revealPreviewHint(state, "openshift", 30);
+  assert.deepEqual(get(state).revealed, [10, 20, 30]);
+  assert.deepEqual(get(state).solved, []);
+});
+test("legacy local later hints remain readable but cannot bypass the first missing hint", () => {
+  const source = catalog();
+  source.challenges[0].hints = [
+    { id: 10, content: "First", cost: 0, prerequisites: [] },
+    { id: 20, content: "Next", cost: 5, prerequisites: [] },
+    { id: 30, content: "Legacy later", cost: 5, prerequisites: [] },
+  ];
+  let state = startPreviewRoom(createPreviewState(source), "openshift");
+  get(state).revealed = [30];
+  assert.deepEqual(
+    get(revealPreviewHint(state, "openshift", 30)).revealed,
+    [30],
+  );
+  assert.throws(
+    () => revealPreviewHint(state, "openshift", 20),
+    /earlier hints/,
+  );
+  state = revealPreviewHint(state, "openshift", 10);
+  assert.deepEqual(get(state).revealed, [30, 10]);
+});
+
+test("preview flags a missing self/later native hint prerequisite without revealing or advancing", () => {
+  const source = catalog();
+  source.challenges[0].hints = [
+    { id: 10, content: "First", cost: 0, prerequisites: [20] },
+    { id: 20, content: "Later", cost: 5, prerequisites: [] },
+  ];
+  const state = startPreviewRoom(createPreviewState(source), "openshift");
+  assert.throws(
+    () => revealPreviewHint(state, "openshift", 10),
+    /requires itself or a later hint.*organizer/,
+  );
+  assert.deepEqual(get(state).revealed, []);
+  assert.deepEqual(get(state).solved, []);
+  get(state).revealed = [20];
+  assert.deepEqual(
+    get(revealPreviewHint(state, "openshift", 20)).revealed,
+    [20],
+  );
+  assert.deepEqual(
+    get(revealPreviewHint(state, "openshift", 10)).revealed,
+    [20, 10],
+  );
+  const crossRoom = catalog();
+  crossRoom.challenges[0].hints[0].prerequisites = [50];
+  assert.deepEqual(
+    get(
+      revealPreviewHint(
+        startPreviewRoom(createPreviewState(crossRoom), "openshift"),
+        "openshift",
+        10,
+      ),
+    ).revealed,
+    [10],
+  );
+  const self = catalog();
+  self.challenges[0].hints[0].prerequisites = [10];
+  assert.throws(
+    () =>
+      revealPreviewHint(
+        startPreviewRoom(createPreviewState(self), "openshift"),
+        "openshift",
+        10,
+      ),
+    /requires itself/,
+  );
+});

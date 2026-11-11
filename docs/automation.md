@@ -87,6 +87,10 @@ saved answers/solutions: keep them private and out of Git.
 Omitted hints survive; a supplied list replaces them. Keep existing IDs to retain
 prerequisites; referenced/purchased hints cannot be removed. Solution updates keep
 its ID; `solution:null` also removes its file metadata after dependency checks.
+Participant reveal order is ascending native hint ID; rearranging existing IDs in
+an update does not reorder them. Only the next unredeemed hint can be redeemed.
+Existing native prerequisites remain in force; requiring a later hint conflicts
+with progressive order and must be corrected by an organizer.
 [`authoring.py`](../plugin/open_tech_quest/authoring.py) defines exact validation.
 
 ## Identity and reconciliation

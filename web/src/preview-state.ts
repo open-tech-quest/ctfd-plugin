@@ -1,4 +1,5 @@
 import type { Challenge, Room } from "./types";
+import { hintProgression } from "./hint-progression.ts";
 export interface PreviewStep {
   id: number;
   title: string;
@@ -200,9 +201,24 @@ export function revealPreviewHint(
       throw new Error(
         "This hint is not available in the current preview step.",
       );
-    return room.revealed.includes(hintId)
-      ? room
-      : { ...room, revealed: [...room.revealed, hintId] };
+    if (room.revealed.includes(hintId)) return room;
+    if (
+      hintProgression(challenge.hints, new Set(room.revealed)).nextId !== hintId
+    )
+      throw new Error("Reveal this challenge’s earlier hints first.");
+    const hint = challenge.hints.find((hint) => hint.id === hintId)!;
+    if (
+      hint.prerequisites.some(
+        (required) =>
+          required >= hintId &&
+          !room.revealed.includes(required) &&
+          challenge.hints.some((candidate) => candidate.id === required),
+      )
+    )
+      throw new Error(
+        "This hint requires itself or a later hint in this challenge. Ask an organizer to review its native prerequisites.",
+      );
+    return { ...room, revealed: [...room.revealed, hintId] };
   });
 }
 export function previewRoomView(room: LocalPreviewRoom): Room {

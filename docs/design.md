@@ -67,6 +67,15 @@ with the team if the purchasing member is later banned; revoked solve credit
 can leave a negative score. Hidden challenges withdraw both credit and associated
 hint costs, without deleting history. Locked challenges retain both.
 
+Hints progress in ascending native ID order. Previously redeemed hints stay
+visible; only the first unredeemed hint is offered. Revealing a free hint also
+advances the sequence; cancelled or failed purchases do not. The server enforces
+this order for new reads/purchases, preserving existing out-of-order unlocks.
+After the last reveal the interface says **No more hints available**; an empty
+challenge says **No hints available**. Native prerequisite rules still apply.
+A prerequisite on a later hint conflicts with this order and requires organizer
+review; authored requirements and purchase history are never rewritten.
+
 Staff edit multiple native hints per supported challenge, including text and cost,
 before activity starts. Existing IDs and native prerequisites survive saves.
 Participants confirm each new reveal with its cost and current overall balance;

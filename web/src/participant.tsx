@@ -14,6 +14,7 @@ import {
 import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
 import { ParticipantOnboarding } from "./onboarding";
 import { useParticipantMode } from "./participant-mode";
+import { hintProgression, redeemedHintIds } from "./hint-progression";
 import { ChallengePath } from "./challenge-path";
 export function EventNotice({ data }: { data: Bootstrap }) {
   const mode = useParticipantMode();
@@ -584,9 +585,42 @@ function ChallengePanel({
     [hintBusy, setHintBusy] = useState<number | null>(null),
     [hintError, setHintError] = useState(""),
     [pendingHint, setPendingHint] = useState<
-      (Challenge["hints"][number] & { number: number }) | null
+      | (Challenge["hints"][number] & {
+          number: number;
+          origin: HTMLButtonElement;
+        })
+      | null
     >(null);
   const input = useRef<HTMLInputElement>(null);
+  const hintSection = useRef<HTMLElement>(null);
+  const hintStatus = useRef<HTMLParagraphElement>(null);
+  const revealOrigin = useRef<HTMLButtonElement | null>(null);
+  const focusedHint = useRef<HTMLButtonElement | null>(null);
+  function hintFocusTarget() {
+    return (
+      hintSection.current?.querySelector<HTMLButtonElement>(
+        "button[data-next-hint]:not(:disabled)",
+      ) ??
+      hintStatus.current ??
+      hintSection.current
+    );
+  }
+  useEffect(() => {
+    const origin = revealOrigin.current ?? focusedHint.current;
+    if (!origin || hintBusy !== null) return;
+    revealOrigin.current = null;
+    if (origin.isConnected) {
+      if (document.activeElement !== origin) focusedHint.current = null;
+      return;
+    }
+    focusedHint.current = null;
+    if (
+      document.activeElement === document.body ||
+      document.activeElement === document.documentElement ||
+      !document.activeElement?.isConnected
+    )
+      hintFocusTarget()?.focus({ preventScroll: true });
+  }, [hints, content.data, hintBusy, usedHintCosts]);
   const previousRevision = useRef(progressRevision);
   useEffect(() => {
     if (previousRevision.current !== progressRevision) {
@@ -605,7 +639,11 @@ function ChallengePanel({
     )
       setPendingHint(null);
   }, [content.data, pendingHint, hintBusy]);
-  async function openHint(hint: Challenge["hints"][number], number: number) {
+  async function openHint(
+    hint: Challenge["hints"][number],
+    number: number,
+    origin: HTMLButtonElement,
+  ) {
     setHintBusy(hint.id);
     setHintError("");
     try {
@@ -613,12 +651,17 @@ function ChallengePanel({
         `/api/v1/hints/${hint.id}${preview ? "?preview=true" : ""}`,
       );
       if (typeof result.content === "string") {
+        revealOrigin.current = origin;
         setHints((previous) => ({ ...previous, [hint.id]: result.content! }));
         if (!preview && !mode.preview) await onHintPurchased();
       } else if (preview || mode.preview) {
         throw new Error("This hint is not available in preview.");
+      } else if (Object.hasOwn(usedHintCosts, hint.id)) {
+        throw new Error(
+          "Your team’s redeemed hint could not be loaded. Refresh before trying again.",
+        );
       } else {
-        setPendingHint({ ...hint, cost: result.cost, number });
+        setPendingHint({ ...hint, cost: result.cost, number, origin });
       }
     } catch (error) {
       setHintError((error as Error).message);
@@ -715,6 +758,11 @@ function ChallengePanel({
     }
   }
   const challenge = content.data;
+  const progression = hintProgression(
+    challenge?.hints ?? [],
+    redeemedHintIds(challenge?.hints ?? [], usedHintCosts, hints),
+    preview,
+  );
   return (
     <section className="challenge-panel">
       {preview && (
@@ -764,6 +812,11 @@ function ChallengePanel({
           }
           onClose={() => setPendingHint(null)}
           onConfirm={purchaseHint}
+          focusFallback={() =>
+            pendingHint.origin.isConnected && !pendingHint.origin.disabled
+              ? pendingHint.origin
+              : hintFocusTarget()
+          }
         >
           {pendingHint.title && (
             <p className="hint-dialog-title">{pendingHint.title}</p>
@@ -872,74 +925,106 @@ function ChallengePanel({
               )}
             </Notice>
           )}
-          {!!challenge.hints?.length && (
-            <section className="hints">
-              <h3>Hints</h3>
-              {mode.preview && (
-                <p className="meta">
-                  Configured costs are shown. Revealing hints here is free and
-                  records nothing in the event.
-                </p>
-              )}
-              {challenge.hints.map((hint, i) => {
-                const usedCost = usedHintCosts[hint.id];
-                const used = usedCost !== undefined;
-                const revealed =
-                  hints[hint.id] !== undefined ||
-                  typeof hint.content === "string";
-                return (
-                  <div
-                    className={`hint${used ? " hint-used" : ""}`}
-                    key={hint.id}
-                  >
-                    <div className="hint-heading">
-                      <h4>
-                        Hint {i + 1}
-                        {hint.title ? ` · ${hint.title}` : ""}
-                      </h4>
-                      <span className="hint-cost">
-                        {(usedCost ?? hint.cost) === 0
-                          ? "Free"
-                          : used
-                            ? `${usedCost.toLocaleString()} points spent`
-                            : `${hint.cost.toLocaleString()} points`}
-                      </span>
-                    </div>
-                    {revealed ? (
-                      <>
-                        <p className="hint-status">
-                          {mode.preview
-                            ? "Preview only"
-                            : preview
-                              ? "Organizer preview"
-                              : used
-                                ? "Used by your team"
-                                : "Revealed"}
-                        </p>
-                        <Markdown
-                          source={hints[hint.id] ?? hint.content ?? ""}
-                        />
-                      </>
-                    ) : (
-                      <button
-                        className="text-button"
-                        disabled={hintBusy !== null || !enabled}
-                        onClick={() => void openHint(hint, i + 1)}
-                      >
-                        {hintBusy === hint.id
-                          ? "Loading hint…"
-                          : preview || mode.preview
-                            ? `Preview hint ${i + 1}`
-                            : `Reveal hint ${i + 1}`}
-                        <Arrow />
-                      </button>
-                    )}
+          <section
+            className="hints"
+            ref={hintSection}
+            tabIndex={-1}
+            aria-labelledby={`hint-section-${step.id}`}
+          >
+            <h3 id={`hint-section-${step.id}`}>Hints</h3>
+            {mode.preview && (
+              <p className="meta">
+                Configured costs are shown. Revealing hints here is free and
+                records nothing in the event.
+              </p>
+            )}
+            {progression.visible.map(({ hint, number }) => {
+              const usedCost = usedHintCosts[hint.id];
+              const used = usedCost !== undefined;
+              const revealed =
+                hints[hint.id] !== undefined ||
+                typeof hint.content === "string";
+              return (
+                <div
+                  className={`hint${used ? " hint-used" : ""}`}
+                  key={hint.id}
+                >
+                  <div className="hint-heading">
+                    <h4 id={`hint-heading-${step.id}-${hint.id}`}>
+                      Hint {number}
+                      {hint.title ? ` · ${hint.title}` : ""}
+                    </h4>
+                    <span
+                      className="hint-cost"
+                      id={`hint-cost-${step.id}-${hint.id}`}
+                    >
+                      {(usedCost ?? hint.cost) === 0
+                        ? "Free"
+                        : used
+                          ? `${usedCost.toLocaleString()} points spent`
+                          : `${hint.cost.toLocaleString()} points`}
+                    </span>
                   </div>
-                );
-              })}
-              {hintError && <Notice tone="error">{hintError}</Notice>}
-            </section>
-          )}
+                  {revealed ? (
+                    <>
+                      <p className="hint-status">
+                        {mode.preview
+                          ? "Preview only"
+                          : preview
+                            ? "Organizer preview"
+                            : used
+                              ? "Used by your team"
+                              : "Revealed"}
+                      </p>
+                      <Markdown source={hints[hint.id] ?? hint.content ?? ""} />
+                    </>
+                  ) : (
+                    <button
+                      className="text-button"
+                      aria-describedby={`hint-heading-${step.id}-${hint.id} hint-cost-${step.id}-${hint.id}`}
+                      disabled={hintBusy !== null || !enabled}
+                      data-next-hint={
+                        hint.id === progression.nextId ? "" : undefined
+                      }
+                      onFocus={(event) => {
+                        if (hint.id === progression.nextId)
+                          focusedHint.current = event.currentTarget;
+                      }}
+                      onBlur={(event) => {
+                        if (
+                          focusedHint.current === event.currentTarget &&
+                          event.relatedTarget instanceof HTMLElement &&
+                          event.relatedTarget !== document.body &&
+                          event.relatedTarget !== document.documentElement
+                        )
+                          focusedHint.current = null;
+                      }}
+                      onClick={(event) =>
+                        void openHint(hint, number, event.currentTarget)
+                      }
+                    >
+                      {hintBusy === hint.id
+                        ? "Loading hint…"
+                        : preview || mode.preview
+                          ? `Preview hint ${number}`
+                          : used
+                            ? `Show hint ${number}`
+                            : `Reveal hint ${number}`}
+                      <Arrow />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {progression.empty || (progression.complete && !preview) ? (
+              <p ref={hintStatus} role="status" tabIndex={-1}>
+                {progression.empty
+                  ? "No hints available."
+                  : "No more hints available."}
+              </p>
+            ) : null}
+            {hintError && <Notice tone="error">{hintError}</Notice>}
+          </section>
         </>
       )}
     </section>

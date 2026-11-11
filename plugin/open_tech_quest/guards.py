@@ -234,6 +234,8 @@ def install_guards(app):
         elif path.startswith("/api/v1/hints/"):
             match = re.fullmatch(r"/api/v1/hints/(\d+)", path)
             hint = Hints.query.get(int(match[1])) if match else None
+            if match and hint is None:
+                return denied("This hint is not available", 404)
             challenge_id = hint.challenge_id if hint else None
         elif path.startswith("/api/v1/solutions/"):
             match = re.fullmatch(r"/api/v1/solutions/(\d+)", path)
@@ -283,7 +285,14 @@ def install_guards(app):
             challenge_id = int(challenge_id)
         except (ValueError, TypeError, OverflowError):
             return denied("Invalid challenge ID", 400)
-        e = event(lock=write)
+        hint_read = request.method in ("GET", "HEAD") and re.fullmatch(r"/api/v1/hints/\d+", path)
+        e = event(lock=write or bool(hint_read))
+        if hint_read:
+            # As with purchases, ownership/content can change before the lock.
+            hint = Hints.query.populate_existing().get(int(path.rsplit("/", 1)[-1]))
+            if hint is None:
+                return denied("This hint is no longer available", 404)
+            challenge_id = hint.challenge_id
         if path == "/api/v1/unlocks" and write:
             # The final lock discards the earlier read transaction. Targets can
             # have moved or disappeared while waiting: authorize the fresh row.
@@ -300,6 +309,15 @@ def install_guards(app):
         user = token_user or get_current_user()
         if user is None:
             return denied("Sign in to open a challenge", 401)
+        if (hint_read or (path == "/api/v1/unlocks" and data.get("type") == "hints")) and request.headers.get("Authorization"):
+            # Native authentication precedes the lock. A normal participant
+            # token can be revoked/expire while waiting; validate without a
+            # native helper that may commit or remove expired token rows.
+            from CTFd.models import UserTokens
+            token = request.headers["Authorization"].split(" ", 1)[-1]
+            credential = UserTokens.query.filter_by(value=token, user_id=user.id).first()
+            if not request.is_json or not credential or not credential.expiration or credential.expiration <= now():
+                return denied("Your access token is invalid or expired", 401)
         if not onboarding.eligible(user):
             return denied("Only eligible participants may access native challenge attempts, hints or unlocks")
         if not user.team_id:
@@ -321,6 +339,11 @@ def install_guards(app):
         solved = set(solve_map(e, team_id=user.team_id).get(user.team_id, {}))
         if not solved >= prerequisites:
             return denied("Solve the previous steps before opening this challenge")
+        if hint_read:
+            from .scoring import hint_access_reason
+            reason = hint_access_reason(user.team_id, hint)
+            if reason:
+                return denied(*reason)
         if protected_solution and protected_solution.state == "solved" and challenge_id not in solved:
             return denied("Solve this challenge with an eligible team member before opening its solution")
         if path.startswith("/files/") and protected_solution and protected_solution.state in ("visible", "solved"):
@@ -351,4 +374,32 @@ def install_guards(app):
                 db.session.rollback()
             else:
                 lifecycle.invalidate(*staged)
+        detail = re.fullmatch(r"/api/v1/challenges/\d+/?", request.path)
+        hint_read = re.fullmatch(r"/api/v1/hints/\d+/?", request.path)
+        if request.method == "GET" and (detail or hint_read):
+            response.headers["Cache-Control"] = "private, no-store"
+        if request.method == "GET" and detail and response.status_code == 200 and response.is_json:
+            user = get_current_user()
+            from .roles import is_maintainer
+            if user is None or (user.type != "admin" and not is_maintainer(user)):
+                payload = response.get_json()
+                data = payload.get("data", {})
+                hints = data.get("hints", [])
+                from CTFd.models import HintUnlocks
+                ids = [hint["id"] for hint in hints]
+                unlocked = {target for (target,) in db.session.query(HintUnlocks.target).filter(
+                    HintUnlocks.team_id == user.team_id, HintUnlocks.target.in_(ids))} if user and user.team_id else set()
+                removed = False
+                for hint in hints:
+                    if hint["id"] not in unlocked:
+                        for key in ("content", "html"):
+                            if key in hint:
+                                removed = True
+                                del hint[key]
+                if removed:
+                    # Native ctf_ended() also embeds revealed hints in its
+                    # pre-rendered HTML. Quest renders its own challenge UI.
+                    if "view" in data:
+                        data["view"] = ""
+                    response.set_data(__import__("json").dumps(payload))
         return response

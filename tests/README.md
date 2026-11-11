@@ -36,6 +36,11 @@ hint purchases, immutable purchase prices, native-route ID aliases, legacy charg
 migration and versioned publication/CSV results. Disposable browser challenges
 have varied point values and paid hints after each room's free first hint.
 
+Progressive-hint checks cover ordered free/paid reveals, insufficient funds,
+shared-team races, legacy out-of-order unlocks, explicit prerequisite conflicts,
+and direct native API/ended-event content bypasses. Browser checks include
+cancellation, empty/final messages, keyboard focus and the stateless preview.
+
 Maintainer automation regressions cover bounded metadata and native regex grading,
 token/session authentication and post-lock revocation, stable keys and explicit
 unmapped reattachment, owned assets/previews and solution unlocks, atomic room

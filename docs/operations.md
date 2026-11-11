@@ -14,7 +14,9 @@ To explore this process with dummy accounts and a repeatable reset, use the
 3. In **Organize → Rooms**, configure the room set and ordered standard challenges.
    Edit points, instructions, accepted answers and multiple hints with individual
    texts/costs there. Review room point budgets and hints before play; zero-cost
-   hints are free. Administrators use native CTFd for attachments, advanced types
+   hints are free. Participants see redeemed hints and only the next hint in
+   native creation order; free reveals advance the sequence too. Administrators
+   use native CTFd for attachments, advanced types
    and hint prerequisites. Keep answers in the database, never Git or builds.
 4. Configure event name, start/end, roster release and clock policy before play.
    The UI displays browser-local time; stored/API timestamps are UTC. Empty roster

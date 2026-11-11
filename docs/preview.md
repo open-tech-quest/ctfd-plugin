@@ -15,6 +15,10 @@ room starts or hint purchases. Hints show their configured costs and can be
 revealed without spending points. Timing, balances, attempt limits, awards and
 rankings are not simulated.
 
+Hints follow the same progressive order: revealed text remains visible and only
+the next hint can be opened. The final reveal shows **No more hints available**;
+challenges without hints show **No hints available**.
+
 Progress lives only in the current browser tab's memory. Moving between preview
 rooms keeps it; leaving the preview or refreshing starts fresh. There are no
 saved runs, slots or cleanup controls to manage. Separate tabs are independent.

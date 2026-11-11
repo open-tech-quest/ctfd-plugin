@@ -81,6 +81,10 @@ clearing/restarting readers.
 Challenge values and immutable hint receipts feed the same batched projection
 as solves. `scoring.py` handles event hint purchases through the guarded native
 unlock route, using fresh Quest net balance and native unlock/award records.
+Progressive reveal uses native hint IDs/unlocks, without new persistence. Native
+hint reads and purchases enforce earlier redemptions; challenge-detail responses
+keep unredeemed hint bodies out of JSON and embedded native view HTML, including
+after event end. The shared UI and tab-local preview use the same visible order.
 Migration `0010_points` links legacy native purchases to their recorded charges;
 ambiguous/missing charges stop migration with the unlock ID for operator review,
 rather than guessing a price. Receipts retain their original cost. Published
