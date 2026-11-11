@@ -134,6 +134,14 @@ class RoundRaceIntegration(unittest.TestCase):
 
     def test_mapped_challenge_edit_rechecks_round_after_its_second_lock_boundary(self):
         self.require_mariadb()
+        # Closed content is deliberately read-only. Enter Draft through the
+        # real confirmed reset before exercising native Draft authoring's
+        # second lock boundary against a further new-round transaction.
+        prepared = self.post(self.admin, PREFIX + "/admin/round/reset", self.reset_body())
+        self.assertEqual(prepared.status_code, 200, prepared.get_data(as_text=True))
+        self.assertEqual(self.admin.get(PREFIX + "/bootstrap").json["data"]["event"]["status"], "draft")
+        with self.app.app_context():
+            archive_count = QuestAudit.query.filter_by(action="event.archive").count()
         body = self.reset_body()
         writer = self.client(1)
         released_first_lock, resume = threading.Event(), threading.Event()
@@ -167,7 +175,7 @@ class RoundRaceIntegration(unittest.TestCase):
         self.assertEqual(write_result.status_code, 409, write_result.get_data(as_text=True))
         with self.app.app_context():
             self.assertEqual(Challenges.query.get(1).description, "Private instructions 1")
-            self.assertEqual(QuestAudit.query.filter_by(action="event.archive").count(), 1)
+            self.assertEqual(QuestAudit.query.filter_by(action="event.archive").count(), archive_count + 1)
 
 
 if __name__ == "__main__":
