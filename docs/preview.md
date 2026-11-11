@@ -19,6 +19,11 @@ Hints follow the same progressive order: revealed text remains visible and only
 the next hint can be opened. The final reveal shows **No more hints available**;
 challenges without hints show **No hints available**.
 
+Description placeholders use labelled example values, including team number 1
+and a fixed 250 points. They show how personalized content looks; local solves
+and free hint reveals do not change that example balance. See the
+[placeholder guide](administration.md#personalized-descriptions).
+
 Progress lives only in the current browser tab's memory. Moving between preview
 rooms keeps it; leaving the preview or refreshing starts fresh. There are no
 saved runs, slots or cleanup controls to manage. Separate tabs are independent.

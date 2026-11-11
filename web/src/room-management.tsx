@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import { useResource } from "./hooks";
 import type { ManagedRooms, Room, Viewer } from "./types";
-import { Arrow, Confirm, Empty, Markdown, Notice } from "./ui";
+import { Arrow, Confirm, Empty, Notice } from "./ui";
+import { DescriptionEditor } from "./description-editor";
 import { StartParticipantPreview } from "./preview";
 import { ChallengeEditor } from "./challenge-editor";
 const layouts = ["generic", "openshift", "ansible", "rhel", "security", "ai"];
@@ -445,26 +446,14 @@ function RoomPresentation({
             />
           </label>
         </div>
-        <label className="field">
-          <span>Room introduction (Markdown)</span>
-          <textarea
-            rows={8}
-            maxLength={10000}
-            value={draft.description}
-            disabled={busy}
-            onChange={(event) =>
-              setDraft({ ...draft, description: event.target.value })
-            }
-          />
-        </label>
-        <details className="introduction-preview">
-          <summary>Preview introduction</summary>
-          {draft.description ? (
-            <Markdown source={draft.description} />
-          ) : (
-            <p className="meta">Write an introduction to preview it here</p>
-          )}
-        </details>
+        <DescriptionEditor
+          label="Room introduction (Markdown)"
+          rows={8}
+          maxLength={10000}
+          value={draft.description}
+          disabled={busy}
+          onChange={(description) => setDraft({ ...draft, description })}
+        />
         <details className="asset-fields">
           <summary>Theme and artwork</summary>
           <div className="form-grid">

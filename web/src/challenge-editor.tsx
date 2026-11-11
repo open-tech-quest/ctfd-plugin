@@ -8,6 +8,7 @@ import type {
   Room,
 } from "./types";
 import { Confirm, Empty, Markdown, Notice } from "./ui";
+import { DescriptionEditor } from "./description-editor";
 interface Draft {
   name: string;
   value: number | "";
@@ -363,25 +364,14 @@ function ChallengeForm({
               Points count once per team. Paid hints reduce the team’s score.
             </small>
           </label>
-          <label className="field">
-            <span>Instructions (Markdown)</span>
-            <textarea
-              rows={10}
-              maxLength={10000}
-              value={draft.description}
-              onChange={(event) =>
-                setDraft({ ...draft, description: event.target.value })
-              }
-            />
-          </label>
-          <details className="introduction-preview">
-            <summary>Preview challenge text</summary>
-            {draft.description ? (
-              <Markdown source={draft.description} />
-            ) : (
-              <p className="meta">Write instructions to preview them here</p>
-            )}
-          </details>
+          <DescriptionEditor
+            label="Instructions (Markdown)"
+            rows={10}
+            maxLength={10000}
+            value={draft.description}
+            disabled={!editable || busy}
+            onChange={(description) => setDraft({ ...draft, description })}
+          />
           <label className="field">
             <span>Visibility</span>
             <select

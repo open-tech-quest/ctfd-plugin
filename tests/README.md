@@ -36,6 +36,12 @@ hint purchases, immutable purchase prices, native-route ID aliases, legacy charg
 migration and versioned publication/CSV results. Disposable browser challenges
 have varied point values and paid hints after each room's free first hint.
 
+Description-placeholder checks cover cursor/selection insertion, character limits,
+viewer/team privacy, zero/negative net points, literal names and escaping, encoded
+Markdown links, unsafe URL positions and unchanged raw templates. Isolated browser
+checks exercise both editors, staff preview, shared team identities and score
+refreshes after solves/hint purchases, including mobile layouts.
+
 Progressive-hint checks cover ordered free/paid reveals, insufficient funds,
 shared-team races, legacy out-of-order unlocks, explicit prerequisite conflicts,
 and direct native API/ended-event content bypasses. Browser checks include

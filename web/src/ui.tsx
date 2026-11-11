@@ -8,6 +8,11 @@ import {
 import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { prepareMarkdownLinks } from "./markdown-links";
+import {
+  applyBodyPlaceholders,
+  preparePlaceholderSource,
+  type PlaceholderContext,
+} from "./placeholders";
 import { navigate } from "./hooks";
 export function Link({
   href = "",
@@ -103,12 +108,15 @@ export function Empty({
 export function Markdown({
   source,
   omitTitle,
+  placeholders,
 }: {
   source: string;
   omitTitle?: string;
+  placeholders?: PlaceholderContext;
 }) {
+  const prepared = placeholders ? preparePlaceholderSource(source) : null;
   const html = DOMPurify.sanitize(
-    marked.parse(source, { async: false }) as string,
+    marked.parse(prepared?.source ?? source, { async: false }) as string,
     {
       ADD_ATTR: ["target"],
       FORBID_TAGS: [
@@ -139,6 +147,13 @@ export function Markdown({
       heading.remove();
     }
   }
+  if (placeholders)
+    applyBodyPlaceholders(
+      template.content,
+      placeholders,
+      window.location.href,
+      prepared!.literals,
+    );
   prepareMarkdownLinks(template.content, window.location.href);
   return (
     <div

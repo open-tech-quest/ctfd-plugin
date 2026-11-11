@@ -157,6 +157,13 @@ readable neutral surfaces, visible keyboard focus and restrained motion respecti
 `prefers-reduced-motion`. Approved assets and license/provenance rules are in
 [branding](../branding/README.md). Theme changes never change competition identity.
 
+Room introductions and challenge instructions can use the fixed placeholders
+`team.number`, `team.name`, `user.name` and `team.points`. Team number means the
+native team ID, and points mean the current overall net score. Resolve only the
+viewer's released team context, retain raw templates in storage/shared caches,
+and treat substituted names as data. Staff previews use explicit sample values.
+See [personalized descriptions](administration.md#personalized-descriptions).
+
 Participant room paths scroll within a bounded horizontal rail with navigation
 controls. Cards fit their titles within a bounded width; long titles wrap in full,
 including locked steps. The home screen balances any room count into rows of two

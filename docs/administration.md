@@ -105,6 +105,48 @@ challenge and external dependency before deletion. Asset deletion removes owned
 metadata, never another file owner's bytes; provider cleanup remains an operator
 task. Maintainers do not gain global native authoring permissions.
 
+### Personalized descriptions
+
+Room introductions and challenge instructions offer **Insert placeholder** at the
+text cursor. The saved Markdown stays a template; Quest fills it for each viewer.
+
+| Placeholder | Value |
+|---|---|
+| `{{team.number}}` | Native CTFd team ID; stable across renames, independent of the display name |
+| `{{team.name}}` | Current team display name |
+| `{{user.name}}` | Logged-in user's display name |
+| `{{team.points}}` | Overall net points across all rooms, after paid hints |
+
+```md
+Welcome, {{user.name}}! You are playing with {{team.name}}.
+
+[Open your lab](https://showroom-{{team.number}}.apps.example.com)
+
+Your team currently has {{team.points}} points.
+```
+
+`team.number` is an existing database ID, not a separate event sequence. IDs can
+have gaps; provision labs using the actual team IDs. Use this token in hostnames.
+Display names are inserted literally in text and encoded in URL paths/query
+values; they cannot supply a hostname or URL protocol.
+
+Team values become available after the viewer's assignment is released. Links
+with missing or unsupported values remain disabled. Points follow the existing
+score refreshes, including solves and hint purchases; this does not change scoring.
+
+Editor and staff participant previews use labelled examples: team number 1,
+**Example team**, **Example participant** and 250 points. Those preview points are
+illustrative and stay fixed during local solving. External links still lead to
+real resources; choose a test lab when checking commands or URLs.
+
+Prefix a token with a backslash, such as `\{{team.name}}`, to show it literally,
+including in code examples. Only the four listed names are expanded; other
+placeholders remain literal text.
+
+Descriptions retain their template text through API reads, catalog imports and
+archives. Substitution is limited to these description views; native grading,
+hint text and other Markdown views keep their existing behavior.
+
 ### Links in Markdown
 
 Links to another website open in a new tab automatically, so participants keep

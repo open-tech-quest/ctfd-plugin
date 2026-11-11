@@ -4195,3 +4195,51 @@ body:has(.participant-attendance-bar) {
   outline: 3px solid var(--cyan);
   outline-offset: 4px;
 }
+
+.description-placeholder-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: -4px;
+}
+.description-placeholder-tools > label {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.description-placeholder-tools select {
+  width: auto;
+  min-width: 150px;
+  max-width: 100%;
+}
+.description-placeholder-tools .button {
+  min-height: 44px;
+  padding: 8px 16px;
+}
+.description-placeholder-tools code {
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.description-placeholder-help {
+  margin: 8px 0 16px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.description-editor .introduction-preview {
+  margin-bottom: 24px;
+}
+.placeholder-example-note {
+  margin-bottom: 12px;
+}
+@media (max-width: 480px) {
+  .description-placeholder-tools > label {
+    flex-basis: 100%;
+  }
+  .description-placeholder-tools select {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .description-placeholder-tools code {
+    flex-basis: 100%;
+  }
+}

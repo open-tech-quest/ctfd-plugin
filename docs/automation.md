@@ -93,6 +93,10 @@ Existing native prerequisites remain in force; requiring a later hint conflicts
 with progressive order and must be corrected by an organizer.
 [`authoring.py`](../plugin/open_tech_quest/authoring.py) defines exact validation.
 
+Descriptions may contain the [four supported placeholders](administration.md#personalized-descriptions).
+Send and retain their raw template text; Quest resolves it for the viewer when
+rendering room/challenge instructions. API reads and exports keep the template.
+
 ## Identity and reconciliation
 
 `source_key` is unique per room/challenge and can be assigned to an unused keyless

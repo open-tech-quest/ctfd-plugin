@@ -15,6 +15,10 @@ import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
 import { ParticipantOnboarding } from "./onboarding";
 import { useParticipantMode } from "./participant-mode";
 import { hintProgression, redeemedHintIds } from "./hint-progression";
+import {
+  participantPlaceholderContext,
+  type PlaceholderContext,
+} from "./placeholders";
 import { ChallengePath } from "./challenge-path";
 export function EventNotice({ data }: { data: Bootstrap }) {
   const mode = useParticipantMode();
@@ -312,6 +316,11 @@ export function RoomPage({
       </div>
     );
   const preview = data.viewer.admin && !mode.preview;
+  const bodyPlaceholders = participantPlaceholderContext(
+    data.viewer,
+    room.team_score.points,
+    mode.preview || preview,
+  );
   const started = !!room.progress.started_at || preview;
   const canStart =
     (mode.preview ||
@@ -358,7 +367,17 @@ export function RoomPage({
           </div>
           <h1>The {room.name} room</h1>
           <div className="room-description">
+            {(mode.preview || preview) && (
+              <p className="meta placeholder-example-note">
+                Placeholder examples: team number{" "}
+                {bodyPlaceholders["team.number"]}, team name{" "}
+                {bodyPlaceholders["team.name"]}, user name{" "}
+                {bodyPlaceholders["user.name"]}, team points{" "}
+                {bodyPlaceholders["team.points"]}.
+              </p>
+            )}
             <Markdown
+              placeholders={bodyPlaceholders}
               source={
                 room.description ||
                 "Work through the challenges in order. Every teammate shares the path."
@@ -517,6 +536,7 @@ export function RoomPage({
               }
               preview={preview}
               score={room.team_score}
+              placeholders={bodyPlaceholders}
               roomName={room.name}
               progressRevision={data.revisions.progress}
               usedHintCosts={room.progress.used_hint_costs}
@@ -557,6 +577,7 @@ function ChallengePanel({
   roomName,
   progressRevision,
   usedHintCosts = {},
+  placeholders,
 }: {
   step: Step;
   enabled: boolean;
@@ -565,6 +586,7 @@ function ChallengePanel({
   roomName: string;
   progressRevision: string;
   usedHintCosts: Record<number, number>;
+  placeholders: PlaceholderContext;
   onHintPurchased: () => Promise<void>;
   onSolved: (message: string) => Promise<void>;
 }) {
@@ -857,7 +879,11 @@ function ChallengePanel({
       )}
       {challenge && (
         <>
-          <Markdown source={challenge.description} omitTitle={challenge.name} />
+          <Markdown
+            source={challenge.description}
+            omitTitle={challenge.name}
+            placeholders={placeholders}
+          />
           {challenge.connection_info && (
             <div className="connection-info">
               <span className="meta">Connection</span>

@@ -36,7 +36,10 @@ To explore this process with dummy accounts and a repeatable reset, use the
    pause control on the projector.
 
 Room titles, subtitles and themes are independent of competition identity.
-Preview Markdown before saving. A blank Hero image URL uses the bundled scene;
+Preview Markdown before saving. Room introductions and challenge instructions
+support [personalized placeholders](administration.md#personalized-descriptions)
+for team number/name, participant name and overall team points.
+A blank Hero image URL uses the bundled scene;
 custom assets must follow the [branding/provenance rules](../branding/README.md).
 
 ## Registration, attendance and final teams
