@@ -7,7 +7,7 @@
 | Prepare and run an event | [Event operations](operations.md) |
 | Save event records, read archives or prepare another round | [Archives and reset](archives.md) |
 | Explore or test an event from setup through cleanup | [Full-event rehearsal](rehearsal.md) |
-| Test room flow while signed in as staff | [Room preview](preview.md) |
+| Browse rooms freely or test the participant journey as staff | [Staff browsing and journey](preview.md) |
 | Personalize descriptions and lab links | [Description placeholders](administration.md#personalized-descriptions) |
 | Estimate resources and understand the measurements | [Sizing](sizing.md) |
 | Understand timing, rankings and lifecycle rules | [Product contract](design.md) |

@@ -9,6 +9,7 @@ import { Lobby, RoomPage } from "./participant";
 import { StandingsPage } from "./standings";
 import { Stage } from "./stage";
 import { Admin } from "./admin";
+import { StaffRoomBrowse } from "./staff-room-browse";
 import { StaffHome } from "./staff-home";
 import { ParticipantPreview } from "./preview";
 import { isPreviewPath, previewHome, previewSlug } from "./preview-routing";
@@ -60,7 +61,7 @@ function App() {
               <nav aria-label="Main navigation">
                 {participantPreview ? (
                   <Link href={previewHome} className="active">
-                    Preview rooms
+                    The rooms
                   </Link>
                 ) : (
                   <>
@@ -149,8 +150,14 @@ function App() {
                     <Lobby data={data} />
                   )
                 ) : path.startsWith("/quest/rooms/") ? (
-                  data.viewer.role === "maintainer" ? (
-                    <StaffHome data={data} />
+                  data.viewer.can_manage_rooms ? (
+                    <StaffRoomBrowse
+                      key={`browse-${data.viewer.id}-${data.viewer.role}`}
+                      slug={decode(
+                        path.slice("/quest/rooms/".length).replace(/\/$/, ""),
+                      )}
+                      staffData={data}
+                    />
                   ) : (
                     <RoomPage
                       slug={decode(

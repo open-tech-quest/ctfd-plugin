@@ -134,10 +134,12 @@ Team values become available after the viewer's assignment is released. Links
 with missing or unsupported values remain disabled. Points follow the existing
 score refreshes, including solves and hint purchases; this does not change scoring.
 
-Editor and staff participant previews use labelled examples: team number 1,
-**Example team**, **Example participant** and 250 points. Those preview points are
-illustrative and stay fixed during local solving. External links still lead to
-real resources; choose a test lab when checking commands or URLs.
+Editor previews use examples: team number 1, **Example team**, **Example
+participant** and 250 points. The separate staff user journey starts at zero;
+`team.points` uses its local solved-challenge values minus confirmed hint costs.
+Journey guidance stays in the blue banner. Dashboard room links instead open
+free browsing without collecting progress. External links still lead to real
+resources; choose a test lab when checking commands or URLs.
 
 Prefix a token with a backslash, such as `\{{team.name}}`, to show it literally,
 including in code examples. Only the four listed names are expanded; other

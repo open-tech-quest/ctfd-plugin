@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, request } from "./api";
 import { navigate } from "./hooks";
+import { EXAMPLE_PLACEHOLDER_CONTEXT } from "./placeholders";
 import type { Bootstrap, Challenge } from "./types";
 import { ParticipantModeContext } from "./participant-mode";
 import { Lobby, RoomPage } from "./participant";
@@ -10,6 +11,8 @@ import {
   createPreviewState,
   mergePreviewCatalog,
   previewRoomView,
+  previewScore,
+  previewHintMetadata,
   previewSteps,
   recordPreviewResult,
   reloadPreviewRoom,
@@ -32,7 +35,7 @@ export function StartParticipantPreview({
       disabled={disabled}
       onClick={() => navigate(room ? previewRoom(room) : previewHome)}
     >
-      Preview as participant
+      Start user journey
       <Arrow />
     </button>
   );
@@ -138,8 +141,7 @@ export function ParticipantPreview({
         signal?: AbortSignal,
       ): Promise<T> => {
         const snapshot = current.current;
-        if (!snapshot)
-          throw new Error("The preview content has not loaded yet.");
+        if (!snapshot) throw new Error("The content has not loaded yet.");
         const roomMatch = /^\/rooms\/([^/]+)(\/start)?$/.exec(path);
         if (roomMatch) {
           const roomSlug = decodeURIComponent(roomMatch[1]);
@@ -149,31 +151,41 @@ export function ParticipantPreview({
             (room) => room.source.slug === roomSlug,
           );
           if (!room) throw new Error("This room is no longer available.");
-          return previewRoomView(room) as T;
+          return previewRoomView(room, previewScore(current.current!)) as T;
         }
         const attempt = path === "/api/v1/challenges/attempt";
         const challengeMatch = /^\/api\/v1\/challenges\/(\d+)$/.exec(path);
         const hintMatch = /^\/api\/v1\/hints\/(\d+)$/.exec(path);
+        const unlockHint =
+          path === "/api/v1/unlocks" &&
+          method === "POST" &&
+          (body as { type?: string } | undefined)?.type === "hints";
+        const hintId = unlockHint
+          ? (body as { target: number }).target
+          : hintMatch
+            ? Number(hintMatch[1])
+            : null;
         const id = attempt
           ? (body as { challenge_id: number }).challenge_id
           : Number(challengeMatch?.[1]);
-        const room = hintMatch
-          ? snapshot.rooms.find((room) =>
-              room.challenges.some((c) =>
-                c.hints.some((h) => h.id === Number(hintMatch[1])),
-              ),
-            )
-          : snapshot.rooms.find((room) =>
-              room.source.steps.some((step) => step.id === id),
-            );
-        if (!room) throw new Error("This content is not available in Preview.");
-        if (hintMatch) {
-          const hintId = Number(hintMatch[1]);
+        const room =
+          hintId !== null
+            ? snapshot.rooms.find((room) =>
+                room.challenges.some((c) =>
+                  c.hints.some((h) => h.id === hintId),
+                ),
+              )
+            : snapshot.rooms.find((room) =>
+                room.source.steps.some((step) => step.id === id),
+              );
+        if (!room) throw new Error("This content is not available.");
+        if (unlockHint && hintId !== null) {
+          // The normal dialog uses this shape; Preview handles it locally, never on the native API.
           publish(revealPreviewHint(snapshot, room.source.slug, hintId));
-          return room.challenges
-            .flatMap((c) => c.hints)
-            .find((h) => h.id === hintId) as T;
+          return { target: hintId, type: "hints" } as T;
         }
+        if (hintMatch && method === "GET" && hintId !== null)
+          return previewHintMetadata(snapshot, room.source.slug, hintId) as T;
         if (
           !previewSteps(room).some(
             (step) => step.id === id && step.state !== "locked",
@@ -185,7 +197,7 @@ export function ParticipantPreview({
         if (attempt && method === "POST") {
           if (room.stale)
             throw new Error(
-              "Saved content changed. Reload this room before checking another answer.",
+              "The room changed. Check the updated challenge path before trying again.",
             );
           const epoch = lifetime.current;
           try {
@@ -205,7 +217,7 @@ export function ParticipantPreview({
               )?.source !== room.source
             )
               throw new Error(
-                "The preview ended or was reloaded. Check the room before trying again.",
+                "The page changed. Check the room before trying again.",
               );
             publish(
               recordPreviewResult(
@@ -239,15 +251,16 @@ export function ParticipantPreview({
             })),
           } satisfies Challenge as T;
         }
-        throw new Error("Preview does not record purchases or event progress.");
+        throw new Error("This action is not available.");
       },
     [],
   );
   const room = state?.rooms.find((room) => room.source.slug === slug);
+  const score = state ? previewScore(state) : null;
   const data = state
     ? {
         ...staffData,
-        rooms: state.rooms.map(previewRoomView),
+        rooms: state.rooms.map((room) => previewRoomView(room, score!)),
         viewer: { ...staffData.viewer, team_name: "Example team" },
         revisions: {
           ...staffData.revisions,
@@ -278,10 +291,53 @@ export function ParticipantPreview({
         <div>
           <strong>Participant preview</strong>
           <p>
-            Example team · Progress stays in this tab and clears when you leave
-            or refresh. Flag checking uses saved answers; no event progress is
-            recorded.
+            Progress and hint reveals stay only in this tab and clear when you
+            leave or refresh. No event progress or purchases are recorded.
           </p>
+          <p>
+            Example team: {EXAMPLE_PLACEHOLDER_CONTEXT["team.number"]},{" "}
+            {EXAMPLE_PLACEHOLDER_CONTEXT["team.name"]}. User:{" "}
+            {EXAMPLE_PLACEHOLDER_CONTEXT["user.name"]}. Points start at zero and
+            come from this tab’s correct answers minus confirmed hint costs.
+            Clocks stay at zero. Reloading a room clears its progress; costs in
+            other rooms remain and can leave a negative balance. External lab
+            links use real resources.
+          </p>
+          {error && (
+            <Notice tone="error" retry={() => void load()}>
+              {error}
+            </Notice>
+          )}
+          {removed && <Notice>{removed}</Notice>}
+          {!!state?.rooms.some((room) => room.stale) && (
+            <Notice>
+              Saved content changed in{" "}
+              {state.rooms
+                .filter((room) => room.stale)
+                .map((room) => room.source.name)
+                .join(", ")}
+              . Reload each affected room to use the latest content and clear
+              only its preview progress.
+            </Notice>
+          )}
+          {room?.challenges.some((c) => c.unsupported_reason) && (
+            <Notice>
+              <details>
+                <summary>
+                  Some challenges cannot be checked in this preview
+                </summary>
+                <ul>
+                  {room.challenges
+                    .filter((c) => c.unsupported_reason)
+                    .map((c) => (
+                      <li key={c.id}>
+                        <strong>{c.name}</strong>: {c.unsupported_reason}
+                      </li>
+                    ))}
+                </ul>
+              </details>
+            </Notice>
+          )}
         </div>
         <div className="participant-preview-actions">
           {slug && room && (
@@ -297,44 +353,11 @@ export function ParticipantPreview({
           </Link>
         </div>
       </section>
-      {error && (
-        <Notice tone="error" retry={() => void load()}>
-          {error}
-        </Notice>
-      )}
-      {removed && <Notice>{removed}</Notice>}
-      {!!state?.rooms.some((room) => room.stale) && (
-        <Notice>
-          Saved content changed in{" "}
-          {state.rooms
-            .filter((room) => room.stale)
-            .map((room) => room.source.name)
-            .join(", ")}
-          . Reload each affected room to use the latest content and clear only
-          its preview progress.
-        </Notice>
-      )}
-      {room?.challenges.some((c) => c.unsupported_reason) && (
-        <Notice>
-          <details>
-            <summary>Some challenges cannot be checked in this preview</summary>
-            <ul>
-              {room.challenges
-                .filter((c) => c.unsupported_reason)
-                .map((c) => (
-                  <li key={c.id}>
-                    <strong>{c.name}</strong>: {c.unsupported_reason}
-                  </li>
-                ))}
-            </ul>
-          </details>
-        </Notice>
-      )}
-      {!data && !error && <p role="status">Loading saved room content…</p>}
+      {!data && !error && <p role="status">Connecting to the quest…</p>}
       {reload && room && (
         <ConfirmDialog
           label="Reload room"
-          description={`Load the latest saved ${room.source.name} content and clear this room’s preview steps and revealed hints. Your other preview rooms stay unchanged.`}
+          description={`Load the latest saved ${room.source.name} content and clear this room’s steps and revealed hints. Other rooms stay unchanged.`}
           onClose={() => setReload(false)}
           onConfirm={async () => {
             await load(room.source.slug);
@@ -344,9 +367,6 @@ export function ParticipantPreview({
       {data &&
         (slug && room ? (
           <>
-            <Link className="participant-preview-back" href={previewHome}>
-              All preview rooms
-            </Link>
             <RoomPage
               key={`${slug}-${room.generation}`}
               slug={slug}

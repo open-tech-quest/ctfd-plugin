@@ -46,6 +46,12 @@ Progressive-hint checks cover ordered free/paid reveals, insufficient funds,
 shared-team races, legacy out-of-order unlocks, explicit prerequisite conflicts,
 and direct native API/ended-event content bypasses. Browser checks include
 cancellation, empty/final messages, keyboard focus and the stateless preview.
+Staff journey checks cover points earned/spent once, cross-room balances,
+free/paid/insufficient hint dialogs, player labels, cancellation, stale/closed
+preview rejection and reset/reload totals. Dashboard room links exercise free
+browsing as Admin and Maintainer, hidden/locked content, scoped files and pure
+flag checks. Staff actions must preserve all domain data; ordinary participant
+access and native Maintainer restrictions remain enforced.
 
 Maintainer automation regressions cover bounded metadata and native regex grading,
 token/session authentication and post-lock revocation, stable keys and explicit

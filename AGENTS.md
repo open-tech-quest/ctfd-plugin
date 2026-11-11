@@ -34,11 +34,16 @@ Keep operator access, snapshots and deployment commands out of public guidance.
   demo must be removed before competition start. It never creates participants,
   teams or progress. Bulk participant/progress fixtures remain isolated tests.
 - Theme changes must preserve room IDs, memberships, starts, and solves.
-- Staff room preview reuses participant screens with progress only in the current
-  browser tab's memory. Use native server-side flag comparison without recording
-  submissions or solves. Preview has no database models, runs, leases, limits,
-  clocks, scoring or purchases. Preserve staff authorization and changed-content
-  notices; leaving or reloading clears local progress. See `docs/preview.md`.
+- Staff dashboard room links open free browsing for Administrators and Maintainers
+  through staff-authorized content APIs, without granting native admin privileges.
+  Only explicit **Start user journey** enters the participant flow. Journey starts,
+  solved/revealed IDs and derived points live in the browser tab's memory: native
+  challenge values earned once minus confirmed hint costs once. Use native
+  server-side flag comparison without recording submissions/solves/unlocks. There
+  are no database models, runs, leases, limits, score ledger, awards, rankings or
+  running clocks for preview. Keep preview guidance in its blue banner; preserve
+  role checks, changed-content notices and cleanup on leaving/reloading. See
+  `docs/preview.md`.
 - Maintainer automation uses explicit source keys and owned native content/assets;
   never adopt by name or widen native admin permissions. Preserve unmapped keys,
   preflight reattachment/whole-room cleanup, and keep asset byte cleanup separate

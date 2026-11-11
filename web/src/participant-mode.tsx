@@ -2,6 +2,7 @@ import { createContext, useContext } from "react";
 import { request } from "./api";
 export interface ParticipantMode {
   preview: boolean;
+  inspect?: boolean;
   stale: boolean;
   home: string;
   room: (slug: string) => string;

@@ -1,4 +1,4 @@
-import type { Challenge, Room } from "./types";
+import type { Challenge, Room, Score } from "./types";
 import { hintProgression } from "./hint-progression.ts";
 export interface PreviewStep {
   id: number;
@@ -147,6 +147,25 @@ export function startPreviewRoom(
   slug: string,
 ): PreviewState {
   return update(state, slug, (room) => {
+    const challengeIds = new Set(room.source.steps.map((step) => step.id));
+    const hintIds = new Set(
+      room.challenges
+        .flatMap((challenge) => challenge.hints)
+        .map((hint) => hint.id),
+    );
+    const conflict = state.rooms.find(
+      (other) =>
+        other !== room &&
+        other.stale &&
+        (other.source.steps.some((step) => challengeIds.has(step.id)) ||
+          other.challenges.some((challenge) =>
+            challenge.hints.some((hint) => hintIds.has(hint.id)),
+          )),
+    );
+    if (conflict)
+      throw new Error(
+        `Reload the saved changes in ${conflict.source.name} before starting ${room.source.name}.`,
+      );
     const probe = { ...room, started: true };
     if (
       room.stale ||
@@ -168,7 +187,7 @@ export function recordPreviewResult(
   return update(state, slug, (room) => {
     if (room.generation !== generation || room.stale)
       throw new Error(
-        "The preview changed. Check the room before trying again.",
+        "The room changed. Check the updated challenge path before trying again.",
       );
     if (status !== "correct") return room;
     if (
@@ -179,8 +198,97 @@ export function recordPreviewResult(
       throw new Error(
         "Start this room and complete its earlier visible challenges first.",
       );
+    savedPoints(
+      room.challenges.find((challenge) => challenge.id === id)?.value!,
+    );
     return { ...room, solved: [...room.solved, id] };
   });
+}
+function availablePreviewHint(room: LocalPreviewRoom, hintId: number) {
+  const challenge = room.challenges.find((c) =>
+    c.hints.some((h) => h.id === hintId),
+  );
+  if (
+    room.stale ||
+    !challenge ||
+    !previewSteps(room).some(
+      (step) => step.id === challenge.id && step.state !== "locked",
+    )
+  )
+    throw new Error("This hint is not available for the current challenge.");
+  const hint = challenge.hints.find((hint) => hint.id === hintId)!;
+  if (room.revealed.includes(hintId)) return hint;
+  savedPoints(hint.cost);
+  if (
+    hintProgression(challenge.hints, new Set(room.revealed)).nextId !== hintId
+  )
+    throw new Error("Reveal this challenge’s earlier hints first.");
+  if (
+    hint.prerequisites.some(
+      (required) =>
+        required >= hintId &&
+        !room.revealed.includes(required) &&
+        challenge.hints.some((candidate) => candidate.id === required),
+    )
+  )
+    throw new Error(
+      "This hint requires itself or a later hint in this challenge. Ask an organizer to review its native prerequisites.",
+    );
+  return hint;
+}
+/** Read metadata for the confirmation dialog without revealing or advancing. */
+export function previewHintMetadata(
+  state: PreviewState,
+  slug: string,
+  hintId: number,
+) {
+  const room = state.rooms.find((room) => room.source.slug === slug);
+  if (!room) throw new Error("This room is no longer available.");
+  const hint = availablePreviewHint(room, hintId);
+  const { content, ...metadata } = hint;
+  return room.revealed.includes(hintId) ? { ...metadata, content } : metadata;
+}
+function savedPoints(value: number) {
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new Error(
+      "Saved challenge points or hint costs need organizer review.",
+    );
+  return value;
+}
+export function previewRoomScore(room: LocalPreviewRoom): Score {
+  const solved = new Set(room.solved),
+    revealed = new Set(room.revealed);
+  const values = new Map(
+    room.challenges.map((challenge) => [challenge.id, challenge.value]),
+  );
+  const gross_points = [...solved].reduce(
+    (total, id) =>
+      values.has(id) ? total + savedPoints(values.get(id)!) : total,
+    0,
+  );
+  const hints = new Map(
+    room.challenges
+      .flatMap((challenge) => challenge.hints)
+      .map((hint) => [hint.id, hint.cost]),
+  );
+  const hint_costs = [...revealed].reduce(
+    (total, id) =>
+      hints.has(id) ? total + savedPoints(hints.get(id)!) : total,
+    0,
+  );
+  if (!Number.isSafeInteger(gross_points) || !Number.isSafeInteger(hint_costs))
+    throw new Error("The saved point totals need organizer review.");
+  return { gross_points, hint_costs, points: gross_points - hint_costs };
+}
+export function previewScore(state: PreviewState): Score {
+  return state.rooms.map(previewRoomScore).reduce(
+    (total, room) => ({
+      gross_points: total.gross_points + room.gross_points,
+      hint_costs: total.hint_costs + room.hint_costs,
+      points: total.points + room.points,
+    }),
+    { gross_points: 0, hint_costs: 0, points: 0 },
+  );
 }
 export function revealPreviewHint(
   state: PreviewState,
@@ -188,70 +296,82 @@ export function revealPreviewHint(
   hintId: number,
 ): PreviewState {
   return update(state, slug, (room) => {
-    const challenge = room.challenges.find((c) =>
-      c.hints.some((h) => h.id === hintId),
-    );
-    if (
-      room.stale ||
-      !challenge ||
-      !previewSteps(room).some(
-        (step) => step.id === challenge.id && step.state !== "locked",
-      )
-    )
-      throw new Error(
-        "This hint is not available in the current preview step.",
-      );
+    const hint = availablePreviewHint(room, hintId);
     if (room.revealed.includes(hintId)) return room;
-    if (
-      hintProgression(challenge.hints, new Set(room.revealed)).nextId !== hintId
-    )
-      throw new Error("Reveal this challenge’s earlier hints first.");
-    const hint = challenge.hints.find((hint) => hint.id === hintId)!;
-    if (
-      hint.prerequisites.some(
-        (required) =>
-          required >= hintId &&
-          !room.revealed.includes(required) &&
-          challenge.hints.some((candidate) => candidate.id === required),
-      )
-    )
+    const cost = savedPoints(hint.cost),
+      balance = previewScore(state).points;
+    if (cost > 0 && cost > balance)
       throw new Error(
-        "This hint requires itself or a later hint in this challenge. Ask an organizer to review its native prerequisites.",
+        `Your team has ${balance} points; this hint costs ${cost}`,
       );
     return { ...room, revealed: [...room.revealed, hintId] };
   });
 }
-export function previewRoomView(room: LocalPreviewRoom): Room {
+export function previewRoomView(
+  room: LocalPreviewRoom,
+  teamScore: Score = previewRoomScore(room),
+): Room {
   const steps = previewSteps(room),
     solved = steps.filter((step) => step.state === "solved").length;
-  // Shared participant presentation shape only; Preview never calculates scores or clocks.
+  const score = previewRoomScore(room);
+  const costs = Object.fromEntries(
+    room.challenges
+      .flatMap((challenge) => challenge.hints)
+      .filter((hint) => room.revealed.includes(hint.id))
+      .map((hint) => [hint.id, hint.cost]),
+  );
+  // Clocks remain static; scores are derived solely from this tab's existing IDs.
   return {
     ...room.source,
     steps,
     startable: previewSteps({ ...room, started: true }).some(
       (step) => step.state === "available",
     ),
-    team_score: { points: 0, gross_points: 0, hint_costs: 0 },
+    team_score: teamScore,
     progress: {
-      points: 0,
-      gross_points: 0,
-      hint_costs: 0,
-      used_hint_ids: [],
-      used_hint_costs: {},
-      available_points: 0,
+      ...score,
+      used_hint_ids: [...new Set(room.revealed)],
+      used_hint_costs: costs,
+      available_points: steps.reduce((sum, step) => sum + step.value, 0),
       credited_solved: solved,
       solved,
       total: steps.length,
       score_elapsed_ms: null,
       started_at: room.started ? "preview" : null,
-      elapsed_ms: null,
-      milestone_elapsed_ms: null,
+      elapsed_ms: room.started ? 0 : null,
+      milestone_elapsed_ms: solved > 0 && solved === steps.length ? 0 : null,
       status:
         solved && solved === steps.length
           ? "complete"
           : room.started
             ? "active"
             : "not_started",
+    },
+  };
+}
+
+/** Read-only staff inspection has no local journey state or prerequisite gating. */
+export function staffBrowseRoomView(
+  source: PreviewRoomSource,
+  catalog: PreviewCatalog,
+): Room {
+  const view = previewRoomView(fresh(source, catalog));
+  const steps = source.steps.map((step) => ({
+    id: step.id,
+    title: step.title,
+    value: step.value,
+    position: step.position,
+    state: "available" as const,
+    solved_at: null,
+  }));
+  return {
+    ...view,
+    steps,
+    progress: {
+      ...view.progress,
+      total: steps.length,
+      available_points: steps.reduce((sum, step) => sum + step.value, 0),
+      elapsed_ms: 0,
     },
   };
 }

@@ -98,8 +98,15 @@ for the existing participant components. The real session/viewer remains separat
 from the preview presentation. Starts, solves and revealed hints live only in
 tab memory; no models or migrations are added. Staff-only reads supply sanitized
 saved content, and the existing authoring preview checks native flags without
-native solve/fail/unlock writes. Content revisions prevent silently mixing edited
-challenges with old preview progress. See [room preview](preview.md).
+native solve/fail/unlock writes. Hint metadata reads leave local state unchanged;
+the shared confirmation flow handles a scoped in-memory reveal, never a native
+unlock HTTP request. Room/global scores are derived from the existing solved and
+revealed ID sets with their saved values/costs. No separate balance state, score
+ledger or running timer is introduced. Descriptions and the normal hint dialog use
+the same derived score. Content revisions prevent mixing changed content/prices
+with old local progress. Dashboard room browsing uses the staff-authorized content
+and grading APIs without progression or native administrator privileges. See
+[staff browsing and journey](preview.md).
 
 The React/Vite app is copied into the plugin's `assets/app/`; the Jinja shell
 serves `/quest` and its routes. Only safe viewer/CSRF data belongs in

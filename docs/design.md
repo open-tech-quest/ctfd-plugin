@@ -80,7 +80,12 @@ Staff edit multiple native hints per supported challenge, including text and cos
 before activity starts. Existing IDs and native prerequisites survive saves.
 Participants confirm each new reveal with its cost and current overall balance;
 paid purchases cannot make that balance negative. A free hint is available at
-zero points. Staff previews are separate from participant purchases.
+zero points. Staff journey starts at zero and derives local points from solved
+challenge values minus confirmed hint costs, once per ID. It uses the same hint
+dialog and affordability rule without recording native activity. Free staff room
+browsing is separate and does not collect progress or points. Journey guidance
+stays in its blue banner; player labels are reused and clocks remain stopped.
+See [staff browsing and journey](preview.md).
 
 The room editor supports fixed point values, including zero. Scoring and hint
 prices are frozen after competition activity; supported native dynamic scoring
@@ -161,7 +166,8 @@ Room introductions and challenge instructions can use the fixed placeholders
 `team.number`, `team.name`, `user.name` and `team.points`. Team number means the
 native team ID, and points mean the current overall net score. Resolve only the
 viewer's released team context, retain raw templates in storage/shared caches,
-and treat substituted names as data. Staff previews use explicit sample values.
+and treat substituted names as data. Staff editor/browsing views use explicit
+sample identities; journey points come from local progress.
 See [personalized descriptions](administration.md#personalized-descriptions).
 
 Participant room paths scroll within a bounded horizontal rail with navigation

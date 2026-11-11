@@ -10,7 +10,8 @@ To explore this process with dummy accounts and a repeatable reset, use the
 2. Ask staff to register accounts. In **Organize → Users**, grant **Challenge
    maintainer** to people who should author rooms without administering the event.
    Staff are excluded from attendance, teams and competition play. Use
-   [room preview](preview.md) to test paths with local progress.
+   [staff browsing and user journey](preview.md) to inspect content or test paths
+   with local progress.
 3. In **Organize → Rooms**, configure the room set and ordered standard challenges.
    Edit points, instructions, accepted answers and multiple hints with individual
    texts/costs there. Review room point budgets and hints before play; zero-cost
@@ -143,7 +144,8 @@ Use **Submission history** for protected original and recovery records.
 - Revealing a new hint asks for confirmation with its cost, team balance and
   resulting balance. Paid hints require sufficient overall points; free hints
   can be revealed at zero. Used hints are marked and shared with teammates.
-  Organizer previews spend no points and create no unlock or prize credit.
+  Staff journeys use local earned points and hint costs only; they create no
+  event unlock or prize credit.
 - Supply a reason for time corrections/exclusions. Corrections adjust room time,
   not native solve dates or overall timing. See [ranking rules](design.md#progress-timing-and-awards).
 - **Close** records the cutoff. Review room/overall standings and CSV exports,
