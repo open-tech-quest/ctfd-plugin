@@ -108,8 +108,8 @@ task. Maintainers do not gain global native authoring permissions.
 ### Removing challenges
 
 **Unmap** in the room order keeps the native challenge and its content for reuse.
-Save the room order to apply it. **Delete challenge** in the challenge editor is
-permanent: it removes the challenge, answers, hints, solution and attachment links,
+Save the room order to apply it. **Delete challenge** for supported challenges
+in the challenge editor is permanent: it removes the challenge, answers, hints, solution and attachment links,
 and rebuilds the saved room path automatically. Do not unmap it first. Save or
 discard pending room-order changes before deleting.
 
@@ -122,9 +122,10 @@ bypass these protections.
 External challenge links/prerequisites, remaining hint prerequisites and additional
 plugin tables can also block deletion. The displayed reason identifies the
 reference to resolve; native prerequisites and other-plugin cleanup require an
-administrator. Unsupported challenge behavior remains native administrator work.
-Mapped challenges must be deleted through Quest, not native CTFd. Unmapped
-catalog challenges must be reattached before Quest can delete them. Deleting a
+administrator. For supported challenges, keep them mapped and use Quest deletion.
+For unsupported native types/behavior, unmap and save the room first, then ask an
+administrator to delete them through native CTFd; history can still block unmapping.
+Unmapped catalog challenges must be reattached before Quest can delete them. Deleting a
 catalog-managed challenge does not change its source repository; a later sync can
 create it again.
 
