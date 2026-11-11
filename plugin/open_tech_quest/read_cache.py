@@ -17,7 +17,7 @@ from CTFd.cache import cache
 from CTFd.models import db
 from .models import QuestReadVersion
 
-_SCHEMA = "quest-read-v3-hint-usage"
+_SCHEMA = "quest-read-v4-room-pauses"
 _TABLE = re.compile(r'^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE|DELETE\s+FROM)\s+[`"\[]?([\w]+)', re.I)
 _CONTENT = {"quest_rooms", "quest_steps", "challenges", "flags", "hints", "files",
             "solutions", "tags", "challenge_tags", "topics", "challenge_topics",
@@ -129,7 +129,7 @@ def _changed_keys(table, context):
         keys.add("roster")
         if table in ("users", "teams", "quest_maintainers"):
             keys.update(("history", "progress"))
-    if table in ("quest_events", "quest_pauses", "configs"):
+    if table in ("quest_events", "quest_pauses", "quest_room_pauses", "configs"):
         keys.update(("event", "history", "progress"))
     if table == "quest_exclusions":
         keys.add("progress")

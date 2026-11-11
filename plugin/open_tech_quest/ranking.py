@@ -5,10 +5,19 @@ def active_ms(origin, milestone, pauses):
     if milestone <= origin:
         return 0
     elapsed = (milestone - origin).total_seconds()
+    intervals = []
     for start, end in pauses:
         left, right = max(start, origin), min(end or milestone, milestone)
         if right > left:
-            elapsed -= (right - left).total_seconds()
+            intervals.append((left, right))
+    # Room and event interruptions may overlap; remove their union exactly once.
+    merged = []
+    for left, right in sorted(intervals):
+        if merged and left <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(right, merged[-1][1]))
+        else:
+            merged.append((left, right))
+    elapsed -= sum((right - left).total_seconds() for left, right in merged)
     return max(0, round(elapsed * 1000))
 
 

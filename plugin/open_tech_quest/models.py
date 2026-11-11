@@ -58,6 +58,16 @@ class QuestPause(db.Model):
     ended_at = db.Column(UTCDateTime)
 
 
+class QuestRoomPause(db.Model):
+    __tablename__ = "quest_room_pauses"
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey("quest_rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    started_at = db.Column(UTCDateTime, nullable=False)
+    ended_at = db.Column(UTCDateTime)
+    reason = db.Column(db.Text, nullable=False)
+    closed_by_event = db.Column(db.Boolean, nullable=False, default=False)
+
+
 class QuestExclusion(db.Model):
     __tablename__ = "quest_exclusions"
     team_id = db.Column(db.Integer, db.ForeignKey("teams.id", ondelete="CASCADE"), primary_key=True)

@@ -1,12 +1,12 @@
 """Server-side projections of native solves and durable quest history."""
 from datetime import datetime, timezone
 from types import SimpleNamespace
-from sqlalchemy import exists, or_
-from CTFd.models import Awards, Challenges, Solves, Submissions, Teams, Unlocks, Users
+from sqlalchemy import exists, or_, literal
+from CTFd.models import Awards, Challenges, Solves, Submissions, Teams, Unlocks, Users, db
 from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
-                     QuestExclusion, QuestCorrection, QuestMaintainer, QuestHintPurchase)
+                     QuestExclusion, QuestCorrection, QuestMaintainer, QuestHintPurchase, QuestRoomPause, QuestAudit)
 from .ranking import active_ms, prefix, assign_point_ranks
-from . import read_cache
+from . import read_cache, room_pauses
 
 
 def now():
@@ -100,11 +100,12 @@ def _stamp(value):
 
 
 def _metadata_inputs():
-    rooms = QuestRoom.query.order_by(QuestRoom.position, QuestRoom.id).all()
+    epoch = db.session.query(db.func.max(QuestAudit.id)).filter_by(action="event.new_round").scalar_subquery()
+    rooms = db.session.query(QuestRoom, epoch.label("round_epoch")).order_by(QuestRoom.position, QuestRoom.id).all()
     steps = QuestStep.query.order_by(QuestStep.position).all()
     mapped = [step.challenge_id for step in steps]
     challenges = Challenges.query.with_entities(Challenges.id, Challenges.name, Challenges.state, Challenges.value).filter(Challenges.id.in_(mapped)).all()
-    return {"rooms": [{key: getattr(room, key) for key in ("id", "slug", "name", "subtitle", "description", "position", "theme")} for room in rooms],
+    return {"rooms": [dict({key: getattr(room, key) for key in ("id", "slug", "name", "subtitle", "description", "position", "theme")}, round_epoch=epoch) for room, epoch in rooms],
             "steps": [{"room_id": step.room_id, "challenge_id": step.challenge_id, "position": step.position} for step in steps],
             "challenges": [{"id": cid, "name": name, "state": state, "value": value or 0} for cid, name, state, value in challenges]}
 
@@ -136,9 +137,17 @@ def _history_inputs(mapped, counted_ids, team_id, challenge_id):
         purchases = purchases.filter_by(team_id=team_id)
     if challenge_id is not None:
         purchases = purchases.filter_by(challenge_id=challenge_id)
+    # Union both scopes in one query so room/team count does not increase SQL.
+    pauses = db.session.query(literal(None).label("room_id"), QuestPause.id.label("id"),
+        QuestPause.started_at.label("started_at"), QuestPause.ended_at.label("ended_at"),
+        literal(None).label("reason"), literal(False).label("closed_by_event")).union_all(
+            db.session.query(QuestRoomPause.room_id, QuestRoomPause.id, QuestRoomPause.started_at,
+                QuestRoomPause.ended_at, QuestRoomPause.reason, QuestRoomPause.closed_by_event)).all()
     return {"purchases": [[p.team_id, p.challenge_id, p.hint_id, p.cost, _stamp(p.purchased_at)] for p in purchases.all()],
             "starts": [[s.team_id, s.room_id, _stamp(s.started_at)] for s in starts.all()],
-            "pauses": [[_stamp(p.started_at), _stamp(p.ended_at)] for p in QuestPause.query.order_by(QuestPause.started_at).all()],
+            "pauses": [[_stamp(left), _stamp(right)] for rid, pid, left, right, why, closed in pauses if rid is None],
+            "room_pauses": [[pid, rid, _stamp(left), _stamp(right), why, bool(closed)]
+                            for rid, pid, left, right, why, closed in pauses if rid is not None],
             "corrections": [[c.team_id, c.room_id, c.adjustment_ms] for c in corrections.all()],
             "contributions": [[tid, cid, _stamp(at)] for tid, cid, at in contributions]}
 
@@ -153,7 +162,7 @@ class Projection:
         self.event = e or event()
         self.at = at or now()
         generation = read_cache.versions(team_id) if read_cache.read_request() else {}
-        metadata = read_cache.cached("metadata", "rooms", [generation.get("content")], _metadata_inputs)
+        metadata = read_cache.cached("metadata", "rooms", [generation.get("content"), generation.get("event")], _metadata_inputs)
         self.rooms = [SimpleNamespace(**row) for row in metadata["rooms"]]
         self.steps = {}
         self.mapped = {}
@@ -174,6 +183,9 @@ class Projection:
                                    lambda: _history_inputs(self.mapped, counted_ids, team_id, challenge_id))
         self.starts = {(tid, rid): parse_time(at) for tid, rid, at in history["starts"]}
         self.pauses = [(parse_time(left), parse_time(right)) for left, right in history["pauses"]]
+        self.room_pauses = {}
+        for pid, rid, left, right, why, closed in sorted(history.get("room_pauses", [])):
+            self.room_pauses.setdefault(rid, []).append([pid, rid, parse_time(left), parse_time(right), why, closed])
         self.corrections = {}
         for tid, rid, adjustment in history["corrections"]:
             key = tid, rid
@@ -191,7 +203,7 @@ class Projection:
             start = self.starts.get((team_id, room_id))
             if not start or not at or at > self.at or at < max(start, e.start_at) or (e.end_at and at > e.end_at):
                 continue
-            if any(left <= at < (right or self.at) for left, right in self.pauses):
+            if any(left <= at < (right or self.at) for left, right in self.clock_pauses(room_id)):
                 continue
             solves = self.solves.setdefault(team_id, {})
             solves[challenge_id] = min(at, solves.get(challenge_id, at))
@@ -200,11 +212,18 @@ class Projection:
             start = self.starts.get((tid, self.mapped[cid]))
             if not start or not at or at < max(start, e.start_at) or at > self.at or (e.end_at and at > e.end_at):
                 continue
-            if any(left <= at < (right or self.at) for left, right in self.pauses):
+            if any(left <= at < (right or self.at) for left, right in self.clock_pauses(self.mapped[cid])):
                 continue
             costs = self.hint_costs.setdefault(tid, {})
             costs[cid] = costs.get(cid, 0) + cost
             self.used_hints.setdefault(tid, {}).setdefault(cid, {})[hint_id] = cost
+
+    def clock_pauses(self, room_id):
+        return self.pauses + [(p[2], p[3]) for p in self.room_pauses.get(room_id, [])]
+
+    def room_pause(self, room_id):
+        room = next(r for r in self.rooms if r.id == room_id)
+        return room_pauses.state(self.event, room_id, self.room_pauses.get(room_id, []), room.round_epoch)
 
     def score(self, team_id, ids=None):
         ids = set(self.mapped if ids is None else ids)
@@ -221,13 +240,13 @@ class Projection:
         start = self.starts.get((team_id, room.id))
         origin = e.start_at if e.room_clock == "event" else start
         milestone = max(milestones) if milestones else None
-        elapsed = active_ms(origin, milestone, self.pauses)
+        elapsed = active_ms(origin, milestone, self.clock_pauses(room.id))
         if elapsed is not None:
             elapsed = max(0, elapsed + self.corrections.get((team_id, room.id), 0))
         complete = bool(ids) and len(milestones) == len(ids)
         clock_to = milestone if complete else min(self.at, e.end_at or self.at)
         counted = [solves[cid] for cid in ids if cid in solves]
-        score_time = active_ms(origin, max(counted) if counted else None, self.pauses)
+        score_time = active_ms(origin, max(counted) if counted else None, self.clock_pauses(room.id))
         if score_time is not None:
             score_time = max(0, score_time + self.corrections.get((team_id, room.id), 0))
         used_costs = {hid: cost for cid in ids
@@ -237,7 +256,7 @@ class Projection:
                 "solved_steps": [index + 1 for index, cid in enumerate(ids) if cid in solves],
                 "credited_solved": len(counted), "score_elapsed_ms": score_time,
                 "solved": len(milestones), "total": len(ids), "started_at": iso(start),
-                "elapsed_ms": active_ms(origin, clock_to, self.pauses) if start else None,
+                "elapsed_ms": active_ms(origin, clock_to, self.clock_pauses(room.id)) if start else None,
                 "milestone_elapsed_ms": elapsed,
                 "status": "complete" if complete else ("active" if start else "not_started")}
 
@@ -264,8 +283,8 @@ class Projection:
             prefix_open = prefix_open and solved
         result = {"id": room.id, "slug": room.slug, "name": room.name, "subtitle": room.subtitle,
                   "description": room.description, "position": room.position, "theme": room.theme,
-                  "steps": data, "progress": p, "team_score": self.score(team_id),
-                  "startable": bool(participant_steps) and self.challenges[participant_steps[0].challenge_id].state == "visible"}
+                  "steps": data, "progress": p, "team_score": self.score(team_id), "pause": self.room_pause(room.id),
+                  "startable": not self.room_pause(room.id)["paused"] and bool(participant_steps) and self.challenges[participant_steps[0].challenge_id].state == "visible"}
         if admin:
             result["challenge_ids"] = [s.challenge_id for s in steps]
         return result
@@ -343,7 +362,7 @@ def standings(e=None, public=False):
                        "solved_steps": p["solved_steps"],
                        "points": p["points"], "gross_points": p["gross_points"], "hint_costs": p["hint_costs"],
                        "milestone_elapsed_ms": p["score_elapsed_ms"], "rank": None,
-                       "complete": p["status"] == "complete"})
+                       "complete": p["status"] == "complete", "pause": view.room_pause(room.id)})
         teams.append({**view.score(team.id), "id": team.id, "name": team.name, "total": len(solves), "overall_elapsed_ms": elapsed, "room_progress": rp})
     assign_point_ranks(teams, "overall_elapsed_ms")
     leaders = []
@@ -361,7 +380,7 @@ def standings(e=None, public=False):
     if public and not released(e):
         teams, leaders = [], []
     return {"scoring_version": 2, "event": event_data(e), "rooms": [
-                {"id": r.id, "slug": r.slug, "name": r.name,
+                {"id": r.id, "slug": r.slug, "name": r.name, "pause": view.room_pause(r.id),
                  "total": len(view.participant_steps.get(r.id, [])),
                  "steps": [{"id": step.challenge_id, "value": view.challenges[step.challenge_id].value}
                            for step in view.participant_steps.get(r.id, [])],

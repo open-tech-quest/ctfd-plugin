@@ -331,6 +331,11 @@ def install_guards(app):
         if attempt and e.status == "paused":
             message = "The event is paused. Your answer was not submitted; try again when organizers resume."
             return jsonify(success=False, error=message, data={"status": "paused", "message": message}), 409
+        if attempt:
+            from .room_pauses import active
+            if active(step.room_id):
+                message = "This room is paused. Your answer was not submitted; try again when organizers resume the room."
+                return jsonify(success=False, error=message, data={"status": "room_paused", "message": message}), 409
         if attempt and (e.status != "live" or not ctftime() or (e.end_at and now() > e.end_at)):
             return denied("Submissions are accepted only while the event is live", 409)
         start = QuestStart.query.filter_by(team_id=user.team_id, room_id=step.room_id).first()

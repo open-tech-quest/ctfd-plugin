@@ -16,7 +16,7 @@ from CTFd.models import Challenges, Configs, Teams, Users, db
 from CTFd.utils import _get_config
 from CTFd.utils.dates import ctftime
 from CTFd.utils.user import is_admin
-from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
+from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause, QuestRoomPause,
                      QuestExclusion, QuestCorrection, QuestAudit, QuestReadiness, QuestTeamName)
 from .service import (event, event_data, now, iso, parse_time, released,
                       room_data, room_steps, participant_steps, standings, Projection, projection)
@@ -252,6 +252,9 @@ def start_room(slug):
     room = room_by_slug(slug)
     start = QuestStart.query.filter_by(team_id=user.team_id, room_id=room.id).first()
     if start is None:
+        from .room_pauses import active
+        if active(room.id):
+            fail("This room is paused. Your team can start it when organizers resume the room.", 409)
         steps = participant_steps(room.id)
         if not steps or Challenges.query.get(steps[0].challenge_id).state != "visible":
             fail("This room has no available first challenge yet", 409)
@@ -266,6 +269,45 @@ def start_room(slug):
     else:
         db.session.commit()
     return success(room_data(room, user.team_id, is_admin()))
+
+
+@api.route("/admin/rooms/<slug>/pause", methods=["POST"])
+@admin
+def room_pause_action(slug):
+    data, e = body(), event(lock=True)
+    if set(data) != {"action", "reason", "revision"}:
+        fail("Supply action, reason and the current room pause revision")
+    if e.status not in ("live", "paused"):
+        fail("Room pause controls are available only during a live or paused event", 409)
+    at = now()
+    if e.end_at and at >= e.end_at:
+        fail("The configured cutoff has passed; close the event", 409)
+    room = room_by_slug(slug)
+    current = Projection(e).room_pause(room.id)
+    provided = data.get("revision")
+    if not isinstance(provided, str) or not hmac.compare_digest(current["revision"], provided):
+        fail("The room pause or event changed. Refresh and review the room before trying again.", 409)
+    why = reason(data)
+    action = data.get("action")
+    from .room_pauses import active
+    interval = active(room.id)
+    if action == "pause":
+        if interval is not None:
+            fail("This room is already paused", 409)
+        interval = QuestRoomPause(room_id=room.id, started_at=at, reason=why)
+        db.session.add(interval)
+    elif action == "resume":
+        if interval is None:
+            fail("This room is not paused", 409)
+        interval.ended_at = at
+    else:
+        fail("Choose pause or resume")
+    db.session.flush()
+    audit("room." + action, {"room_id": room.id, "pause_id": interval.id, "reason": why, "at": iso(at)})
+    db.session.commit()
+    response = success(room_data(room, admin=True))
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
 
 
 @api.route("/standings")
@@ -371,6 +413,8 @@ def event_action():
         cutoff = min(at, e.end_at) if e.end_at else at
         for pause in QuestPause.query.filter_by(ended_at=None).all():
             pause.ended_at = cutoff
+        for pause in QuestRoomPause.query.filter_by(ended_at=None).all():
+            pause.ended_at, pause.closed_by_event = cutoff, True
         e.status, e.end_at, e.paused_at = "closed", cutoff, None
         onboarding.change_attendance(e, False, "event.close")
         native_config("end", int(cutoff.replace(tzinfo=timezone.utc).timestamp()))
@@ -390,6 +434,9 @@ def event_action():
             fail("Unpublish results and close before reopening", 409)
         reason(data)
         # The closed interval is excluded when organizers resume play.
+        interrupted = QuestRoomPause.query.filter_by(closed_by_event=True, ended_at=e.end_at).all()
+        for pause in interrupted:
+            db.session.add(QuestRoomPause(room_id=pause.room_id, started_at=at, reason=pause.reason))
         db.session.add(QuestPause(started_at=e.end_at))
         e.status, e.paused_at, e.end_at = "paused", e.end_at, None
         native_config("end", None)
