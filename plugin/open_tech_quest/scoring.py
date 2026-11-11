@@ -2,13 +2,21 @@
 import re
 import hmac
 
-from flask import jsonify, request, session
+from flask import current_app, jsonify, request, session
 from CTFd.cache import clear_standings
 from CTFd.models import Awards, Hints, HintUnlocks, db
 from CTFd.schemas.unlocks import UnlockSchema
 from CTFd.utils import get_config
 from .models import QuestAudit, QuestHintPurchase, QuestRoom, QuestStep
 from .service import now, projection
+
+
+def hint_quote(hint):
+    from .maintenance import digest
+    key = current_app.secret_key
+    return hmac.new(key if isinstance(key, bytes) else str(key).encode(),
+                    digest([hint.id, hint.challenge_id, hint.cost, hint.title, hint.content, hint.requirements]).encode(),
+                    __import__("hashlib").sha256).hexdigest()
 
 
 def hint_access_reason(team_id, hint):
@@ -56,6 +64,11 @@ def purchase_hint(user, hint, e):
         return denied(*reason)
     if type(hint.cost) is not int or hint.cost < 0:
         return denied("This hint has an invalid price; ask an organizer", 409)
+    quote = request.headers.get("X-Quest-Hint-Quote")
+    if not isinstance(quote, str) or not quote:
+        return denied("Refresh the page before confirming a hint. This page is outdated or its confirmation is missing.", 409)
+    if not hmac.compare_digest(quote, hint_quote(hint)):
+        return denied("This hint changed. Cancel and open it again to review its current cost and content.", 409)
     balance = projection(e, team_id=user.team_id).score(user.team_id)["points"]
     if hint.cost > 0 and hint.cost > balance:
         return denied(f"Your team has {balance} points; this hint costs {hint.cost}", 400)

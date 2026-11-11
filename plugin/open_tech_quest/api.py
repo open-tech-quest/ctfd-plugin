@@ -443,6 +443,10 @@ def configure_room(slug):
     if not roles.can_manage_rooms():
         fail("Room management access required", 403)
     room = room_by_slug(slug)
+    from . import maintenance
+    if e.status not in {"draft", "live", "paused"}:
+        fail("Room content is read-only after closing. Reopen the event before editing.", 409)
+    maintenance.check_revision(e, maintenance.room_revision(room))
     if set(data) - {"name", "subtitle", "description", "theme", "challenge_ids", "position"}:
         fail("Unknown room setting")
     for field, maximum in (("name", 80), ("subtitle", 160), ("description", 10000)):
@@ -957,14 +961,15 @@ def manage_rooms():
     room_slugs = {r.id: r.slug for r in QuestRoom.query.all()}
     projection = Projection()
     from .room_topology import topology_reason
+    from .maintenance import room_revision, digest
     rooms = []
     for room in projection.rooms:
         payload = projection.room(room, None, True)
         blocked = topology_reason(room, projection.event)
-        payload.update(can_configure_topology=blocked is None, topology_reason=blocked,
+        payload.update(revision=room_revision(room), can_configure_topology=blocked is None, topology_reason=blocked,
                        can_delete=blocked is None, delete_reason=blocked)
         rooms.append(payload)
-    return success({"event": event_data(projection.event),
+    return success({"event": event_data(projection.event), "revision": digest([(r["id"], r["revision"]) for r in sorted(rooms, key=lambda r: r["id"])]),
                     "rooms": rooms,
                     "available_challenges": [{"id": c.id, "name": c.name, "state": c.state,
                                                "room_slug": room_slugs.get(mapped.get(c.id))}
@@ -977,7 +982,10 @@ def create_room():
     data, e = body(), event(lock=True)
     if not roles.can_manage_rooms():
         fail("Room management access required", 403)
-    draft(e)
+    from . import maintenance
+    if e.status not in {"draft", "live", "paused"}:
+        fail("New rooms are unavailable after closing. Reopen the event before editing.", 409)
+    maintenance.check_revision(e, maintenance.catalog_revision(QuestRoom.query.all()))
     if set(data) - {"slug", "name", "subtitle", "description", "theme"}:
         fail("Unknown room setting")
     slug = data.get("slug")

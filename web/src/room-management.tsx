@@ -56,6 +56,8 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
       <p role="status">Loading room management…</p>
     );
   const room = data.rooms.find((item) => item.slug === slug);
+  const readOnly = ["closed", "published"].includes(data.event.status);
+  const canAddRoom = ["draft", "live", "paused"].includes(data.event.status);
   const dirty = roomDirty || challengeDirty;
   function select(next: string) {
     if (next === slug) return;
@@ -77,7 +79,15 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
     setError("");
     setMessage("");
     try {
-      const result = await request<Room>(`/admin/rooms/${slug}`, "PATCH", body);
+      const result = await request<Room>(
+        `/admin/rooms/${slug}`,
+        "PATCH",
+        body,
+        undefined,
+        room?.revision
+          ? { "X-Quest-Content-Revision": room.revision }
+          : undefined,
+      );
       await resource.refresh();
       setMessage("Room saved");
       return result;
@@ -107,7 +117,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
           )}
           <button
             className="button secondary"
-            disabled={busy || data.event.status !== "draft" || dirty}
+            disabled={busy || (!canAddRoom && !newRoom) || dirty}
             onClick={() => setNewRoom((value) => !value)}
           >
             {newRoom ? "Close new room" : "Add room"}
@@ -127,8 +137,9 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
       )}
       {data.event.status !== "draft" && (
         <p className="meta">
-          Rooms can be added or removed in draft. Presentation remains editable;
-          challenge mutations follow their server locks.
+          {readOnly
+            ? "This event is read-only. An administrator must unpublish results if published, then reopen the event before maintenance."
+            : "Saved content changes apply immediately. Competitive changes require an impact review and reason. Pausing remains a separate, manual event action. Existing played paths cannot be reordered or unmapped."}
         </p>
       )}
       {message && <Notice tone="success">{message}</Notice>}
@@ -139,7 +150,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
       )}
       {newRoom && (
         <NewRoom
-          busy={busy}
+          busy={busy || readOnly}
           onCreate={async (body) => {
             setBusy(true);
             setError("");
@@ -148,6 +159,10 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
                 "/manage/rooms",
                 "POST",
                 body,
+                undefined,
+                data.revision
+                  ? { "X-Quest-Content-Revision": data.revision }
+                  : undefined,
               );
               await resource.refresh();
               setSlug(created.slug);
@@ -164,7 +179,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
       )}{" "}
       {!data.rooms.length ? (
         <Empty title="Create the first room">
-          The quest has no configured rooms. Add a room in draft, then write its
+          The quest has no configured rooms. Add a room, then write its
           challenges and choose the presentation.
         </Empty>
       ) : (
@@ -196,7 +211,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
                   key={room.id}
                   room={room}
                   data={data}
-                  busy={busy}
+                  busy={busy || readOnly}
                   onDirty={setRoomDirty}
                   onOrderDirty={setOrderDirty}
                   onSave={saveRoom}
@@ -204,6 +219,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
                 <ChallengeEditor
                   key={`challenges-${room.id}`}
                   room={room}
+                  eventStatus={data.event.status}
                   orderDirty={orderDirty}
                   roomBusy={busy}
                   onDeleting={setBusy}

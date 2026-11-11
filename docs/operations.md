@@ -101,7 +101,9 @@ the UI explains unavailable actions.
 Remove the demo before real authoring and event start. Removal deletes only
 tracked demo content and restores room text only where it still matches the demo.
 It preserves later edits/unrelated content and refuses to erase activity history.
-Room-editor challenge authoring is draft-only; unsupported native challenge/flag
+Live/paused challenge maintenance uses revision checks and reviewed competitive
+changes, with pausing left to the organizer. See [live maintenance](administration.md#live-maintenance).
+Unsupported native challenge/flag
 logic stays read-only there. See [administration](administration.md).
 
 ## Accounts and moderation

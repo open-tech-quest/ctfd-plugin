@@ -130,3 +130,23 @@ def set_challenge_order(room, ids):
     db.session.flush()
     sync_native_chain(room.id)
 
+
+def append_challenge(room, challenge, e):
+    """Append without replacing any existing played step or its stable ID."""
+    from .api import fail
+    from .maintenance import append_reason
+    reason = append_reason(room, e)
+    if reason:
+        fail(reason, 409)
+    steps = room_steps(room)
+    if e.status == "draft":
+        set_challenge_order(room, [s.challenge_id for s in steps] + [challenge.id])
+        return
+    if QuestStep.query.filter_by(challenge_id=challenge.id).first():
+        fail("Only a new challenge can be appended during live maintenance.", 409)
+    position = max((s.position for s in steps), default=-1) + 1
+    challenge.position = position
+    db.session.add(QuestStep(room_id=room.id, challenge_id=challenge.id, position=position))
+    db.session.flush()
+    sync_native_chain(room.id)
+

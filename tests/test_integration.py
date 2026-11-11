@@ -28,6 +28,19 @@ from CTFd.plugins.open_tech_quest.service import standings
 PREFIX = "/api/v1/quest"
 
 
+def reviewed_change(case, client, path, changes, reason="Synthetic reviewed maintenance"):
+    collection = path.rsplit("/", 1)[0]
+    workspace = client.get(collection).json["data"]
+    revision = workspace["revision"]
+    reviewed = case.post(client, path + "/review", {"changes": changes, "revision": revision})
+    case.assertEqual(reviewed.status_code, 200, reviewed.get_data(as_text=True))
+    payload = dict(changes)
+    if reviewed.json["data"]["requires_confirmation"]:
+        payload["maintenance"] = {"revision": reviewed.json["data"]["revision"], "reason": reason, "confirm": True}
+    return client.open(path, method="PATCH", json=payload,
+        headers={"CSRF-Token": "quest-test-csrf", "X-Quest-Content-Revision": revision})
+
+
 class QuestIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -125,7 +138,12 @@ class QuestIntegration(unittest.TestCase):
         return client
 
     def post(self, client, path, data, method="POST"):
-        return client.open(path, method=method, json=data, headers={"CSRF-Token": "quest-test-csrf"})
+        headers = {"CSRF-Token": "quest-test-csrf"}
+        if path == "/api/v1/unlocks" and isinstance(data, dict) and data.get("type") == "hints":
+            hint = client.get("/api/v1/hints/" + str(data.get("target")))
+            if hint.is_json and isinstance(hint.json.get("data"), dict) and hint.json["data"].get("quote_revision"):
+                headers["X-Quest-Hint-Quote"] = hint.json["data"]["quote_revision"]
+        return client.open(path, method=method, json=data, headers=headers)
 
     def configure(self, ids):
         response = self.post(self.admin, PREFIX + "/admin/rooms/openshift", {"challenge_ids": ids}, "PATCH")
@@ -471,13 +489,17 @@ class QuestIntegration(unittest.TestCase):
             self.assertEqual(next(t for t in standings()["teams"] if t["id"] == self.team_id)["total"], 1)
 
     def test_native_authoring_accepts_unchanged_position_without_topology_bypass(self):
-        self.action("start")
-        result = self.post(self.admin, "/api/v1/challenges/1", {"name": "Edited native challenge", "description": "Updated native instructions", "position": "0"}, "PATCH")
+        payload = {"name": "Edited native challenge", "description": "Updated native instructions", "position": "0"}
+        result = self.post(self.admin, "/api/v1/challenges/1", payload, "PATCH")
         self.assertEqual(result.status_code, 200, result.get_data(as_text=True))
         self.assertEqual(self.post(self.admin, "/api/v1/challenges/1", {"position": "9"}, "PATCH").status_code, 409)
+        self.action("start")
+        self.assertEqual(self.post(self.admin, "/api/v1/challenges/1", {**payload, "description": "Unreviewed live edit"}, "PATCH").status_code, 409)
+        result = reviewed_change(self, self.admin, PREFIX + "/manage/rooms/openshift/challenges/1", {"description": "Reviewed live instructions"})
+        self.assertEqual(result.status_code, 200, result.get_data(as_text=True))
         with self.app.app_context():
             challenge = Challenges.query.get(1)
-            self.assertEqual(challenge.description, "Updated native instructions")
+            self.assertEqual(challenge.description, "Reviewed live instructions")
             self.assertEqual(challenge.position, 0)
             self.assertEqual(challenge.next_id, 2)
 
@@ -1823,7 +1845,8 @@ class QuestIntegration(unittest.TestCase):
         self.assertFalse(viewer["admin"])
         overview = self.alice.get(PREFIX+"/manage/rooms")
         self.assertEqual(overview.status_code,200)
-        self.assertEqual(set(overview.json["data"]),{"event","rooms","available_challenges"})
+        self.assertEqual(set(overview.json["data"]),{"event","rooms","available_challenges","revision"})
+        self.assertRegex(overview.json["data"]["revision"], r"^[0-9a-f]{64}$")
         serialized = overview.get_data(as_text=True)
         for private in ("@example.test","fixture-answer","Private instructions","participants","audit"):
             self.assertNotIn(private,serialized)

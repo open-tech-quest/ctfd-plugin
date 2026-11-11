@@ -75,6 +75,20 @@ def _audit_detail(action, raw):
     if not known:
         return {}
     result = _flat(raw, _SCALARS | (set(_EVENT_FIELDS) if action == "event.configure" else set()))
+    if action in {"challenge.create", "challenge.update"} and isinstance(raw.get("maintenance"), dict):
+        maintenance = raw["maintenance"]
+        selected = _flat(maintenance, {"reason", "revision", "before_revision", "after_revision"})
+        if isinstance(maintenance.get("fields"), list):
+            selected["fields"] = [field for field in maintenance["fields"] if isinstance(field, str)]
+        impact = maintenance.get("impact")
+        if isinstance(impact, dict):
+            keys = {"counted_teams", "solve_records", "hint_purchase_teams", "hint_receipts", "completed_teams", "teams_with_score_changes"}
+            selected["impact"] = {key: value for key, value in impact.items() if key in keys and type(value) is int}
+            if isinstance(impact.get("team_scores"), list):
+                score_keys = {"team_id", "before_points", "after_points", "before_room_points", "after_room_points", "before_solved", "after_solved"}
+                selected["impact"]["team_scores"] = [{key: value for key, value in row.items()
+                    if key in score_keys and type(value) is int} for row in impact["team_scores"] if isinstance(row, dict)]
+        result["maintenance"] = selected
     if action in ("attendance.configure", "registration.configure") and type(raw.get("enabled")) is bool:
         result["enabled"] = raw["enabled"]
     for key in _LISTS:

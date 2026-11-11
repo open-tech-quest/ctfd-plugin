@@ -82,4 +82,5 @@ This is an event report, **not a database backup or restore format**. In particu
 it cannot restore deleted credentials, flags or files. Retain full database/upload
 backups when rollback is required. An operator's full baseline restore also
 removes server archives created after that baseline: download them first. See
-[hosting](deployment.md) and [rehearsal reset](rehearsal.md#reset-and-repeat).
+[recovery choices when live differs](deployment.md#recover-a-changed-event) and
+[rehearsal reset](rehearsal.md#reset-and-repeat).

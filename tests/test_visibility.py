@@ -38,8 +38,10 @@ class VisibilityIntegration(unittest.TestCase):
         self.maintainer = self.client(5)
 
     def visibility(self, challenge_id, state):
-        response = self.post(self.admin, "/api/v1/challenges/" + str(challenge_id),
-                             {"state": state}, "PATCH")
+        with self.app.app_context():
+            active = QuestEvent.query.get(1).status in {"live", "paused"}
+        response = (integration.reviewed_change(self, self.admin, WORKSPACE + "/" + str(challenge_id), {"state": state}) if active else
+                    self.post(self.admin, "/api/v1/challenges/" + str(challenge_id), {"state": state}, "PATCH"))
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
 
     def room(self, client=None):

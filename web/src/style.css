@@ -3450,6 +3450,25 @@ body:has(.participant-attendance-bar) {
   font-size: 14px;
   line-height: 1.6;
 }
+.maintenance-impact {
+  margin-block: 20px;
+}
+.maintenance-impact-table {
+  max-height: 240px;
+  overflow: auto;
+  margin-top: 12px;
+}
+.maintenance-impact-table table {
+  width: 100%;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.maintenance-impact-table th,
+.maintenance-impact-table td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
 .challenge-authoring > .section-heading h2 {
   font-size: 26px;
 }

@@ -6,9 +6,9 @@ from datetime import datetime
 from flask import Blueprint, request, session
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import HTTPException
-from CTFd.cache import clear_challenges
+from CTFd.cache import clear_challenges, clear_standings
 from CTFd.models import (ChallengeComments, ChallengeFiles, ChallengeTopics, Challenges,
-                         Flags, Hints, SolutionFiles, Solutions, Tags, Topics, UserTokens, db)
+                         Flags, Hints, SolutionFiles, Solutions, Tags, Topics, Unlocks, UserTokens, db)
 from CTFd.utils import get_app_config
 from CTFd.plugins.flags import get_flag_class
 from .api import (QuestError, audit, body, conflict, error, fail, http_error,
@@ -103,12 +103,13 @@ def unsupported_reason(challenge, flags=None, allow_native_flags=False):
     return None
 
 
-def mutation_reason(room, challenge, e, allow_native_flags=False):
-    if e.status != "draft":
-        return "Challenge content is editable only while the event is in Draft."
+def mutation_reason(room, challenge, e, allow_native_flags=False, live=False):
+    if e.status != "draft" and not (live and e.status in {"live", "paused"}):
+        return "Challenge content is read-only after closing. Reopen the event before editing."
     if demo.active_batch():
         return "An administrator must remove the loaded demo before real challenge authoring."
-    return unsupported_reason(challenge, allow_native_flags=allow_native_flags) or activity_reason(room, [challenge.id])
+    return unsupported_reason(challenge, allow_native_flags=allow_native_flags) or (
+        None if live and e.status in {"live", "paused"} else activity_reason(room, [challenge.id]))
 
 
 def outside_dependency(room, challenge, removed_hint_ids=None):
@@ -127,12 +128,12 @@ def outside_dependency(room, challenge, removed_hint_ids=None):
 _UNINSPECTED = object()
 
 
-def editable(room, challenge, e=None, mapped=True, deletion_blocker=_UNINSPECTED):
+def editable(room, challenge, e=None, mapped=True, deletion_blocker=_UNINSPECTED, revision=None):
     e = e if e is not None else event()
     flags = flag_rows(challenge)
     unsupported = unsupported_reason(challenge, flags)
-    edit_reason = mutation_reason(room, challenge, e)
-    automation_reason = mutation_reason(room, challenge, e, allow_native_flags=True)
+    edit_reason = mutation_reason(room, challenge, e, live=True)
+    automation_reason = mutation_reason(room, challenge, e, allow_native_flags=True, live=True)
     delete_reason = automation_reason or topology_reason(room, e) or outside_dependency(room, challenge)
     if delete_reason is None:
         delete_reason = unknown_deletion_reason() if deletion_blocker is _UNINSPECTED else deletion_blocker
@@ -142,7 +143,8 @@ def editable(room, challenge, e=None, mapped=True, deletion_blocker=_UNINSPECTED
         edit_reason = automation_reason = delete_reason = "Reattach this catalog challenge to its room before editing or deleting it."
     source = QuestChallengeSource.query.get(challenge.id)
     solution = Solutions.query.filter_by(challenge_id=challenge.id).first()
-    return {"id": challenge.id, "mapped": mapped, "name": challenge.name, "description": challenge.description or "",
+    from .maintenance import room_revision
+    return {"id": challenge.id, "mapped": mapped, "revision": revision or room_revision(room), "name": challenge.name, "description": challenge.description or "",
             "state": challenge.state, "type": challenge.type, "value": challenge.value,
             "attribution": challenge.attribution or "", "connection_info": challenge.connection_info or "",
             "max_attempts": challenge.max_attempts or 0,
@@ -276,7 +278,7 @@ def checked_payload(data, create=False):
     return result
 
 
-def apply_fields(challenge, data, room=None):
+def validate_fields(challenge, data, room=None, live=False):
     existing, removed = {}, set()
     if "hints" in data:
         existing = {h.id: h for h in Hints.query.filter_by(challenge_id=challenge.id).all()}
@@ -284,8 +286,11 @@ def apply_fields(challenge, data, room=None):
         if not keep <= existing.keys():
             fail("Hint IDs must belong to the edited challenge")
         removed = existing.keys() - keep
-        if QuestHintPurchase.query.filter(QuestHintPurchase.hint_id.in_(list(existing))).first():
+        purchased = QuestHintPurchase.query.filter(QuestHintPurchase.hint_id.in_(list(existing)))
+        if (not live and purchased.first()) or purchased.filter(QuestHintPurchase.hint_id.in_(removed)).first():
             fail("Hints with purchase history cannot be changed or removed", 409)
+        if removed and Unlocks.query.filter(Unlocks.type == "hints", Unlocks.target.in_(removed)).first():
+            fail("Redeemed hints must be preserved; edit their text or future price instead of removing them.", 409)
         reason = hint_deletion_reason(removed)
         if reason:
             fail(reason, 409)
@@ -296,15 +301,30 @@ def apply_fields(challenge, data, room=None):
         duplicate = QuestChallengeSource.query.filter_by(room_id=room.id, source_key=data["source_key"]).first()
         if duplicate and duplicate.challenge_id != challenge.id:
             fail("This source_key already belongs to another challenge in this room", 409)
-        if source is None:
-            db.session.add(QuestChallengeSource(challenge_id=challenge.id, room_id=room.id, source_key=data["source_key"]))
+        if live and source is None:
+            fail("New catalog ownership must be assigned in Draft.", 409)
+    if live and data.get("solution", {}) is None and Solutions.query.filter_by(challenge_id=challenge.id).first():
+        fail("Live maintenance preserves the existing solution. Edit its content or visibility instead of deleting it.", 409)
+    return existing, removed
+
+
+def apply_fields(challenge, data, room=None, live=False):
+    existing, removed = validate_fields(challenge, data, room, live)
+    if "source_key" in data and QuestChallengeSource.query.get(challenge.id) is None:
+        db.session.add(QuestChallengeSource(challenge_id=challenge.id, room_id=room.id, source_key=data["source_key"]))
     for field in ("name", "description", "state", "value", "attribution", "connection_info", "max_attempts"):
         if field in data:
             setattr(challenge, field, data[field])
     if "flags" in data:
-        Flags.query.filter_by(challenge_id=challenge.id).delete(synchronize_session=False)
-        for flag in data["flags"]:
-            db.session.add(Flags(challenge_id=challenge.id, type=flag["type"], content=flag["content"], data=flag["data"]))
+        old = flag_rows(challenge)
+        for index, flag in enumerate(data["flags"]):
+            if index < len(old):
+                if (old[index].type, old[index].content, old[index].data or "") != (flag["type"], flag["content"], flag["data"] or ""):
+                    Flags.query.filter_by(id=old[index].id).update(flag, synchronize_session=False)
+            else:
+                db.session.add(Flags(challenge_id=challenge.id, type=flag["type"], content=flag["content"], data=flag["data"]))
+        if len(old) > len(data["flags"]):
+            Flags.query.filter(Flags.id.in_([row.id for row in old[len(data["flags"]):]])).delete(synchronize_session=False)
     if "hints" in data:
         for hid in removed:
             db.session.delete(existing[hid])
@@ -441,12 +461,14 @@ def clear_room(slug):
 @room_manager
 def workspace(slug):
     room, e = room_by_slug(slug), event()
-    reason = topology_reason(room, e)
-    deletion_blocker = unknown_deletion_reason() if reason is None else None
+    from . import maintenance
+    reason = maintenance.append_reason(room, e)
+    revision = maintenance.room_revision(room)
+    deletion_blocker = unknown_deletion_reason() if topology_reason(room, e) is None else None
     unmapped = QuestChallengeSource.query.filter(QuestChallengeSource.room_id == room.id,
         ~QuestChallengeSource.challenge_id.in_(db.session.query(QuestStep.challenge_id))).order_by(QuestChallengeSource.challenge_id).all()
-    return success({"challenges": [editable(room, member_challenge(room, s.challenge_id), e, deletion_blocker=deletion_blocker) for s in room_steps(room)],
-                    "unmapped_catalog": [editable(room, challenge, e, mapped=False, deletion_blocker=deletion_blocker) for source in unmapped
+    return success({"revision": revision, "challenges": [editable(room, member_challenge(room, s.challenge_id), e, deletion_blocker=deletion_blocker, revision=revision) for s in room_steps(room)],
+                    "unmapped_catalog": [editable(room, challenge, e, mapped=False, deletion_blocker=deletion_blocker, revision=revision) for source in unmapped
                                          if (challenge := Challenges.query.get(source.challenge_id)) is not None],
                     "can_create": reason is None, "create_reason": reason})
 
@@ -454,41 +476,85 @@ def workspace(slug):
 @authoring_api.route("/manage/rooms/<slug>/challenges", methods=["POST"])
 @room_manager
 def create_challenge(slug):
-    data = checked_payload(body(), create=True)
+    from . import maintenance
+    payload = dict(body())
+    confirmation = payload.pop("maintenance", None)
+    data = checked_payload(payload, create=True)
     e = locked_event()
     room = room_by_slug(slug)
-    reason = topology_reason(room, e)
+    before_revision = maintenance.room_revision(room)
+    maintenance.check_revision(e, before_revision)
+    reason = maintenance.append_reason(room, e)
     if reason:
         fail(reason, 409)
-    ids = [s.challenge_id for s in room_steps(room)]
+    reviewed = maintenance.confirmation(room, None, data, e, confirmation)
     challenge = Challenges(name=data["name"], description=data["description"],
                            state=data["state"], type="standard", logic="any", value=100,
                            category=room.name)
     db.session.add(challenge)
     db.session.flush()
     apply_fields(challenge, data, room)
-    set_challenge_order(room, ids + [challenge.id])
-    audit("challenge.create", {"room_slug": slug, "challenge_id": challenge.id})
+    from .room_topology import append_challenge
+    append_challenge(room, challenge, e)
+    if reviewed:
+        db.session.flush()
+        reviewed.update(before_revision=before_revision, after_revision=maintenance.room_revision(room))
+    audit("challenge.create", {"room_slug": slug, "challenge_id": challenge.id, **({"maintenance": reviewed} if reviewed else {})})
     db.session.commit()
     clear_challenges()
+    clear_standings()
     return success(editable(room, challenge, e))
 
 
 @authoring_api.route("/manage/rooms/<slug>/challenges/<int:challenge_id>", methods=["PATCH"])
 @room_manager
 def update_challenge(slug, challenge_id):
-    data = checked_payload(body())
+    from . import maintenance
+    payload = dict(body())
+    confirmation = payload.pop("maintenance", None)
+    data = checked_payload(payload)
     e = locked_event()
     room = room_by_slug(slug)
     challenge = member_challenge(room, challenge_id)
-    reason = mutation_reason(room, challenge, e, allow_native_flags=True)
+    before_revision = maintenance.room_revision(room)
+    maintenance.check_revision(e, before_revision)
+    reason = mutation_reason(room, challenge, e, allow_native_flags=True, live=True)
     if reason:
         fail(reason, 409)
-    apply_fields(challenge, data, room)
-    audit("challenge.update", {"room_slug": slug, "challenge_id": challenge.id, "fields": sorted(data)})
+    validate_fields(challenge, data, room, live=e.status in maintenance.ACTIVE)
+    reviewed = maintenance.confirmation(room, challenge, data, e, confirmation)
+    apply_fields(challenge, data, room, live=e.status in maintenance.ACTIVE)
+    if reviewed:
+        db.session.flush()
+        reviewed.update(before_revision=before_revision, after_revision=maintenance.room_revision(room))
+    audit("challenge.update", {"room_slug": slug, "challenge_id": challenge.id, "fields": sorted(data),
+                               **({"maintenance": reviewed} if reviewed else {})})
     db.session.commit()
     clear_challenges()
+    clear_standings()
     return success(editable(room, challenge, e))
+
+
+@authoring_api.route("/manage/rooms/<slug>/challenges/review", methods=["POST"])
+@authoring_api.route("/manage/rooms/<slug>/challenges/<int:challenge_id>/review", methods=["POST"])
+@room_manager
+def review_challenge(slug, challenge_id=None):
+    from . import maintenance
+    payload = body()
+    if set(payload) != {"changes", "revision"} or not isinstance(payload["changes"], dict):
+        fail("Review requires changes and the saved content revision")
+    changes = checked_payload(payload["changes"], create=challenge_id is None)
+    e = locked_event()
+    room = room_by_slug(slug)
+    maintenance.check_revision(e, maintenance.room_revision(room), payload["revision"])
+    challenge = member_challenge(room, challenge_id) if challenge_id is not None else None
+    reason = (mutation_reason(room, challenge, e, allow_native_flags=True, live=True) if challenge
+              else maintenance.append_reason(room, e))
+    if reason:
+        fail(reason, 409)
+    if challenge:
+        validate_fields(challenge, changes, room, live=e.status in maintenance.ACTIVE)
+    return success(maintenance.review(room, challenge, changes, e))
 
 
 @authoring_api.route("/manage/rooms/<slug>/challenges/<int:challenge_id>", methods=["DELETE"])

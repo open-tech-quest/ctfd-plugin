@@ -64,9 +64,10 @@ uses the identity-bound Quest action. See
 ## Room and challenge authoring
 
 Room managers can rename presentation, add custom rooms and remove unused rooms.
-Slugs stay stable; deletion unmaps challenges but preserves native content and
-refuses starts, activity or referenced history. Topology/order changes are draft
-only. Theme edits cannot change IDs, starts or submissions.
+Slugs stay stable; room deletion unmaps challenges but preserves native content
+and refuses starts, activity or referenced history. Existing path reordering and
+unmapping remain draft/history protected. Live/paused creation can append new
+challenges or add rooms. Theme edits cannot change IDs, starts or submissions.
 
 The room editor creates standard challenges with static, any-flag grading and a
 default value of 100, editable as a nonnegative whole number. It supports
@@ -75,17 +76,19 @@ case-sensitive or explicitly case-insensitive flags. Accepted answers are readab
 in the authorized editor. Each challenge can have multiple native CTFd hints,
 with an optional title, Markdown text and nonnegative point cost; zero means free.
 Saving preserves existing hint IDs and prerequisites. Referenced or purchased
-hints cannot be removed. Advanced flags remain read-only in the simple editor;
+hints cannot be removed. Historical purchase costs stay fixed even when staff
+review a new price for future purchases. Advanced flags remain read-only in the simple editor;
 the bounded [automation API](automation.md) also preserves native static/regex
 flags and supports metadata, solutions and owned assets. Unsupported custom
 challenge/flag/hint behavior and advanced settings/prerequisites remain native
 administrator work. The editor never silently normalizes them. Editing preserves
 native files and unchanged values; omitted hints are preserved by the API.
 
-New authoring requires draft status, no relevant activity and no loaded demo.
-Every challenge ID must belong to the requested room. Reordering updates Quest
-steps, native Requirements, next links and positions atomically. Deleting a
-challenge also rejects dependencies from outside the room. Preview checks native
+Authoring requires a supported event phase and no loaded demo. Every existing
+challenge ID must belong to the requested room. Reordering updates Quest steps,
+native Requirements, next links and positions atomically; live/paused additions
+only append to an eligible unfinished room. Deleting a challenge remains draft
+and history protected and rejects dependencies from outside the room. Preview checks native
 flag comparison without recording attempts, progress or clock starts. Saved flags
 are confined to authorized editor responses, not overview/bootstrap/audit output.
 
@@ -95,7 +98,7 @@ uses `/manage/rooms/<slug>/challenges`. See
 [`authoring.py`](../plugin/open_tech_quest/authoring.py) and
 [`room_topology.py`](../plugin/open_tech_quest/room_topology.py) for current bounds
 and activity guards. Native editing remains subject to competition protections;
-room-editor authoring is not a live-event editing workflow.
+live maintenance uses the same reviewed Quest workflow for both staff roles.
 
 For scripts, the [automation guide](automation.md) maps these endpoints and native
 CTFd permissions, including access-token and session/CSRF authentication. Stable
@@ -104,6 +107,36 @@ explicit, eligible reattachment. Atomic room clearing preflights every mapped
 challenge and external dependency before deletion. Asset deletion removes owned
 metadata, never another file owner's bytes; provider cleanup remains an operator
 task. Maintainers do not gain global native authoring permissions.
+
+### Live maintenance
+
+Administrators and Maintainers can edit supported challenges during **Live** and
+**Paused**. Pausing remains a manual organizer decision. Text, connection details
+and URLs save with a current content revision. Changes to points, answers,
+visibility, attempt limits or hint availability/prices show a competitive-impact
+review and require a reason. Preview counts describe review time; ongoing solves
+continue, and application rechecks/recomputes the impact under the event lock.
+
+- New challenge values apply to eligible existing and future solves. Solve and
+  attempt records/timestamps remain; answers are not retroactively regraded.
+- Hint text can change and hints can be added. Old purchase costs/IDs remain;
+  new prices affect future purchases. An open stale purchase quote is rejected.
+- **Withdraw** sets Hidden: everyone skips the step and its solve credit/points
+  and associated hint costs stop counting. Raw history remains. Locked instead
+  blocks the path and retains credit. Re-enabling is another reviewed change.
+  Neither operation automatically compensates time spent on a broken task.
+- Additions append only and retain the original room clock; elapsed time is not
+  restarted or compensated. Use a new room for a separate start. Once any eligible
+  team has completed the room, its completed path cannot be extended.
+- Closed/published content is read-only. Use the event's explicit reopen or
+  unpublish/review workflow first. Deletion/unmapping keeps its stricter rules.
+
+If saved content changes during review, retain your draft, reload the saved
+version and review again. A separate organizer pause is useful for coordinated
+repairs but is never applied automatically. Keep secret answers out of reasons.
+For older content or a mismatching backup, use the
+[recovery decision guide](deployment.md#recover-a-changed-event); copying content
+and restoring an entire event have different effects on current progress.
 
 ### Removing challenges
 

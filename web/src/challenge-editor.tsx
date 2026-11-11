@@ -1,19 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, request } from "./api";
 import { deleteChallenge, deletionFailure } from "./challenge-deletion";
+import { reviewChallengeWrite, saveChallengeWrite } from "./challenge-write";
 import { useResource } from "./hooks";
 import type {
   ChallengeWorkspace,
   EditableChallenge,
   EditableFlag,
+  QuestEvent,
   Room,
 } from "./types";
 import { ConfirmDialog, Empty, Markdown, Notice } from "./ui";
 import { DescriptionEditor } from "./description-editor";
+import {
+  MaintenanceConfirmation,
+  type MaintenanceApproval,
+  type MaintenanceReview,
+} from "./maintenance";
 interface Draft {
   name: string;
   value: number | "";
   description: string;
+  connection_info: string;
   state: EditableChallenge["state"];
   flags: EditableFlag[];
   hints: {
@@ -29,6 +37,7 @@ function draftOf(challenge?: EditableChallenge): Draft {
     name: challenge?.name || "",
     value: challenge?.value ?? 100,
     description: challenge?.description || "",
+    connection_info: challenge?.connection_info || "",
     state: challenge?.state || "hidden",
     flags: challenge?.flags.map((flag) => ({ ...flag })) || [
       { content: "", case_insensitive: false },
@@ -40,9 +49,16 @@ function draftOf(challenge?: EditableChallenge): Draft {
       })) || [],
   };
 }
+function payloadOf(draft: Draft) {
+  return {
+    ...draft,
+    hints: draft.hints.map(({ prerequisites: _, ...hint }) => hint),
+  };
+}
 
 export function ChallengeEditor({
   room,
+  eventStatus,
   orderDirty,
   roomBusy,
   onDeleting,
@@ -50,6 +66,7 @@ export function ChallengeEditor({
   onDirty,
 }: {
   room: Room;
+  eventStatus: QuestEvent["status"];
   orderDirty: boolean;
   roomBusy: boolean;
   onDeleting: (busy: boolean) => void;
@@ -89,17 +106,19 @@ export function ChallengeEditor({
     typeof selected === "number"
       ? workspace.challenges.find((item) => item.id === selected)
       : undefined;
-  async function save(draft: Draft) {
+  async function save(draft: Draft, approval?: MaintenanceApproval) {
     setBusy(true);
     setError("");
     try {
-      const result = await request<EditableChallenge>(
-        `/manage/rooms/${room.slug}/challenges${selected === "new" ? "" : `/${selected}`}`,
-        selected === "new" ? "POST" : "PATCH",
+      const result = await saveChallengeWrite(
+        request,
         {
-          ...draft,
-          hints: draft.hints.map(({ prerequisites: _, ...hint }) => hint),
+          room: room.slug,
+          id: challenge?.id,
+          revision: challenge?.revision ?? workspace?.revision,
         },
+        payloadOf(draft),
+        approval,
       );
       setDirty(false);
       await Promise.all([resource.refresh(), onChanged()]);
@@ -125,10 +144,16 @@ export function ChallengeEditor({
         </div>
         <button
           className="button secondary"
-          disabled={busy || !workspace.can_create}
+          disabled={
+            busy ||
+            !["draft", "live", "paused"].includes(eventStatus) ||
+            !workspace.can_create
+          }
           onClick={() => select("new")}
         >
-          New challenge
+          {eventStatus === "live" || eventStatus === "paused"
+            ? "Append challenge"
+            : "New challenge"}
         </button>
       </div>
       {!workspace.can_create && workspace.create_reason && (
@@ -170,6 +195,7 @@ export function ChallengeEditor({
             <ChallengeForm
               key={selected}
               challenge={challenge}
+              eventStatus={eventStatus}
               canCreate={workspace.can_create}
               createReason={workspace.create_reason}
               busy={busy}
@@ -178,6 +204,17 @@ export function ChallengeEditor({
               onRefresh={() => resource.refresh()}
               onDirty={setDirty}
               onSave={save}
+              onReview={(draft) =>
+                reviewChallengeWrite(
+                  request,
+                  {
+                    room: room.slug,
+                    id: challenge?.id,
+                    revision: challenge?.revision ?? workspace.revision,
+                  },
+                  payloadOf(draft),
+                )
+              }
               onCancel={() => select(null)}
               onDelete={async () => {
                 if (!challenge) return;
@@ -234,6 +271,7 @@ export function ChallengeEditor({
 }
 function ChallengeForm({
   challenge,
+  eventStatus,
   canCreate,
   createReason,
   busy,
@@ -242,11 +280,13 @@ function ChallengeForm({
   onRefresh,
   onDirty,
   onSave,
+  onReview,
   onCancel,
   onDelete,
   previewPath,
 }: {
   challenge?: EditableChallenge;
+  eventStatus: QuestEvent["status"];
   canCreate: boolean;
   createReason: string | null;
   busy: boolean;
@@ -254,7 +294,11 @@ function ChallengeForm({
   roomBusy: boolean;
   onRefresh: () => Promise<void>;
   onDirty: (dirty: boolean) => void;
-  onSave: (draft: Draft) => Promise<EditableChallenge>;
+  onSave: (
+    draft: Draft,
+    approval?: MaintenanceApproval,
+  ) => Promise<EditableChallenge>;
+  onReview: (draft: Draft) => Promise<MaintenanceReview>;
   onCancel: () => void;
   onDelete: () => Promise<void>;
   previewPath: string | null;
@@ -265,6 +309,14 @@ function ChallengeForm({
     [checking, setChecking] = useState(false),
     [deleteOpen, setDeleteOpen] = useState(false),
     [deleteError, setDeleteError] = useState(""),
+    [reviewing, setReviewing] = useState(false),
+    [saveError, setSaveError] = useState(""),
+    [maintenance, setMaintenance] = useState<{
+      review: MaintenanceReview;
+      draft: Draft;
+      withdrawing: boolean;
+      preservedDraft?: Draft;
+    } | null>(null),
     [feedback, setFeedback] = useState<{
       good: boolean;
       message: string;
@@ -284,8 +336,14 @@ function ChallengeForm({
       setRemote(false);
     } else setRemote(incoming !== baseline.current);
   }, [incoming]);
-  const editable = challenge ? challenge.can_edit : canCreate;
-  const reason = challenge ? challenge.edit_reason : createReason;
+  const phaseEditable = ["draft", "live", "paused"].includes(eventStatus);
+  const editable =
+    phaseEditable && (challenge ? challenge.can_edit : canCreate);
+  const reason = !phaseEditable
+    ? "This event is read-only. Ask an administrator to unpublish results if needed and reopen the event before maintenance."
+    : challenge
+      ? challenge.edit_reason
+      : createReason;
   useEffect(() => {
     if (dirty) setFeedback(null);
   }, [dirty]);
@@ -326,6 +384,45 @@ function ChallengeForm({
     setRemote(false);
     setFeedback(null);
   }
+  async function applySave(
+    nextDraft: Draft,
+    approval?: MaintenanceApproval,
+    preservedDraft?: Draft,
+  ) {
+    const saved = await onSave(nextDraft, approval);
+    const next = draftOf(saved);
+    const retained = preservedDraft
+      ? { ...preservedDraft, state: next.state }
+      : next;
+    baseline.current = JSON.stringify(next);
+    setDraft(retained);
+    setRemote(false);
+    onDirty(JSON.stringify(retained) !== JSON.stringify(next));
+  }
+  async function prepareSave(nextDraft: Draft, withdrawing = false) {
+    setSaveError("");
+    setReviewing(true);
+    const preservedDraft = withdrawing && dirty ? draft : undefined;
+    try {
+      if (eventStatus === "live" || eventStatus === "paused") {
+        const review = await onReview(nextDraft);
+        if (review.requires_confirmation) {
+          setMaintenance({
+            review,
+            draft: nextDraft,
+            withdrawing,
+            preservedDraft,
+          });
+          return;
+        }
+      }
+      await applySave(nextDraft, undefined, preservedDraft);
+    } catch (error) {
+      setSaveError((error as Error).message);
+    } finally {
+      setReviewing(false);
+    }
+  }
   return (
     <div className="challenge-edit-form">
       <div className="section-heading">
@@ -344,23 +441,24 @@ function ChallengeForm({
           </button>
         </Notice>
       )}
+      {(eventStatus === "live" || eventStatus === "paused") && (
+        <Notice>
+          Content fixes can be saved during play. Changes to answers, points,
+          visibility or hint prices require an impact review and reason.
+          Existing solves remain recorded; point changes reprice their credit,
+          while previously purchased hints keep their original charges.
+        </Notice>
+      )}
+      {saveError && <Notice tone="error">{saveError}</Notice>}
       <form
         onSubmit={async (event) => {
           event.preventDefault();
-          if (!editable || !valid || busy || remote) return;
-          try {
-            const saved = await onSave(draft);
-            const next = draftOf(saved);
-            baseline.current = JSON.stringify(next);
-            setDraft(next);
-            setRemote(false);
-            onDirty(false);
-          } catch {
-            /* The workspace displays the server error without exposing answers. */
-          }
+          if (!editable || !valid || busy || reviewing || remote || maintenance)
+            return;
+          await prepareSave(draft);
         }}
       >
-        <fieldset disabled={!editable || busy}>
+        <fieldset disabled={!editable || busy || reviewing || !!maintenance}>
           <label className="field">
             <span>Challenge name</span>
             <input
@@ -402,6 +500,17 @@ function ChallengeForm({
             onChange={(description) => setDraft({ ...draft, description })}
           />
           <label className="field">
+            <span>Connection details / URL (optional)</span>
+            <textarea
+              rows={2}
+              maxLength={10000}
+              value={draft.connection_info}
+              onChange={(event) =>
+                setDraft({ ...draft, connection_info: event.target.value })
+              }
+            />
+          </label>
+          <label className="field">
             <span>Visibility</span>
             <select
               aria-describedby="challenge-visibility-help"
@@ -417,13 +526,14 @@ function ChallengeForm({
               <option value="visible">
                 Visible when its room step is available
               </option>
-              <option value="locked">Locked until published as visible</option>
+              <option value="locked">Locked — remains in the path</option>
             </select>
           </label>
           <p className="meta" id="challenge-visibility-help">
-            Hidden challenges are left out of participant paths and progress.
-            Locked challenges stay in the path; unsolved ones block later steps
-            until made visible. Staff can preview either state.
+            Hidden withdraws the challenge from paths, solve credit and hint
+            costs without deleting history. Locked keeps the step and its
+            credit; unsolved locked steps block later challenges until made
+            visible. Staff can browse either state.
           </p>
           <div className="section-heading">
             <h3>Accepted answers</h3>
@@ -521,6 +631,9 @@ function ChallengeForm({
             Each hint has its own text and cost. A team pays once, using its
             overall points. The cost also reduces its score in this room. Set a
             cost of 0 for a free hint.
+            {eventStatus === "live" || eventStatus === "paused"
+              ? " Price changes affect future purchases only; previous receipts keep their original cost. Purchased hints cannot be removed."
+              : ""}
           </p>
           {draft.hints.length ? (
             draft.hints.map((hint, index) => {
@@ -654,13 +767,77 @@ function ChallengeForm({
           <button
             className="button"
             disabled={
-              busy || !editable || !valid || (!!challenge && !dirty) || remote
+              busy ||
+              reviewing ||
+              !!maintenance ||
+              !editable ||
+              !valid ||
+              (!!challenge && !dirty) ||
+              remote
             }
           >
             Save challenge
           </button>
         </div>
       </form>
+      {challenge &&
+        editable &&
+        (eventStatus === "live" || eventStatus === "paused") &&
+        challenge.state !== "hidden" && (
+          <section className="challenge-deletion">
+            <h3>Withdraw a broken challenge</h3>
+            <p>
+              Hidden withdraws this step from every team's path and removes its
+              solve credit and hint costs from current results. The original
+              solves and purchases remain recorded. Locked keeps the step and
+              its credit in the path and can block later challenges.
+            </p>
+            <button
+              type="button"
+              className="button secondary"
+              disabled={busy || reviewing || !!maintenance || remote}
+              onClick={() =>
+                void prepareSave(
+                  { ...draftOf(challenge), state: "hidden" },
+                  true,
+                )
+              }
+            >
+              Review withdrawal
+            </button>
+          </section>
+        )}
+      {maintenance && (
+        <MaintenanceConfirmation
+          review={maintenance.review}
+          label={
+            maintenance.withdrawing
+              ? "Withdraw challenge"
+              : challenge
+                ? "Save competitive changes"
+                : "Append challenge"
+          }
+          description={
+            maintenance.withdrawing
+              ? "Hide this challenge for all teams, withdrawing its current credit and hint costs without deleting history. Other unsaved edits remain in this editor."
+              : "Apply these changes to the running event. Review their effect on teams and keep a reason in the audit."
+          }
+          stale={remote || !phaseEditable}
+          onClose={() => setMaintenance(null)}
+          onConfirm={async (approval) => {
+            try {
+              await applySave(
+                maintenance.draft,
+                approval,
+                maintenance.preservedDraft,
+              );
+            } catch (error) {
+              setSaveError((error as Error).message);
+              throw error;
+            }
+          }}
+        />
+      )}
       {challenge && (
         <section className="challenge-deletion" aria-label="Delete challenge">
           <h3>Delete challenge</h3>

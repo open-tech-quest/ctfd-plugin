@@ -78,7 +78,7 @@ class AuthoringIntegration(unittest.TestCase):
             self.assertNotIn("fixture-answer", client.get(PREFIX + "/bootstrap").get_data(as_text=True))
         overview = self.maintainer.get(PREFIX + "/manage/rooms")
         self.assertEqual(overview.status_code, 200)
-        self.assertEqual(set(overview.json["data"]), {"event", "rooms", "available_challenges"})
+        self.assertEqual(set(overview.json["data"]), {"event", "rooms", "available_challenges", "revision"})
         for private in ("fixture-answer", "alice@example", "maintainer@example", '"audit"', '"participants"', '"teams"'):
             self.assertNotIn(private, overview.get_data(as_text=True))
 

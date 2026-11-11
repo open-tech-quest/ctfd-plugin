@@ -50,6 +50,7 @@ export interface Progress extends Score {
   status: "not_started" | "active" | "complete";
 }
 export interface Room {
+  revision?: string;
   can_delete?: boolean;
   delete_reason?: string | null;
   can_configure_topology?: boolean;
@@ -270,6 +271,7 @@ export interface ManagedUser {
   role_change_reason: string | null;
 }
 export interface ManagedRooms {
+  revision?: string;
   event: QuestEvent;
   rooms: Room[];
   available_challenges: AdminState["available_challenges"];
@@ -290,6 +292,8 @@ export interface EditableChallenge {
   name: string;
   value: number;
   description: string;
+  connection_info?: string;
+  revision?: string;
   state: "hidden" | "visible" | "locked";
   type: string;
   source_key?: string | null;
@@ -301,6 +305,7 @@ export interface EditableChallenge {
   delete_reason: string | null;
 }
 export interface ChallengeWorkspace {
+  revision?: string;
   challenges: EditableChallenge[];
   can_create: boolean;
   create_reason: string | null;

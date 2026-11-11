@@ -16,6 +16,7 @@ schemas into feature documents.
 | Roles, account safety and recovery | [`roles.py`](../plugin/open_tech_quest/roles.py), [`lifecycle.py`](../plugin/open_tech_quest/lifecycle.py), [`recovery.py`](../plugin/open_tech_quest/recovery.py) |
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
 | Owned native assets and automation contract | [`assets.py`](../plugin/open_tech_quest/assets.py), [automation guide](automation.md) |
+| Live content review and revision guards | [`maintenance.py`](../plugin/open_tech_quest/maintenance.py), [maintenance policy](administration.md#live-maintenance) |
 | Staff room preview | [`preview.py`](../plugin/open_tech_quest/preview.py), [Preview guide](preview.md) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
 | Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
@@ -81,7 +82,10 @@ clearing/restarting readers.
 Challenge values and immutable hint receipts feed the same batched projection
 as solves. `scoring.py` handles event hint purchases through the guarded native
 unlock route, using fresh Quest net balance and native unlock/award records.
-Progressive reveal uses native hint IDs/unlocks, without new persistence. Native
+New mapped hint purchases carry `X-Quest-Hint-Quote` from the authorized metadata
+GET. Cost/content revisions are rechecked under the event lock; existing unlocks
+remain idempotent and historical costs immutable. Progressive reveal uses native
+hint IDs/unlocks, without new persistence. Native
 hint reads and purchases enforce earlier redemptions; challenge-detail responses
 keep unredeemed hint bodies out of JSON and embedded native view HTML, including
 after event end. The shared UI and tab-local preview use the same visible order.

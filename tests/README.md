@@ -53,6 +53,14 @@ browsing as Admin and Maintainer, hidden/locked content, scoped files and pure
 flag checks. Staff actions must preserve all domain data; ordinary participant
 access and native Maintainer restrictions remain enforced.
 
+Live maintenance checks cover both roles, current content revisions, review-bound
+competitive changes, unchanged event pause state, prior/future point values,
+immutable hint receipts and stale quotes, withdrawal/reinstatement, append-only
+creation and completed-room refusal. Existing/native/token paths must obey the
+same policy. Content recovery rejects a stale backup revision and preserves current
+solves, attempts and purchases when selected old content is deliberately reapplied.
+Browser checks use actual native login/CSRF, retained drafts and mobile dialogs.
+
 Deletion checks use actual native login and CSRF validation, including the JSON
 body/header required by session DELETE. They exercise mapped path rebuilding,
 owned native metadata, unknown foreign-key blockers, malformed native prerequisites

@@ -14,6 +14,7 @@ import {
 import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
 import { ParticipantOnboarding } from "./onboarding";
 import { useParticipantMode } from "./participant-mode";
+import { purchaseQuotedHint } from "./hint-purchase";
 import { hintProgression, redeemedHintIds } from "./hint-progression";
 import {
   participantPlaceholderContext,
@@ -522,6 +523,7 @@ export function RoomPage({
               placeholders={bodyPlaceholders}
               roomName={room.name}
               progressRevision={data.revisions.progress}
+              contentRevision={data.revisions.content}
               usedHintCosts={room.progress.used_hint_costs}
               onHintPurchased={async () => {
                 await Promise.all([resource.refresh(), onRefresh()]);
@@ -552,6 +554,7 @@ function ChallengePanel({
   onHintPurchased,
   roomName,
   progressRevision,
+  contentRevision,
   usedHintCosts = {},
   placeholders,
 }: {
@@ -561,6 +564,7 @@ function ChallengePanel({
   score: Score;
   roomName: string;
   progressRevision: string;
+  contentRevision: string;
   usedHintCosts: Record<number, number>;
   placeholders: PlaceholderContext;
   onHintPurchased: () => Promise<void>;
@@ -586,6 +590,7 @@ function ChallengePanel({
       | (Challenge["hints"][number] & {
           number: number;
           origin: HTMLButtonElement;
+          quote_revision?: string;
         })
       | null
     >(null);
@@ -619,13 +624,22 @@ function ChallengePanel({
     )
       hintFocusTarget()?.focus({ preventScroll: true });
   }, [hints, content.data, hintBusy, usedHintCosts]);
-  const previousRevision = useRef(progressRevision);
+  const previousRevision = useRef({
+    progress: progressRevision,
+    content: contentRevision,
+  });
   useEffect(() => {
-    if (previousRevision.current !== progressRevision) {
-      previousRevision.current = progressRevision;
+    if (
+      previousRevision.current.progress !== progressRevision ||
+      previousRevision.current.content !== contentRevision
+    ) {
+      previousRevision.current = {
+        progress: progressRevision,
+        content: contentRevision,
+      };
       void content.refresh();
     }
-  }, [progressRevision]);
+  }, [progressRevision, contentRevision]);
   useEffect(() => {
     if (
       pendingHint &&
@@ -645,9 +659,11 @@ function ChallengePanel({
     setHintBusy(hint.id);
     setHintError("");
     try {
-      const result = await mode.request<{ content?: string; cost: number }>(
-        `/api/v1/hints/${hint.id}${preview ? "?preview=true" : ""}`,
-      );
+      const result = await mode.request<{
+        content?: string;
+        cost: number;
+        quote_revision?: string;
+      }>(`/api/v1/hints/${hint.id}${preview ? "?preview=true" : ""}`);
       if (typeof result.content === "string") {
         revealOrigin.current = origin;
         setHints((previous) => ({ ...previous, [hint.id]: result.content! }));
@@ -659,7 +675,13 @@ function ChallengePanel({
           "Your team’s redeemed hint could not be loaded. Refresh before trying again.",
         );
       } else {
-        setPendingHint({ ...hint, cost: result.cost, number, origin });
+        setPendingHint({
+          ...hint,
+          cost: result.cost,
+          quote_revision: result.quote_revision,
+          number,
+          origin,
+        });
       }
     } catch (error) {
       setHintError((error as Error).message);
@@ -674,10 +696,7 @@ function ChallengePanel({
     try {
       let result: { content?: string } | undefined;
       try {
-        await mode.request("/api/v1/unlocks", "POST", {
-          target: hint.id,
-          type: "hints",
-        });
+        await purchaseQuotedHint(mode.request, hint, mode.preview);
       } catch (error) {
         // A teammate may have purchased it, or the acknowledgement was lost.
         // Read the durable unlock; never retry the purchase POST automatically.

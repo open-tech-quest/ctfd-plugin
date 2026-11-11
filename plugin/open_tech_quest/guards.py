@@ -155,6 +155,10 @@ def install_guards(app):
         match = re.fullmatch(r"/api/v1/challenges/(\d+)", path)
         if administrator:
             if write:
+                from .maintenance import protect_native_content
+                rejection = protect_native_content(path, data, event())
+                if rejection is not None:
+                    return rejection
                 from .scoring import protect_native_score_write
                 rejection = protect_native_score_write(path, data)
                 if rejection is not None:
@@ -378,6 +382,13 @@ def install_guards(app):
         hint_read = re.fullmatch(r"/api/v1/hints/\d+/?", request.path)
         if request.method == "GET" and (detail or hint_read):
             response.headers["Cache-Control"] = "private, no-store"
+        if request.method == "GET" and hint_read and response.status_code == 200 and response.is_json:
+            payload = response.get_json()
+            hint = Hints.query.get(int(request.path.rstrip("/").rsplit("/", 1)[-1]))
+            if hint and payload.get("success") and isinstance(payload.get("data"), dict):
+                from .scoring import hint_quote
+                payload["data"]["quote_revision"] = hint_quote(hint)
+                response.set_data(__import__("json").dumps(payload))
         if request.method == "GET" and detail and response.status_code == 200 and response.is_json:
             user = get_current_user()
             from .roles import is_maintainer

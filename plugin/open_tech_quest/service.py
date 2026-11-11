@@ -149,9 +149,9 @@ class Projection:
     No participant credentials or raw submitted flags are selected. Reuse one
     instance throughout a response so every view uses the same input history.
     """
-    def __init__(self, e=None, team_id=None, challenge_id=None):
+    def __init__(self, e=None, team_id=None, challenge_id=None, challenge_overrides=None, at=None):
         self.event = e or event()
-        self.at = now()
+        self.at = at or now()
         generation = read_cache.versions(team_id) if read_cache.read_request() else {}
         metadata = read_cache.cached("metadata", "rooms", [generation.get("content")], _metadata_inputs)
         self.rooms = [SimpleNamespace(**row) for row in metadata["rooms"]]
@@ -161,7 +161,8 @@ class Projection:
             step = SimpleNamespace(**row)
             self.steps.setdefault(step.room_id, []).append(step)
             self.mapped[step.challenge_id] = step.room_id
-        self.challenges = {row["id"]: SimpleNamespace(**row) for row in metadata["challenges"]}
+        self.challenges = {row["id"]: SimpleNamespace(**{**row, **(challenge_overrides or {}).get(row["id"], {})})
+                           for row in metadata["challenges"]}
         self.participant_steps = {
             room_id: [s for s in steps if s.challenge_id in self.challenges
                       and self.challenges[s.challenge_id].state != "hidden"]
@@ -169,7 +170,7 @@ class Projection:
         counted_ids = [s.challenge_id for steps in self.participant_steps.values() for s in steps]
         history_tokens = [generation.get(k) for k in ("event", "content", "roster", "history")]
         history_tokens.append(generation.get("progress" if team_id is None else "team"))
-        history = read_cache.cached("history", [team_id, challenge_id], history_tokens,
+        history = read_cache.cached("history", [team_id, challenge_id, challenge_overrides] if challenge_overrides else [team_id, challenge_id], history_tokens,
                                    lambda: _history_inputs(self.mapped, counted_ids, team_id, challenge_id))
         self.starts = {(tid, rid): parse_time(at) for tid, rid, at in history["starts"]}
         self.pauses = [(parse_time(left), parse_time(right)) for left, right in history["pauses"]]

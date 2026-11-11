@@ -78,6 +78,8 @@ def prepare_attempt(user, challenge, e, solved):
                         "team_id": user.team_id, "challenge_id": challenge.id,
                         "room_id": QuestStep.query.filter_by(challenge_id=challenge.id).one().room_id,
                         "original_solve_id": original.id}
+    from .maintenance import grading_revision
+    g.quest_recovery["grading_revision"] = grading_revision(challenge)
     return None
 
 
@@ -134,6 +136,10 @@ def _complete(response):
         db.session.rollback()
         return rejection
     e, user, team, challenge, original, at = checked
+    from .maintenance import grading_revision
+    if pending["grading_revision"] != grading_revision(challenge):
+        db.session.rollback()
+        return _result("incorrect", "Challenge answers or attempt limits changed. Refresh and submit again.", 409, False)
     status, message = grade
     native = get_chal_class(challenge.type)
     if status == "correct":

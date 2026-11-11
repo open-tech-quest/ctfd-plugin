@@ -44,6 +44,12 @@ Keep operator access, snapshots and deployment commands out of public guidance.
   running clocks for preview. Keep preview guidance in its blue banner; preserve
   role checks, changed-content notices and cleanup on leaving/reloading. See
   `docs/preview.md`.
+- Live/paused challenge maintenance uses current content revisions and explicit
+  impact/reason confirmation for competitive changes. Pausing is always manual.
+  Preserve native solves/attempts/timestamps and immutable purchase receipts;
+  bind new hint purchases to their displayed quote. Additions are append-only
+  and cannot extend completed rooms. Native/token paths must not bypass these
+  rules; closed/published content stays read-only. See `docs/administration.md`.
 - Maintainer automation uses explicit source keys and owned native content/assets;
   never adopt by name or widen native admin permissions. Preserve unmapped keys,
   preflight reattachment/whole-room cleanup, and keep asset byte cleanup separate

@@ -32,10 +32,42 @@ not an image release. Check HTTP status and the `{success,data}` envelope, then
 read room/challenge capability and reason fields before changing anything.
 
 Writes recheck current role, signed session/password and banned status after the
-event lock; challenge/asset writes also recheck token validity there. Authoring,
-ordering and cleanup require **draft**, no relevant activity and no loaded demo.
-Never change phase or delete history to force a sync. Users, teams, lifecycle
-and resets remain admin-only.
+event lock; challenge/asset writes also recheck token validity there. Draft
+ordering/cleanup retain activity and demo protections. Live/paused challenge
+maintenance requires current revisions and reviewed competitive changes; it never
+requires or applies a pause. Never change phase or delete history to force a sync.
+Users, teams, lifecycle and resets remain admin-only.
+
+## Live maintenance
+
+Read the current workspace `revision` before a live/paused write and send it as
+`X-Quest-Content-Revision`. Draft callers retain the existing payload contract.
+Safe text/connection updates save with that revision. To review a competitive
+change, POST `{changes, revision}` to
+`/manage/rooms/<slug>/challenges/<id>/review`; for an append use the collection's
+`/manage/rooms/<slug>/challenges/review` route. The response contains a bound
+review `revision`, competitive field names, point-in-time impact and warnings,
+without secret answer values.
+
+After deliberate confirmation, send the same changes with
+`maintenance:{revision:<review revision>,reason:<3–1000 characters>,confirm:true}`
+on the existing PATCH/POST route, plus the saved content revision header. Changed
+content/round/phase/authority requires a new review; ongoing ordinary submissions do
+not invalidate every confirmation. Apply recomputes current impact under lock.
+Never retry a competitive write blindly after an uncertain response.
+
+New room creation uses the management catalog revision; room presentation uses
+the room revision. Live/paused challenge creation appends only, and is refused
+once any eligible team has completed that room. Existing path reorder/unmap,
+room deletion, bulk cleanup and asset upload/replacement/deletion retain their
+draft/history restrictions. Closed/published content is read-only; reopening or
+unpublishing is an explicit administrator action. Pausing is never implicit.
+
+For participant clients, fetch the next hint through authorized native
+`GET /api/v1/hints/<id>` and send its `quote_revision` as `X-Quest-Hint-Quote`
+when POSTing `{target:<id>,type:"hints"}` to `/api/v1/unlocks`. A changed quote
+requires reopening confirmation, not silently paying a different price. Existing
+team redemptions remain idempotent and retain their historical cost.
 
 ## Endpoints and fields
 
@@ -145,7 +177,7 @@ metadata transactionally; bytes remain for **operator garbage collection**,
 unreachable through the deleted native file record. This API does not reclaim
 storage. Archives retain metadata, not bytes.
 
-Staff can preview managed native links while draft. Participants still need the
+Staff can preview managed native links with their normal room-management access. Participants still need the
 released event, room start, challenge visibility and effective prerequisites.
 Hidden solutions stay hidden; `solved` solution files require an eligible team
 solve, and managed solution files also require the native team solution unlock.

@@ -17,9 +17,10 @@ The event moves through `draft → live ↔ paused → closed → published`.
   and no generated participants, challenges, starts or solves.
 - Native team mode is required. Existing individual solves block automatic
   conversion because changing their ownership would change history.
-- Draft is for room topology, challenge ordering, timing policy and roster setup.
-  Presentation fields can change independently. Native writes cannot bypass
-  the same history and lifecycle restrictions.
+- Draft supports initial topology, timing policy and roster setup. Live/paused
+  events support reviewed challenge maintenance and append-only additions.
+  Pausing is always the organizer's manual decision, never a maintenance gate.
+  Native and automation writes cannot bypass the same content/history protections.
 - Start requires finalized attended teams, capture closed, at least one mapped
   challenge and no loaded demo. A future scheduled start prevents early opening;
   the organizer must still start the event explicitly.
@@ -76,8 +77,12 @@ challenge says **No hints available**. Native prerequisite rules still apply.
 A prerequisite on a later hint conflicts with this order and requires organizer
 review; authored requirements and purchase history are never rewritten.
 
-Staff edit multiple native hints per supported challenge, including text and cost,
-before activity starts. Existing IDs and native prerequisites survive saves.
+Staff edit multiple native hints per supported challenge, including text and cost.
+Live/paused price changes require reviewed confirmation; past receipt costs stay
+fixed and new prices apply only to future purchases. Existing IDs and native
+prerequisites survive saves; purchased hints cannot be deleted. New purchases
+require the displayed quote's current cost/content revision, checked after locking;
+a stale quote must be reopened rather than silently charged at a new price.
 Participants confirm each new reveal with its cost and current overall balance;
 paid purchases cannot make that balance negative. A free hint is available at
 zero points. Staff journey starts at zero and derives local points from solved
@@ -87,11 +92,25 @@ browsing is separate and does not collect progress or points. Journey guidance
 stays in its blue banner; player labels are reused and clocks remain stopped.
 See [staff browsing and journey](preview.md).
 
-The room editor supports fixed point values, including zero. Scoring and hint
-prices are frozen after competition activity; supported native dynamic scoring
-retains CTFd's automatic value changes. New publication snapshots include point
-breakdowns and a scoring version. Existing published count-based snapshots keep
-their original rankings until an explicit reasoned unpublish/review/republish.
+The room editor supports fixed point values, including zero. Reviewed live/paused
+point changes apply uniformly to all eligible prior and future solves, preserving
+original solve times. Accepted-answer changes affect future attempts; old solves
+and failures are not regraded automatically. Supported native dynamic scoring
+retains CTFd's automatic value changes. Published snapshots keep their original
+rankings until an explicit reasoned unpublish/review/republish.
+
+Live review is stateless and bound to saved content, proposed changes, event round/phase
+and actor identity. Competitive changes require an impact preview and reason.
+Ordinary ongoing progress does not invalidate every review: apply rechecks safety
+under the event lock, recomputes the impact and records a safe audit summary.
+Content conflicts preserve the staff draft for a new review. Secret flag values never enter
+review responses or audit details.
+
+New challenges may be appended during live/paused play, without changing existing
+steps. A room already completed by any eligible team cannot be extended; staff can
+create another room instead. Existing starts, receipts and competition history
+remain intact. Closed/published content is read-only until explicitly reopened or
+unpublished. Ordinary deletion/unmapping retains its draft/history protections.
 
 Room timing defaults to explicit room start; common event origin is configurable.
 Overall timing defaults to common event start; team-first-room origin is an

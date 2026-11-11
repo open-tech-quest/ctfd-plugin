@@ -255,9 +255,9 @@ class PointsIntegration(unittest.TestCase):
         self.buy()
         self.solve(self.alice, 2)
         self.assertEqual(self.rows()[self.team_id]["points"], 350)
-        self.assertEqual(self.post(self.admin, "/api/v1/challenges/2", {"state": "hidden"}, "PATCH").status_code, 200)
+        self.assertEqual(integration.reviewed_change(self, self.admin, integration.PREFIX + "/manage/rooms/openshift/challenges/2", {"state": "hidden"}).status_code, 200)
         self.assertEqual(self.rows()[self.team_id]["points"], 100)
-        self.post(self.admin, "/api/v1/challenges/2", {"state": "visible"}, "PATCH")
+        integration.reviewed_change(self, self.admin, integration.PREFIX + "/manage/rooms/openshift/challenges/2", {"state": "visible"})
         self.action("close")
         self.action("publish")
         before = self.guest.get(integration.PREFIX + "/standings").json["data"]

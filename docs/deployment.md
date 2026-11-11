@@ -163,6 +163,37 @@ Allow startup time for CTFd migrations. On OpenShift, configure an SCC/service
 account that permits the image's non-root UID and writable storage; do not assume
 the namespace's default UID range includes 1001.
 
+## Recover a changed event
+
+A backup represents its capture time. Different content or software in the live
+instance is expected; choose the recovery scope before replacing anything.
+
+| Problem | Recovery action |
+|---|---|
+| Wrong instructions, answers, points or hints | Extract the old backup privately and copy selected content through the current editor. Review current impact and retain current native IDs, solves, attempts and purchase receipts. |
+| A withdrawn challenge should return | Review visibility on the existing challenge. This restores retained eligibility, not an older content version or elapsed time. |
+| An unused challenge was deleted | Recreate eligible content through supported authoring/catalog tooling. Do not force old IDs into current tables; recreating content does not reconstruct lost history. |
+| An attachment is missing | Recover verified bytes only after checking that the current file record, ownership and intended asset match. Preserve newer files at reused paths. |
+| A release is broken but event data is healthy | Qualify a compatible image rollback against the current schema/data. Changing the image does not roll back a migration. |
+| Database corruption, accidental reset or lost deployment | Test a complete snapshot in isolation, then explicitly restore/cut over the whole database, uploads and configuration together. Everything after that recovery point is lost. |
+| Backup images/schema or target identity differ | Restore first with the snapshot's recorded images in isolation, qualify the intended upgrade/target, and reconcile deployment pins before cutover. Never merge old SQL into a newer live database. |
+
+Content recovery is an ordinary reviewed edit, not an automatic backup merge.
+Compare the selected fields with the current challenge and ownership, rather
+than trusting only a name or numeric ID. Preserve purchased hint IDs and original
+costs. If another edit changed the current revision, refresh/review again. Secret
+flags and file bytes require a real backup or their maintained source; the
+[event JSON archive](archives.md) intentionally cannot restore them.
+
+A full restore requires a fresh safety backup of the current target, verified
+snapshot checksums, matching database/upload/configuration material and stopped
+writers/traffic. Clear dedicated cache/session state, require fresh login and
+verify data, files and application behavior before reopening. A rollback also
+restores the snapshot's accounts, roles and credential state; review later
+revocations before cutover. Recreate cluster/PVC/access identities on replacement
+infrastructure rather than copying old identities or tokens. Pausing ordinary
+maintenance remains manual; a full restore cannot run over active writers.
+
 ## Upgrades and existing deployments
 
 Back up SQL and uploads, retain the previous image reference, and test the next
