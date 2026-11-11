@@ -137,16 +137,52 @@ class ProgressiveHintsIntegration(unittest.TestCase):
         self.assertEqual(self.buy(hint_id=1).status_code, 200)
 
     def test_concurrent_teammates_share_redemption_and_cannot_skip_an_unfunded_hint(self):
+        def confirm(client, hid, metadata):
+            headers = {"CSRF-Token": "quest-test-csrf"}
+            quote = (metadata.json.get("data") or {}).get("quote_revision")
+            if quote:
+                headers["X-Quest-Hint-Quote"] = quote
+            return client.post("/api/v1/unlocks", json={"type": "hints", "target": hid}, headers=headers)
         def purchase(pair):
             uid, hid = pair
-            return self.buy(self.client(uid), hid)
+            client = self.client(uid)
+            return confirm(client, hid, self.hint(hid, client))
         with ThreadPoolExecutor(max_workers=2) as pool:
             same = list(pool.map(purchase, [(2, 1), (3, 1)]))
         self.assertEqual([r.status_code for r in same], [200, 200])
+        denied_read, earlier_committed = threading.Event(), threading.Event()
+        def next_purchase(pair):
+            uid, hid = pair
+            client = self.client(uid)
+            metadata = self.hint(hid, client)
+            if hid == 20:
+                denied_read.set()
+                if not earlier_committed.wait(5):
+                    raise RuntimeError("Earlier hint purchase did not complete")
+                return metadata, confirm(client, hid, metadata)
+            if not denied_read.wait(5):
+                raise RuntimeError("Future hint metadata was not checked")
+            try:
+                return metadata, confirm(client, hid, metadata)
+            finally:
+                earlier_committed.set()
         with ThreadPoolExecutor(max_workers=2) as pool:
-            next_pair = list(pool.map(purchase, [(2, 10), (3, 20)]))
-        self.assertEqual(next_pair[0].status_code, 200)
-        self.assertIn(next_pair[1].status_code, (400, 403))
+            next_pair = list(pool.map(next_purchase, [(2, 10), (3, 20)]))
+        self.assertEqual(next_pair[0][1].status_code, 200)
+        metadata, unconfirmed = next_pair[1]
+        self.assertEqual(metadata.status_code, 403)
+        self.assertIn("earlier", metadata.json["error"])
+        self.assertNotIn("quote_revision", metadata.json.get("data") or {})
+        self.assertEqual(unconfirmed.status_code, 409)
+        self.assertIn("confirmation is missing", unconfirmed.json["error"])
+        # Once progression permits a fresh confirmation, the authoritative
+        # balance still refuses an 80-point hint with only 70 points left.
+        metadata = self.hint(20)
+        self.assertEqual(metadata.status_code, 200)
+        unfunded = confirm(self.alice, 20, metadata)
+        self.assertEqual(unfunded.status_code, 400)
+        self.assertIn("has 70 points", unfunded.json["error"])
+        self.assertIn("costs 80", unfunded.json["error"])
         history = self.history()
         self.assertEqual([r[1] for r in history["unlocks"]], [1, 10])
         self.assertEqual(len(history["receipts"]), 2)
