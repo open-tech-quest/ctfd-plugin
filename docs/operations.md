@@ -129,6 +129,14 @@ Use **Submission history** for protected original and recovery records.
 - Use Quest **Pause/Resume** for interruptions; recorded intervals are excluded.
   Players cannot pause their clocks. Keep membership, room order and prize policy
   fixed; native destructive writes are guarded too.
+- For a room-specific lab incident, an administrator can **Pause room** in room
+  management and supply a reason visible to participants and the projector.
+  **Resume room** also records a reason. The room stops new starts, answers and
+  hint purchases for all teams; other rooms continue. Previously revealed content
+  and hint receipts remain available. Only its room timing is compensated;
+  overall time keeps running. Overlapping event/room pauses count once. Resuming
+  the whole event does not resume a room incident; resume that room separately.
+  External labs and the configured closing cutoff do not stop automatically.
 - **Hidden** withdraws a step from paths and unpublished awards without deleting
   history. Restoring visibility restores eligible original solves. **Locked**
   retains the step and prior credit but blocks content/submissions. Configure

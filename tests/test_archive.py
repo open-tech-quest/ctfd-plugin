@@ -16,7 +16,7 @@ from CTFd.plugins.open_tech_quest.archive import (canonical_json, collect_event,
                                                 make_document, source_fingerprint)
 from CTFd.plugins.open_tech_quest.models import (QuestAudit, QuestCorrection,
     QuestDemoBatch, QuestDemoChallenge, QuestEvent, QuestExclusion,
-    QuestMaintainer, QuestPause, QuestStart)
+    QuestMaintainer, QuestPause, QuestRoomPause, QuestStart)
 from CTFd.plugins.open_tech_quest.service import event, standings
 import test_integration as integration
 
@@ -128,6 +128,8 @@ class ArchiveIntegration(unittest.TestCase):
                 Solves(user_id=2, team_id=self.team_id, challenge_id=1, date=at + timedelta(seconds=8),
                        provided="private-right-answer", ip="192.0.2.124"),
                 QuestPause(started_at=at + timedelta(seconds=10), ended_at=at + timedelta(seconds=15)),
+                QuestRoomPause(room_id=start.room_id, started_at=at + timedelta(seconds=11),
+                               ended_at=at + timedelta(seconds=16), reason="Repair OpenShift lab"),
                 QuestCorrection(team_id=self.team_id, room_id=start.room_id, adjustment_ms=-250,
                                 reason="Clock reviewed", created_at=at + timedelta(seconds=20)),
                 QuestExclusion(team_id=self.other_id, reason="Not competing"),
@@ -140,10 +142,12 @@ class ArchiveIntegration(unittest.TestCase):
         self.assertEqual([row["credited"] for row in data["attempts"]], [False, True])
         self.assertEqual(data["corrections"][0]["adjustment_ms"], -250)
         self.assertEqual(data["exclusions"][0]["reason"], "Not competing")
+        self.assertEqual(data["room_pauses"][0]["reason"], "Repair OpenShift lab")
+        self.assertTrue(data["room_pauses"][0]["started_at"].endswith(".123456Z"))
         dates = [entry["at"] for entry in data["timeline"]]
         self.assertEqual(dates, sorted(dates))
         types = {entry["type"] for entry in data["timeline"]}
-        self.assertTrue({"attempt", "event.pause", "event.resume", "room.start", "ranking.correct"} <= types)
+        self.assertTrue({"attempt", "event.pause", "event.resume", "room.pause", "room.resume", "room.start", "ranking.correct"} <= types)
         self.assertEqual(len({entry["id"] for entry in data["timeline"]}), len(data["timeline"]))
         for secret in ("private-wrong-answer", "private-right-answer", "192.0.2."):
             self.assertNotIn(secret, canonical_json(data))

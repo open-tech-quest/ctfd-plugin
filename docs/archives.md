@@ -63,12 +63,15 @@ archive UUID, UTC export time, plugin/CTFd producer versions, source provenance,
 The data includes event clocks/settings; authoritative standings and any saved
 published snapshot; named accounts/roles and teams; attendance/naming; ordered
 rooms, mapped and unmapped native challenges, points, hints and solutions;
-attempt metadata and recovery links; starts/pauses; immutable hint receipts and
+attempt metadata and recovery links; starts and event/room pauses; immutable hint receipts and
 native unlocks/awards; corrections/exclusions; ratings, authored notes/custom
 fields, tags/topics, notifications, demo ownership and safe audit metadata.
 Timestamps preserve microseconds where available. Results retain the saved
 publication and its scoring version; `scoring_credits` and attempt `credited`
 describe the current projection at export, not a replacement for that snapshot.
+New reports include optional `room_pauses` with room identity, UTC intervals,
+reason and whether event close ended the interval. The viewer continues to accept
+version 1 reports saved before room pauses were introduced.
 
 Native email/authentication fields, passwords, API tokens, flag-value and
 submitted-answer fields, and IP/tracking records are excluded. Attachments have metadata only,

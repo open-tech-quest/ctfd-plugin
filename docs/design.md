@@ -30,6 +30,11 @@ The event moves through `draft → live ↔ paused → closed → published`.
 - Pauses are timestamped intervals, not merely a current boolean. Closing records
   the cutoff and closes attendance. Unpublish and reopen require a reason;
   reopening enters paused state and accounts for the closed interval as a pause.
+- An administrator may also pause one room for all teams, with a public reason.
+  New room starts, attempts and hint purchases stop there; saved content, solves,
+  paid receipts and other rooms remain available under their ordinary guards.
+  Event-wide pause always takes precedence. Event resume preserves unresolved
+  room pauses, including incidents retained through close/reopen.
 - Publishing records a standings snapshot. Later database changes must not
   silently change announced results.
 - A separate, explicit reset in draft, closed or published state first archives
@@ -116,6 +121,12 @@ Room timing defaults to explicit room start; common event origin is configurable
 Overall timing defaults to common event start; team-first-room origin is an
 explicit alternative. Never sum overlapping room durations. Store UTC with
 microsecond precision, use server timestamps and subtract recorded pauses.
+Room clocks subtract the union of event and that room's pause intervals, counting
+overlaps once. Overall timing subtracts event pauses only: teams can continue
+working in other rooms during a room incident. Neither kind of pause implicitly
+extends a configured closing cutoff. Already-completed room times stay fixed
+when an incident starts later. Pause/resume writes require fresh saved-state and
+round-bound revisions, reasoned administrator authority and the event lock.
 Only eligible solves within the configured cutoff count. Corrections are
 reasoned, audited room-time adjustments, bounded cumulatively to ±24 hours and
 clamped at zero elapsed time; they never rewrite native solve dates or overall
