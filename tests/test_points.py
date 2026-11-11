@@ -148,12 +148,27 @@ class PointsIntegration(unittest.TestCase):
         self.assertEqual([r.status_code for r in responses], [200, 200])
         with self.app.app_context():
             self.assertEqual(QuestHintPurchase.query.count(), 1)
-            db.session.add(Hints(id=3, challenge_id=3, content="Third", cost=40))
+            self.assertEqual(HintUnlocks.query.count(), 1)
+            self.assertEqual(Awards.query.count(), 1)
+            # Both contenders must be next in their own challenge. Two hints
+            # in one challenge would race progression rather than the balance.
+            db.session.add(Hints(id=3, challenge_id=2, content="Third", cost=40))
             Hints.query.get(2).cost = 40
             db.session.commit()
         with ThreadPoolExecutor(max_workers=2) as pool:
             responses = list(pool.map(lambda item: self.buy(self.client(item[0]), item[1]), [(2, 2), (3, 3)]))
         self.assertEqual(sorted(r.status_code for r in responses), [200, 400])
+        winner = next(hid for hid, response in zip((2, 3), responses) if response.status_code == 200)
+        loser = next(response for response in responses if response.status_code == 400)
+        self.assertEqual(loser.json["error"], "Your team has 10 points; this hint costs 40")
+        with self.app.app_context():
+            purchases = QuestHintPurchase.query.order_by(QuestHintPurchase.hint_id).all()
+            self.assertEqual([(p.hint_id, p.cost) for p in purchases], [(1, 50), (winner, 40)])
+            self.assertEqual({u.target for u in HintUnlocks.query.all()}, {1, winner})
+            self.assertEqual(HintUnlocks.query.count(), 2)
+            self.assertEqual(sorted(a.value for a in Awards.query.all()), [-50, -40])
+            self.assertEqual({p.unlock_id for p in purchases}, {u.id for u in HintUnlocks.query.all()})
+            self.assertEqual({p.award_id for p in purchases}, {a.id for a in Awards.query.all()})
         self.assertEqual(self.rows()[self.team_id]["points"], 10)
 
     def test_hint_cost_breaks_room_progress_ties_before_time(self):
