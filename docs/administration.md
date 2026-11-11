@@ -138,6 +138,28 @@ For older content or a mismatching backup, use the
 [recovery decision guide](deployment.md#recover-a-changed-event); copying content
 and restoring an entire event have different effects on current progress.
 
+### Room incidents
+
+Administrators can pause/resume a room in Live or Paused state. Maintainers keep
+their authoring permissions; only administrators control competition pauses.
+The required reason is public, so never put credentials or challenge answers in
+it. A saved-state revision prevents an old browser tab or queued request from
+changing a newer incident or another round. Refresh after conflicts or an
+unconfirmed response before trying again.
+
+A room pause covers every team. It blocks new starts, native/token attempts,
+recovery solves and new hint purchases for that room. Existing content and
+redeemed hints remain subject to normal access checks. Room elapsed/ranking time
+subtracts the union of local and global interruptions; overall time follows
+global pauses only. Starts, native solve timestamps, points and immutable hint
+receipts are retained. Other rooms continue during a local pause.
+
+Global resume does not clear local incidents. Close ends open intervals at the
+cutoff; reopen retains the unresolved room incident, and its separately resumed
+event still leaves that room paused. Published results remain immutable. Event
+archives retain the intervals and reasoned audit history; a deliberate new round
+clears current pause state after archiving it.
+
 ### Removing challenges
 
 **Unmap** in the room order keeps the native challenge and its content for reuse.

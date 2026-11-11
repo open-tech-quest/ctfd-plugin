@@ -343,8 +343,18 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(exported.status_code, 200)
         self.assertIn("active_elapsed_ms", exported.get_data(as_text=True))
         self.assertNotIn("alice@example", exported.get_data(as_text=True))
-        public = self.guest.get(PREFIX + "/standings").get_data(as_text=True)
-        self.assertNotIn("reason", public)
+        room = next(r for r in self.admin.get(PREFIX + "/manage/rooms").json["data"]["rooms"] if r["slug"] == "openshift")
+        paused = self.post(self.admin, PREFIX + "/admin/rooms/openshift/pause", {
+            "action": "pause", "reason": "Room lab network maintenance", "revision": room["pause"]["revision"]})
+        self.assertEqual(paused.status_code, 200, paused.get_data(as_text=True))
+        response = self.guest.get(PREFIX + "/standings")
+        public = response.get_data(as_text=True)
+        # Room incident explanations are deliberately public; private scoring
+        # corrections and exclusion notes must still never leave the organizer.
+        self.assertNotIn(payload["reason"], public)
+        self.assertNotIn("Staff team", public)
+        self.assertIn("Room lab network maintenance", public)
+        self.assertNotIn("corrections", response.json["data"])
         self.assertNotIn("email", public)
         self.assertNotIn("provided", public)
 

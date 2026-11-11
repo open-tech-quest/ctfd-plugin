@@ -12,6 +12,7 @@ schemas into feature documents.
 | Plugin initialization, migrations and native hooks | [`__init__.py`](../plugin/open_tech_quest/__init__.py), [`migrations/`](../plugin/open_tech_quest/migrations), [`schema.py`](../plugin/open_tech_quest/schema.py) |
 | Quest API and response serialization | [`api.py`](../plugin/open_tech_quest/api.py) |
 | Projection, timing and rankings | [`service.py`](../plugin/open_tech_quest/service.py), [`ranking.py`](../plugin/open_tech_quest/ranking.py) |
+| Room pause state and revision fencing | [`room_pauses.py`](../plugin/open_tech_quest/room_pauses.py) |
 | Registration, attendance and grouping | [`registration.py`](../plugin/open_tech_quest/registration.py), [`onboarding.py`](../plugin/open_tech_quest/onboarding.py), [`onboarding_math.py`](../plugin/open_tech_quest/onboarding_math.py) |
 | Roles, account safety and recovery | [`roles.py`](../plugin/open_tech_quest/roles.py), [`lifecycle.py`](../plugin/open_tech_quest/lifecycle.py), [`recovery.py`](../plugin/open_tech_quest/recovery.py) |
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
@@ -43,6 +44,15 @@ phase, membership and cutoff checks happen after lock waits, not only before the
 Native operations can close/commit sessions; recovery must reacquire the lock and
 validate again. See [rosters](rosters.md) and [administration](administration.md)
 for the constraints that must survive changes.
+
+Migration `0012_room_pauses` adds timestamped per-room incident history without
+changing prior rows. SQLite applies the equivalent additive table upgrade.
+Pause writes use the event lock and a revision bound to phase, incident history
+and the current round. Projection loads local/global intervals in the same batched
+history query; room timing merges their union while overall timing uses global
+intervals only. New history invalidates both content/status and progress reads.
+Reports export optional `room_pauses`; intentional round resets archive and clear
+them, and room topology guards preserve their history.
 
 ## Reads and browser state
 

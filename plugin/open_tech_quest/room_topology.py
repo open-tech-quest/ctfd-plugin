@@ -2,7 +2,7 @@
 from sqlalchemy import or_
 from CTFd.models import Challenges, Hints, Ratings, Solutions, Submissions, Unlocks, db
 from . import demo
-from .models import QuestCorrection, QuestStart, QuestStep, QuestChallengeSource
+from .models import QuestCorrection, QuestStart, QuestStep, QuestChallengeSource, QuestRoomPause
 from .service import event, room_steps
 
 
@@ -63,6 +63,8 @@ def activity_reason(room, challenge_ids=None):
         return "This room has recorded starts. Its challenge content and order are locked."
     if QuestCorrection.query.filter_by(room_id=room.id).first():
         return "This room has recorded corrections. Its challenge content and order are locked."
+    if QuestRoomPause.query.filter_by(room_id=room.id).first():
+        return "This room has recorded pauses. Preserve its history until another round."
     ids = list(challenge_ids) if challenge_ids is not None else [s.challenge_id for s in room_steps(room)]
     if not ids:
         return None

@@ -277,6 +277,25 @@ function validateDocument(
     "timeline",
   ])
     validateRecordArray(data, key);
+  if (data.room_pauses !== undefined) {
+    const ids = new Set<number>();
+    for (const row of validateRecordArray(data, "room_pauses")) {
+      integer(row.id, "room pause identifier");
+      integer(row.room_id, "paused room identifier");
+      if (ids.has(row.id as number))
+        invalid("The archive contains duplicate room pause identifiers.");
+      ids.add(row.id as number);
+      if (
+        !utcArchiveTime(row.started_at) ||
+        (row.ended_at !== null && !utcArchiveTime(row.ended_at)) ||
+        typeof row.reason !== "string" ||
+        row.reason.length > 1000 ||
+        (typeof row.ended_at === "string" &&
+          timelineKey(row.ended_at) < timelineKey(row.started_at as string))
+      )
+        invalid("The archive room pause history is invalid.");
+    }
+  }
   for (const key of ["participants", "teams", "rooms", "challenges", "hints"]) {
     const seen = new Set<number>();
     for (const row of validateRecordArray(data, key)) {

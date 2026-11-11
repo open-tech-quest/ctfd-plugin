@@ -98,6 +98,9 @@ def _fresh_attempt(pending):
     at = now()
     if e.status == "paused":
         return None, _result("paused", "The event is paused. Your answer was not submitted.", 409, False)
+    from .room_pauses import active
+    if active(pending["room_id"]):
+        return None, _result("room_paused", "This room is paused. Your answer was not submitted.", 409, False)
     if (e.status != "live" or not e.start_at or at < e.start_at or not released(e)
             or not ctftime() or (e.end_at and at > e.end_at)):
         return None, _result("incorrect", "Submissions are accepted only while the event is live", 409, False)

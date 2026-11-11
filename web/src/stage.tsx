@@ -102,6 +102,12 @@ export function Stage({ viewer }: { viewer?: Viewer }) {
           </span>
         </div>
       </header>
+      {view === "room" && room?.pause?.paused && (
+        <div className="stage-room-pause" role="status">
+          <strong>{room.name} paused</strong>
+          {room.pause.reason ? ` · ${room.pause.reason}` : ""}
+        </div>
+      )}
       {(result.error || config.error) && (
         <div className="stage-stale" role="status">
           Connection interrupted · showing saved results

@@ -13,7 +13,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          UserFieldEntries, Users, db)
 from . import archive, projector, registration
 from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestExclusion,
-                     QuestHintPurchase, QuestMaintainer, QuestOnboarding, QuestPause,
+                     QuestHintPurchase, QuestMaintainer, QuestOnboarding, QuestPause, QuestRoomPause,
                      QuestDemoBatch, QuestDemoChallenge, QuestRoom, QuestStep,
                      QuestReadiness, QuestStart, QuestTeamName)
 from .recovery_models import QuestRecoverySolve
@@ -52,13 +52,13 @@ def save_archive(e, source, actor_id, kind='snapshot'):
 # Explicit pinned native/plugin coverage. Dynamically registered plugin models do
 # not silently become supported just because they share SQLAlchemy metadata.
 KNOWN_TABLES = set("awards brackets challenge_topics challenges comments config dynamic_challenge field_entries fields files flags hints notifications pages ratings solutions solves submissions tags teams tokens topics tracking unlocks users quest_events quest_rooms quest_steps quest_starts quest_pauses quest_exclusions quest_corrections quest_audit quest_demo_batches quest_demo_challenges quest_onboarding quest_readiness quest_team_names quest_maintainers quest_read_versions quest_hint_purchases quest_recovery_solves".split())
-KNOWN_TABLES.update({"quest_assets", "quest_challenge_sources"})
+KNOWN_TABLES.update({"quest_assets", "quest_challenge_sources", "quest_room_pauses"})
 
 
 def unsupported_dependents(mode):
     inspector = inspect(db.session.connection())
     parents = {'users', 'teams', 'submissions', 'solves', 'awards', 'unlocks',
-               'quest_starts', 'quest_pauses', 'quest_corrections', 'quest_exclusions',
+               'quest_starts', 'quest_pauses', 'quest_room_pauses', 'quest_corrections', 'quest_exclusions',
                'quest_readiness', 'quest_team_names', 'quest_maintainers',
                'quest_hint_purchases', 'quest_recovery_solves', 'ratings',
                'comments', 'field_entries', 'notifications', 'tokens', 'tracking', 'quest_audit'}
@@ -106,7 +106,7 @@ def reset_preview(e, source=None, mode='new_round', actor_id=None):
         ('teams', Teams), ('accounts', Users), ('challenges', Challenges), ('rooms', QuestRoom),
         ('submissions', Submissions), ('solves', Solves), ('room_starts', QuestStart),
         ('hint_purchases', QuestHintPurchase), ('unlocks', Unlocks), ('awards', Awards),
-        ('attendance', QuestReadiness), ('pauses', QuestPause), ('ratings', Ratings),
+        ('attendance', QuestReadiness), ('pauses', QuestPause), ('room_pauses', QuestRoomPause), ('ratings', Ratings),
         ('corrections', QuestCorrection), ('exclusions', QuestExclusion),
         ('team_notes', TeamComments), ('team_fields', TeamFieldEntries),
         ('notifications', Notifications))}
@@ -161,7 +161,7 @@ def reset_round(e, data, actor_id):
         db.session.execute(model.__table__.delete())
     db.session.execute(Solves.__table__.delete())
     db.session.execute(Submissions.__table__.delete())
-    for model in (Unlocks, Awards, Ratings, QuestStart, QuestPause,
+    for model in (Unlocks, Awards, Ratings, QuestStart, QuestPause, QuestRoomPause,
                   QuestCorrection, QuestExclusion, QuestReadiness, QuestTeamName):
         db.session.execute(model.__table__.delete())
     # These are native single-table subclasses, so filter by their team field;

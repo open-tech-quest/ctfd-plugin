@@ -21,6 +21,7 @@ import {
   type PlaceholderContext,
 } from "./placeholders";
 import { ChallengePath } from "./challenge-path";
+import { roomHintReadable, roomIsPaused, roomPlayEnabled } from "./room-pause";
 export function EventNotice({ data }: { data: Bootstrap }) {
   const mode = useParticipantMode();
   if (mode.preview || mode.inspect) return null;
@@ -167,6 +168,12 @@ export function Lobby({ data }: { data: Bootstrap }) {
                 <Arrow />
               </div>
               <p>{room.subtitle || "Explore the challenges with your team"}</p>
+              {roomIsPaused(room.pause, mode.preview || mode.inspect) && (
+                <p className="room-pause-summary">
+                  <strong>Room paused</strong>
+                  {room.pause?.reason ? ` · ${room.pause.reason}` : ""}
+                </p>
+              )}
               <div className="room-card-progress">
                 <span>
                   {room.progress.total
@@ -320,11 +327,17 @@ export function RoomPage({
   if (mode.preview || mode.inspect)
     bodyPlaceholders["team.points"] = teamScore.points;
   const started = !!room.progress.started_at || preview;
+  const roomPaused = roomIsPaused(room.pause, mode.preview || preview);
+  const playEnabled = roomPlayEnabled(
+    data.event.status,
+    room.pause,
+    mode.preview || preview,
+  );
   const canStart =
     (mode.preview ||
       (data.viewer.role === "participant" &&
         !!data.viewer.team_id &&
-        data.event.status === "live")) &&
+        playEnabled)) &&
     room.startable &&
     room.progress.total > 0 &&
     !mode.stale;
@@ -344,6 +357,19 @@ export function RoomPage({
         ))}
       </nav>
       <EventNotice data={data} />
+      {roomPaused && (
+        <Notice>
+          <strong>{room.name} is paused.</strong> {room.pause?.reason} This
+          room’s clock is stopped. Your progress and redeemed hints stay saved.
+          {data.event.status === "live" && (
+            <>
+              {" "}
+              You can continue in another room; overall event time keeps
+              running.
+            </>
+          )}
+        </Notice>
+      )}
       {resource.error && (
         <Notice tone="error" retry={() => void resource.refresh()}>
           Showing progress saved{" "}
@@ -413,7 +439,7 @@ export function RoomPage({
                       !mode.preview &&
                       !mode.inspect &&
                       room.progress.status === "active" &&
-                      data.event.status === "live"
+                      playEnabled
                     }
                   />
                 </b>
@@ -444,7 +470,7 @@ export function RoomPage({
                 : "This event ranks room time from your team’s room start."}{" "}
               Organizer pauses are excluded.
             </p>
-            {!room.startable && (
+            {!room.startable && !roomPaused && (
               <p role="status">
                 The organizers have not opened this room’s first challenge yet.
                 Your team’s timer will not start until it is available.
@@ -473,11 +499,13 @@ export function RoomPage({
           >
             {starting
               ? "Starting room…"
-              : mode.preview || data.event.status === "live"
-                ? room.startable
-                  ? "Start room"
-                  : "Room not ready"
-                : "Room not open"}
+              : roomPaused
+                ? "Room paused"
+                : mode.preview || data.event.status === "live"
+                  ? room.startable
+                    ? "Start room"
+                    : "Room not ready"
+                  : "Room not open"}
             <Arrow />
           </button>
           {startError && <Notice tone="error">{startError}</Notice>}
@@ -514,9 +542,11 @@ export function RoomPage({
             <ChallengePanel
               key={step.id}
               step={step}
-              enabled={
-                !mode.stale &&
-                (mode.preview || preview || data.event.status === "live")
+              enabled={!mode.stale && playEnabled}
+              unavailableMessage={
+                roomPaused
+                  ? "This room is paused. New answers and hints are available when the organizers resume it."
+                  : "New answers and hints are available while the event is live."
               }
               preview={preview}
               score={teamScore}
@@ -548,6 +578,7 @@ export function RoomPage({
 function ChallengePanel({
   step,
   enabled,
+  unavailableMessage,
   preview,
   onSolved,
   score,
@@ -560,6 +591,7 @@ function ChallengePanel({
 }: {
   step: Step;
   enabled: boolean;
+  unavailableMessage: string;
   preview: boolean;
   score: Score;
   roomName: string;
@@ -691,6 +723,7 @@ function ChallengePanel({
   }
   async function purchaseHint() {
     if (!pendingHint) return;
+    if (!enabled) throw new Error(unavailableMessage);
     const hint = pendingHint;
     setHintBusy(hint.id);
     try {
@@ -722,7 +755,7 @@ function ChallengePanel({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (busy || !answer.trim()) return;
+    if (!enabled || busy || !answer.trim()) return;
     setBusy(true);
     setFeedback(null);
     try {
@@ -867,9 +900,7 @@ function ChallengePanel({
               zero when buying hints.
             </Notice>
           )}
-          {!enabled && (
-            <Notice>Hints can be revealed when the event is live.</Notice>
-          )}
+          {!enabled && <Notice>{unavailableMessage}</Notice>}
         </ConfirmDialog>
       )}
       {challenge && (
@@ -924,9 +955,7 @@ function ChallengePanel({
                   <Arrow />
                 </button>
               </div>
-              {!enabled && (
-                <small>Submissions are available while the event is live</small>
-              )}
+              {!enabled && <small>{unavailableMessage}</small>}
               {challenge.max_attempts ? (
                 <small>
                   {challenge.attempts || 0} of {challenge.max_attempts} attempts
@@ -997,7 +1026,9 @@ function ChallengePanel({
                     <button
                       className="text-button"
                       aria-describedby={`hint-heading-${step.id}-${hint.id} hint-cost-${step.id}-${hint.id}`}
-                      disabled={hintBusy !== null || !enabled}
+                      disabled={
+                        hintBusy !== null || !roomHintReadable(enabled, used)
+                      }
                       data-next-hint={
                         hint.id === progression.nextId ? "" : undefined
                       }

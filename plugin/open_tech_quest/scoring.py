@@ -57,6 +57,11 @@ def purchase_hint(user, hint, e):
     at = now()
     if e.status != "live" or not e.start_at or at < e.start_at or (e.end_at and at > e.end_at):
         return denied("Hints can be purchased only while the event is live", 409)
+    from .models import QuestStep
+    from .room_pauses import active
+    step = QuestStep.query.filter_by(challenge_id=hint.challenge_id).first()
+    if step and active(step.room_id):
+        return denied("This room is paused. New hints can be revealed when organizers resume the room.", 409)
     if get_config("verify_emails") and not user.verified:
         return denied("Verify your email before buying a hint")
     reason = hint_access_reason(user.team_id, hint)

@@ -20,7 +20,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
 from . import read_cache, registration
 from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestDemoBatch, QuestDemoChallenge, QuestExclusion,
                      QuestHintPurchase, QuestMaintainer, QuestOnboarding,
-                     QuestPause, QuestReadiness, QuestRoom, QuestStart,
+                     QuestPause, QuestRoomPause, QuestReadiness, QuestRoom, QuestStart,
                      QuestStep, QuestTeamName)
 from .recovery_models import QuestRecoverySolve
 from .service import Projection, standings
@@ -69,7 +69,7 @@ def _audit_detail(action, raw):
     known = (action.startswith("event.") or action.startswith("demo.") or
              action.startswith("onboarding.") or action in {
                  "attendance.configure", "registration.configure", "room.create", "room.delete",
-                 "room.configure", "team.configure", "teams.allocate", "projector.configure",
+                 "room.configure", "room.pause", "room.resume", "team.configure", "teams.allocate", "projector.configure",
                  "ranking.correct", "user.access", "user.delete", "user.role", "hint.purchase",
                  "challenge.create", "challenge.update", "challenge.delete", "challenge.recover", "challenge.clear", "asset.upload", "asset.delete"})
     if not known:
@@ -131,6 +131,10 @@ def _timeline(data):
     for row in data["pauses"]:
         add("event.pause", row, row["started_at"], "Event paused")
         add("event.resume", row, row["ended_at"], "Event resumed")
+    for row in data.get("room_pauses", []):
+        add("room.pause", row, row["started_at"], "Room paused", room_id=row["room_id"],
+            details={"reason": row["reason"]})
+        add("room.resume", row, row["ended_at"], "Room pause ended", room_id=row["room_id"])
     for key, kind, date, summary in (("readiness", "attendance.ready", "ready_at", "Attendance confirmed"),
                                      ("corrections", "ranking.correct", "created_at", "Room time corrected"),
                                      ("hint_purchases", "hint.purchase", "purchased_at", "Hint purchased"),
@@ -232,6 +236,7 @@ def collect_event(e):
                             for team_id, solves in sorted(view.solves.items()) for challenge_id, at in sorted(solves.items())],
         "starts": [_row(row, "id team_id room_id started_at") for row in QuestStart.query.order_by(QuestStart.started_at, QuestStart.id).all()],
         "pauses": [_row(row, "id started_at ended_at") for row in QuestPause.query.order_by(QuestPause.started_at, QuestPause.id).all()],
+        "room_pauses": [_row(row, "id room_id started_at ended_at reason closed_by_event") for row in QuestRoomPause.query.order_by(QuestRoomPause.started_at, QuestRoomPause.id).all()],
         "corrections": [_row(row, "id team_id room_id adjustment_ms reason created_at") for row in QuestCorrection.query.order_by(QuestCorrection.created_at, QuestCorrection.id).all()],
         "exclusions": [_row(row, "team_id reason") for row in QuestExclusion.query.order_by(QuestExclusion.team_id).all()],
         "hint_purchases": [_row(row, "id team_id challenge_id hint_id unlock_id award_id cost purchased_at") for row in QuestHintPurchase.query.order_by(QuestHintPurchase.purchased_at, QuestHintPurchase.id).all()],

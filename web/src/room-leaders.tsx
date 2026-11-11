@@ -39,6 +39,12 @@ export function RoomLeaders({
             ? "Challenges being prepared"
             : `${completed} ${completed === 1 ? "team has" : "teams have"} completed this room`}
         </p>
+        {room.pause?.paused && (
+          <p className="room-pause-summary">
+            <strong>Room paused</strong>
+            {room.pause.reason ? ` · ${room.pause.reason}` : ""}
+          </p>
+        )}
       </header>
       <p className="leader-caption">
         {data.event.results_published ? "Final standings" : "Current leaders"} ·

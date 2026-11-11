@@ -11,7 +11,7 @@ from CTFd.utils import get_config
 from CTFd.plugins.open_tech_quest import archive, rounds
 from CTFd.plugins.open_tech_quest.models import (QuestAudit, QuestCorrection,
     QuestExclusion, QuestHintPurchase, QuestMaintainer, QuestOnboarding,
-    QuestPause, QuestReadiness, QuestRoom, QuestStart, QuestTeamName)
+    QuestPause, QuestRoomPause, QuestReadiness, QuestRoom, QuestStart, QuestTeamName)
 from CTFd.plugins.open_tech_quest.recovery_models import QuestRecoverySolve
 import test_integration as integration
 
@@ -52,6 +52,23 @@ class RoundIntegration(unittest.TestCase):
         response=self.admin.get(P+'/admin/round/preview')
         self.assertEqual(response.status_code,200,response.get_data(as_text=True))
         return response.json['data']
+
+    def test_room_pause_history_archived_and_cleared_for_both_reset_modes(self):
+        for mode in ('new_round', 'defaults'):
+            with self.subTest(mode=mode):
+                with self.app.app_context():
+                    room = QuestRoom.query.order_by(QuestRoom.id).first()
+                    db.session.add(QuestRoomPause(room_id=room.id, started_at=datetime.utcnow(),
+                                                 ended_at=datetime.utcnow(), reason='Room outage resolved'))
+                    db.session.commit()
+                preview = self.admin.get(P+'/admin/round/preview?mode='+mode).json['data']
+                self.assertEqual(preview['counts']['room_pauses'], 1)
+                response = self.reset(preview)
+                self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+                with self.app.app_context():
+                    self.assertEqual(QuestRoomPause.query.count(), 0)
+                    saved = QuestAudit.query.filter_by(action='event.archive').order_by(QuestAudit.id.desc()).first()
+                    self.assertEqual(saved.detail['document']['data']['room_pauses'][0]['reason'], 'Room outage resolved')
 
     def reset(self, preview=None, **changes):
         preview=preview or self.preview()

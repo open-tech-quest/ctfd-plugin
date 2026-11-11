@@ -72,6 +72,24 @@ function catalog() {
       .concat(challenge(5, "ansible")),
   };
 }
+
+test("staff browsing and local journeys mask any real room incident", () => {
+  const saved = catalog();
+  saved.rooms[0].pause = {
+    paused: true,
+    started_at: "2026-11-12T09:00:00Z",
+    reason: "Real lab outage",
+    revision: "live-state",
+  };
+  const state = createPreviewState(saved);
+  assert.equal(previewRoomView(state.rooms[0]).pause.paused, false);
+  assert.equal(staffBrowseRoomView(saved.rooms[0], saved).pause.paused, false);
+  assert.equal(
+    previewRoomView(startPreviewRoom(state, "openshift").rooms[0]).progress
+      .status,
+    "active",
+  );
+});
 const get = (state, slug = "openshift") =>
   state.rooms.find((r) => r.source.slug === slug);
 function fundedCatalog() {

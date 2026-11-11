@@ -50,6 +50,7 @@ export interface Progress extends Score {
   status: "not_started" | "active" | "complete";
 }
 export interface Room {
+  pause?: RoomPause;
   revision?: string;
   can_delete?: boolean;
   delete_reason?: string | null;
@@ -72,6 +73,12 @@ export interface Room {
   team_score: Score;
   startable: boolean;
 }
+export interface RoomPause {
+  paused: boolean;
+  started_at: string | null;
+  reason: string | null;
+  revision: string;
+}
 export interface RegistrationState {
   enabled: boolean;
 }
@@ -87,6 +94,7 @@ export interface Bootstrap extends QuestSync {
   rooms: Room[];
 }
 export interface RoomProgress extends Partial<Score> {
+  pause?: RoomPause;
   room_id: number;
   solved: number;
   path_solved?: number;
@@ -108,6 +116,7 @@ export interface Standings {
   scoring_version?: number;
   event: QuestEvent;
   rooms: (Pick<Room, "id" | "slug" | "name"> & {
+    pause?: RoomPause;
     total: number;
     available_points?: number;
     steps?: { id: number; value: number }[];
