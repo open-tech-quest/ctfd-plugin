@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ApiError, dateTime, decode, duration, fileUrl, request } from "./api";
+import { ApiError, dateTime, decode, duration, fileUrl } from "./api";
 import type { Bootstrap, Challenge, Room, Step, Score } from "./types";
 import { useResource } from "./hooks";
 import {
@@ -13,8 +13,11 @@ import {
 } from "./ui";
 import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
 import { ParticipantOnboarding } from "./onboarding";
+import { useParticipantMode } from "./participant-mode";
 import { ChallengePath } from "./challenge-path";
 export function EventNotice({ data }: { data: Bootstrap }) {
+  const mode = useParticipantMode();
+  if (mode.preview) return null;
   const { event, viewer } = data;
   return (
     <>
@@ -75,6 +78,7 @@ export function EventNotice({ data }: { data: Bootstrap }) {
   );
 }
 export function Lobby({ data }: { data: Bootstrap }) {
+  const mode = useParticipantMode();
   const solved = data.rooms.reduce((a, r) => a + r.progress.credited_solved, 0),
     total = data.rooms.reduce((a, r) => a + r.progress.total, 0);
   return (
@@ -110,19 +114,22 @@ export function Lobby({ data }: { data: Bootstrap }) {
           </p>
           {data.viewer.team_name && (
             <>
-              <div className="summary-value">
-                {(data.rooms[0]?.team_score.points ?? 0).toLocaleString()}
-                <span> team points</span>
-              </div>
+              {!mode.preview && (
+                <div className="summary-value">
+                  {(data.rooms[0]?.team_score.points ?? 0).toLocaleString()}
+                  <span> team points</span>
+                </div>
+              )}
               <p className="meta">
-                {solved} / {total} challenges solved · Paid hints are deducted
+                {solved} / {total} challenges solved
+                {!mode.preview && " · Paid hints are deducted"}
               </p>
               <ProgressLine solved={solved} total={total} />
             </>
           )}
         </div>
       </section>
-      <ParticipantOnboarding viewer={data.viewer} />
+      {!mode.preview && <ParticipantOnboarding viewer={data.viewer} />}
       <EventNotice data={data} />
       {!!data.rooms.length && (
         <div className="section-heading">
@@ -134,9 +141,15 @@ export function Lobby({ data }: { data: Bootstrap }) {
       )}
       {!data.rooms.length && (
         <div className="empty">
-          <h2>The rooms are being prepared</h2>
+          <h2>
+            {mode.preview
+              ? "No rooms to preview"
+              : "The rooms are being prepared"}
+          </h2>
           <p>
-            The organizers will add the room paths here before the quest begins.
+            {mode.preview
+              ? "Exit Preview and add a room in Organize, then open Preview again."
+              : "The organizers will add the room paths here before the quest begins."}
           </p>
         </div>
       )}
@@ -144,7 +157,7 @@ export function Lobby({ data }: { data: Bootstrap }) {
         {data.rooms.map((room) => (
           <Link
             key={room.id}
-            href={`/quest/rooms/${room.slug}`}
+            href={mode.room(room.slug)}
             className={`room-card room-card-${room.slug}`}
             style={roomThemeStyle(room)}
           >
@@ -170,12 +183,14 @@ export function Lobby({ data }: { data: Bootstrap }) {
                       : "Not started"}
                 </span>
               </div>
-              <div className="room-card-points">
-                <strong>{room.progress.points.toLocaleString()} pts</strong>
-                <span>
-                  {room.progress.available_points.toLocaleString()} available
-                </span>
-              </div>
+              {!mode.preview && (
+                <div className="room-card-points">
+                  <strong>{room.progress.points.toLocaleString()} pts</strong>
+                  <span>
+                    {room.progress.available_points.toLocaleString()} available
+                  </span>
+                </div>
+              )}
               <ProgressLine
                 solved={room.progress.credited_solved}
                 total={room.progress.total}
@@ -188,13 +203,15 @@ export function Lobby({ data }: { data: Bootstrap }) {
         <div className="rules-strip">
           <h3>Before you start</h3>
           <p>
-            Starting a room starts a shared team clock. It keeps running while
-            you explore another room. The next step opens when anyone on your
-            team solves the current challenge.
+            {mode.preview
+              ? "Start a room to walk through its visible challenges. Correct answers move this tab forward. Leaving Preview or refreshing clears your preview steps and revealed hints."
+              : "Starting a room starts a shared team clock. It keeps running while you explore another room. The next step opens when anyone on your team solves the current challenge."}
           </p>
-          <Link href="/quest/standings">
-            How the awards work <Arrow />
-          </Link>
+          {!mode.preview && (
+            <Link href="/quest/standings">
+              How the awards work <Arrow />
+            </Link>
+          )}
         </div>
       )}
     </>
@@ -233,9 +250,12 @@ export function RoomPage({
   data: Bootstrap;
   onRefresh: () => Promise<void>;
 }) {
+  const mode = useParticipantMode();
   const resource = useResource<Room>(
     `/rooms/${encodeURIComponent(slug)}`,
     7000,
+    mode.request,
+    !mode.preview,
   );
   const [starting, setStarting] = useState(false),
     [startError, setStartError] = useState(""),
@@ -290,14 +310,16 @@ export function RoomPage({
         Opening room…
       </div>
     );
-  const preview = data.viewer.admin;
+  const preview = data.viewer.admin && !mode.preview;
   const started = !!room.progress.started_at || preview;
   const canStart =
-    data.viewer.role === "participant" &&
-    !!data.viewer.team_id &&
-    data.event.status === "live" &&
+    (mode.preview ||
+      (data.viewer.role === "participant" &&
+        !!data.viewer.team_id &&
+        data.event.status === "live")) &&
     room.startable &&
-    room.progress.total > 0;
+    room.progress.total > 0 &&
+    !mode.stale;
   return (
     <>
       <nav className="room-tabs" aria-label="Rooms">
@@ -306,7 +328,7 @@ export function RoomPage({
             className={r.slug === slug ? "active" : ""}
             aria-current={r.slug === slug ? "page" : undefined}
             key={r.id}
-            href={`/quest/rooms/${r.slug}`}
+            href={mode.room(r.slug)}
           >
             {r.name}
             {r.progress.status === "complete" && <Check />}
@@ -343,24 +365,29 @@ export function RoomPage({
             />
           </div>
           <div className="room-facts">
-            <span>
-              Room <strong>{room.progress.points.toLocaleString()} pts</strong>
-            </span>
-            <span>
-              Team{" "}
-              <strong>{room.team_score.points.toLocaleString()} pts</strong>
-            </span>
-            <span>
-              Room hints{" "}
-              <strong>
-                {room.progress.hint_costs.toLocaleString()} pts spent
-              </strong>
-            </span>
+            {!mode.preview && (
+              <>
+                <span>
+                  Room{" "}
+                  <strong>{room.progress.points.toLocaleString()} pts</strong>
+                </span>
+                <span>
+                  Team{" "}
+                  <strong>{room.team_score.points.toLocaleString()} pts</strong>
+                </span>
+                <span>
+                  Room hints{" "}
+                  <strong>
+                    {room.progress.hint_costs.toLocaleString()} pts spent
+                  </strong>
+                </span>
+              </>
+            )}
             <strong>{data.viewer.team_name || "Shared team progress"}</strong>
             <span>
               {room.progress.credited_solved} of {room.progress.total} solved
             </span>
-            {started && (
+            {started && !mode.preview && (
               <span>
                 Room time{" "}
                 <b className="numeric">
@@ -380,29 +407,37 @@ export function RoomPage({
         <RoomArt room={room} />
       </section>
       {!room.steps.length ? (
-        <Empty title="The room is taking shape">
-          The organizers are preparing this room’s challenges. Check back when
-          the event opens.
+        <Empty
+          title={
+            mode.preview ? "No visible challenges" : "The room is taking shape"
+          }
+        >
+          {mode.preview
+            ? "Add a challenge or make one visible in Organize, then reload this room’s preview."
+            : "The organizers are preparing this room’s challenges. Check back when the event opens."}
         </Empty>
       ) : !started ? (
         <section className="start-panel">
           <div>
             <h2>Start together, explore your way</h2>
             <p>
-              Starting records one shared start for your team and makes the
-              first challenge available. The clock continues across devices and
-              rooms.
+              {mode.preview
+                ? "Starting opens this room’s first visible challenge for the example team. Checked answers and revealed hints stay only in this tab."
+                : "Starting records one shared start for your team and makes the first challenge available. The clock continues across devices and rooms."}
             </p>
-            <p className="meta">
-              {data.event.room_clock === "event"
-                ? "This event ranks room time from the common event start."
-                : "This event ranks room time from your team’s room start."}{" "}
-              Organizer pauses are excluded.
-            </p>
+            {!mode.preview && (
+              <p className="meta">
+                {data.event.room_clock === "event"
+                  ? "This event ranks room time from the common event start."
+                  : "This event ranks room time from your team’s room start."}{" "}
+                Organizer pauses are excluded.
+              </p>
+            )}
             {!room.startable && (
               <p role="status">
-                The organizers have not opened this room’s first challenge yet.
-                Your team’s timer will not start until it is available.
+                {mode.preview
+                  ? "This room’s first visible challenge is locked or unsupported. Exit Preview to check its saved settings in Organize, then reload this room."
+                  : "The organizers have not opened this room’s first challenge yet. Your team’s timer will not start until it is available."}
               </p>
             )}
           </div>
@@ -413,7 +448,7 @@ export function RoomPage({
               setStarting(true);
               setStartError("");
               try {
-                await request(
+                await mode.request(
                   `/rooms/${encodeURIComponent(slug)}/start`,
                   "POST",
                   {},
@@ -428,7 +463,7 @@ export function RoomPage({
           >
             {starting
               ? "Starting room…"
-              : data.event.status === "live"
+              : mode.preview || data.event.status === "live"
                 ? room.startable
                   ? "Start room"
                   : "Room not ready"
@@ -454,13 +489,19 @@ export function RoomPage({
               <div>
                 <h2>{room.name} complete</h2>
                 <p>
-                  Your team finished every challenge. Milestone time:{" "}
-                  <span className="numeric">
-                    {duration(room.progress.milestone_elapsed_ms)}
-                  </span>
+                  {mode.preview ? (
+                    "You finished this room’s preview. These steps exist only in this tab."
+                  ) : (
+                    <>
+                      Your team finished every challenge. Milestone time:{" "}
+                      <span className="numeric">
+                        {duration(room.progress.milestone_elapsed_ms)}
+                      </span>
+                    </>
+                  )}
                 </p>
               </div>
-              <Link className="button secondary" href="/quest">
+              <Link className="button secondary" href={mode.home}>
                 Choose another room <Arrow />
               </Link>
             </div>
@@ -469,7 +510,10 @@ export function RoomPage({
             <ChallengePanel
               key={step.id}
               step={step}
-              enabled={preview || data.event.status === "live"}
+              enabled={
+                !mode.stale &&
+                (mode.preview || preview || data.event.status === "live")
+              }
               preview={preview}
               score={room.team_score}
               roomName={room.name}
@@ -485,9 +529,16 @@ export function RoomPage({
               }}
             />
           ) : room.progress.status !== "complete" ? (
-            <Empty title="Waiting for your next step">
-              Progress refreshes automatically. Your teammates may be working on
-              the current challenge.
+            <Empty
+              title={
+                mode.preview
+                  ? "Next challenge is blocked"
+                  : "Waiting for your next step"
+              }
+            >
+              {mode.preview
+                ? "The next saved challenge is locked or uses unsupported behavior. Review its settings in Organize, then reload this room’s preview."
+                : "Progress refreshes automatically. Your teammates may be working on the current challenge."}
             </Empty>
           ) : null}
         </>
@@ -516,9 +567,12 @@ function ChallengePanel({
   onHintPurchased: () => Promise<void>;
   onSolved: (message: string) => Promise<void>;
 }) {
+  const mode = useParticipantMode();
   const content = useResource<Challenge>(
     `/api/v1/challenges/${step.id}${preview ? "?preview=true" : ""}`,
     60000,
+    mode.request,
+    !mode.preview,
   );
   const [answer, setAnswer] = useState(""),
     [busy, setBusy] = useState(false),
@@ -555,14 +609,14 @@ function ChallengePanel({
     setHintBusy(hint.id);
     setHintError("");
     try {
-      const result = await request<{ content?: string; cost: number }>(
+      const result = await mode.request<{ content?: string; cost: number }>(
         `/api/v1/hints/${hint.id}${preview ? "?preview=true" : ""}`,
       );
       if (typeof result.content === "string") {
         setHints((previous) => ({ ...previous, [hint.id]: result.content! }));
-        if (!preview) await onHintPurchased();
-      } else if (preview) {
-        throw new Error("This hint is not available in organizer preview.");
+        if (!preview && !mode.preview) await onHintPurchased();
+      } else if (preview || mode.preview) {
+        throw new Error("This hint is not available in preview.");
       } else {
         setPendingHint({ ...hint, cost: result.cost, number });
       }
@@ -579,20 +633,20 @@ function ChallengePanel({
     try {
       let result: { content?: string } | undefined;
       try {
-        await request("/api/v1/unlocks", "POST", {
+        await mode.request("/api/v1/unlocks", "POST", {
           target: hint.id,
           type: "hints",
         });
       } catch (error) {
         // A teammate may have purchased it, or the acknowledgement was lost.
         // Read the durable unlock; never retry the purchase POST automatically.
-        result = await request<{ content?: string }>(
+        result = await mode.request<{ content?: string }>(
           `/api/v1/hints/${hint.id}`,
         );
         if (typeof result.content !== "string") throw error;
       }
       if (typeof result?.content !== "string")
-        result = await request<{ content?: string }>(
+        result = await mode.request<{ content?: string }>(
           `/api/v1/hints/${hint.id}`,
         );
       if (typeof result.content !== "string")
@@ -612,16 +666,18 @@ function ChallengePanel({
     setBusy(true);
     setFeedback(null);
     try {
-      const result = await request<{ status: string; message?: string }>(
+      const result = await mode.request<{ status: string; message?: string }>(
         `/api/v1/challenges/attempt${preview ? "?preview=true" : ""}`,
         "POST",
         { challenge_id: step.id, submission: answer },
       );
       const good = ["correct", "already_solved"].includes(result.status);
       const messages: Record<string, string> = {
-        correct: preview
-          ? "Correct. Preview only; no solve was recorded."
-          : "Correct. Your team’s progress is saved.",
+        correct: mode.preview
+          ? "Correct. This step is complete in this tab."
+          : preview
+            ? "Correct. Preview only; no solve was recorded."
+            : "Correct. Your team’s progress is saved.",
         incorrect: "That answer isn’t correct. Check your work and try again.",
         already_solved:
           "This challenge already counts as solved for your team. Your shared progress is up to date.",
@@ -689,7 +745,7 @@ function ChallengePanel({
         </Notice>
       )}
       {!challenge && !content.error && <p role="status">Loading challenge…</p>}
-      {!preview && (
+      {!preview && !mode.preview && (
         <p className="team-points-balance">
           <strong>Your team: {score.points.toLocaleString()} points</strong>
           <span>
@@ -819,6 +875,12 @@ function ChallengePanel({
           {!!challenge.hints?.length && (
             <section className="hints">
               <h3>Hints</h3>
+              {mode.preview && (
+                <p className="meta">
+                  Configured costs are shown. Revealing hints here is free and
+                  records nothing in the event.
+                </p>
+              )}
               {challenge.hints.map((hint, i) => {
                 const usedCost = usedHintCosts[hint.id];
                 const used = usedCost !== undefined;
@@ -846,11 +908,13 @@ function ChallengePanel({
                     {revealed ? (
                       <>
                         <p className="hint-status">
-                          {preview
-                            ? "Organizer preview"
-                            : used
-                              ? "Used by your team"
-                              : "Revealed"}
+                          {mode.preview
+                            ? "Preview only"
+                            : preview
+                              ? "Organizer preview"
+                              : used
+                                ? "Used by your team"
+                                : "Revealed"}
                         </p>
                         <Markdown
                           source={hints[hint.id] ?? hint.content ?? ""}
@@ -864,7 +928,7 @@ function ChallengePanel({
                       >
                         {hintBusy === hint.id
                           ? "Loading hint…"
-                          : preview
+                          : preview || mode.preview
                             ? `Preview hint ${i + 1}`
                             : `Reveal hint ${i + 1}`}
                         <Arrow />

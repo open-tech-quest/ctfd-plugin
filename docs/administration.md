@@ -15,8 +15,10 @@ never infer authorization from the visible UI.
 | Guest | Public information only |
 
 Maintainers remain native users with a plugin grant. There are no grants on
-startup. Staff are excluded from attendance, allocation, naming, starts, attempts,
-unlocks and prize credit. Banning a maintainer retains its grant so moderation
+startup. Staff are excluded from attendance, allocation, naming, competition
+starts, attempts, unlocks and prize credit. [Room preview](preview.md) lets staff
+test the participant flow with progress held only in browser memory.
+Banning a maintainer retains its grant so moderation
 cannot turn staff into a player. Grants hide staff from native public listings,
 saving the previous hidden value; revocation restores it and invalidates cached
 role/team data.

@@ -10,6 +10,8 @@ import { StandingsPage } from "./standings";
 import { Stage } from "./stage";
 import { Admin } from "./admin";
 import { StaffHome } from "./staff-home";
+import { ParticipantPreview } from "./preview";
+import { isPreviewPath, previewHome, previewSlug } from "./preview-routing";
 import { ParticipantSession } from "./participant-session";
 import "./style.css";
 const branding = "/plugins/open_tech_quest/assets/branding";
@@ -24,6 +26,8 @@ function App() {
   const data = bootstrap.data;
   const staff =
     data?.viewer.role === "maintainer" || data?.viewer.role === "administrator";
+  const participantPreview = isPreviewPath(path);
+  const roomPreviewSlug = previewSlug(path);
   const stage = path.replace(/\/$/, "") === "/quest/stage";
   return (
     <ParticipantSession
@@ -44,7 +48,7 @@ function App() {
           <header className="masthead">
             <div className="masthead-inner">
               <Link
-                href="/quest"
+                href={participantPreview ? previewHome : "/quest"}
                 className="brand"
                 aria-label="Open Tech Quest home"
               >
@@ -54,31 +58,39 @@ function App() {
                 Red Hat Hands-On Day<span>Darmstadt</span>
               </div>
               <nav aria-label="Main navigation">
-                <Link
-                  href="/quest"
-                  className={
-                    path === "/quest" ||
-                    path === "/quest/" ||
-                    path.includes("/rooms/")
-                      ? "active"
-                      : ""
-                  }
-                >
-                  {staff ? "Quest home" : "The rooms"}
-                </Link>
-                <Link
-                  href="/quest/standings"
-                  className={path.includes("standings") ? "active" : ""}
-                >
-                  Progress & standings
-                </Link>
-                {data?.viewer.can_manage_rooms && (
-                  <Link
-                    href="/quest/admin"
-                    className={path.includes("admin") ? "active" : ""}
-                  >
-                    Organize
+                {participantPreview ? (
+                  <Link href={previewHome} className="active">
+                    Preview rooms
                   </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/quest"
+                      className={
+                        path === "/quest" ||
+                        path === "/quest/" ||
+                        path.includes("/rooms/")
+                          ? "active"
+                          : ""
+                      }
+                    >
+                      {staff ? "Quest home" : "The rooms"}
+                    </Link>
+                    <Link
+                      href="/quest/standings"
+                      className={path.includes("standings") ? "active" : ""}
+                    >
+                      Progress & standings
+                    </Link>
+                    {data?.viewer.can_manage_rooms && (
+                      <Link
+                        href="/quest/admin"
+                        className={path.includes("admin") ? "active" : ""}
+                      >
+                        Organize
+                      </Link>
+                    )}
+                  </>
                 )}
               </nav>
               <div className="account-nav">
@@ -118,7 +130,19 @@ function App() {
                     Showing last saved event information. {bootstrap.error}
                   </Notice>
                 )}
-                {path === "/quest" || path === "/quest/" ? (
+                {participantPreview ? (
+                  data.viewer.can_manage_rooms ? (
+                    <ParticipantPreview
+                      slug={roomPreviewSlug}
+                      staffData={data}
+                    />
+                  ) : (
+                    <Notice tone="error">
+                      Staff access is required to preview.{" "}
+                      <Link href="/quest">Return to the quest</Link>
+                    </Notice>
+                  )
+                ) : path === "/quest" || path === "/quest/" ? (
                   staff ? (
                     <StaffHome data={data} />
                   ) : (

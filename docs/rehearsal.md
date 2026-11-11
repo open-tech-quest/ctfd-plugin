@@ -1,5 +1,8 @@
 # Rehearse a complete event
 
+For room content and sequential play while keeping your staff login, use
+[room preview](preview.md). This guide covers the complete event process instead.
+
 Use this walkthrough to explore the plugin or test a feature through registration,
 staffing, attendance, team formation, play and results. Reserve a separate test
 instance: its sample passwords and flags are deliberately **`test`**.

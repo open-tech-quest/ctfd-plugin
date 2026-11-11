@@ -9,7 +9,8 @@ To explore this process with dummy accounts and a repeatable reset, use the
    plugin code and configure SMTP if you need password reset/email verification.
 2. Ask staff to register accounts. In **Organize → Users**, grant **Challenge
    maintainer** to people who should author rooms without administering the event.
-   Staff are excluded from attendance, teams and play.
+   Staff are excluded from attendance, teams and competition play. Use
+   [room preview](preview.md) to test paths with local progress.
 3. In **Organize → Rooms**, configure the room set and ordered standard challenges.
    Edit points, instructions, accepted answers and multiple hints with individual
    texts/costs there. Review room point budgets and hints before play; zero-cost

@@ -3,6 +3,7 @@ import { request } from "./api";
 import { useResource } from "./hooks";
 import type { ManagedRooms, Room, Viewer } from "./types";
 import { Arrow, Confirm, Empty, Markdown, Notice } from "./ui";
+import { StartParticipantPreview } from "./preview";
 import { ChallengeEditor } from "./challenge-editor";
 const layouts = ["generic", "openshift", "ansible", "rhel", "security", "ai"];
 interface RoomDraft {
@@ -96,6 +97,12 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
           </p>
         </div>
         <div className="actions">
+          {room && (
+            <StartParticipantPreview
+              room={room.slug}
+              disabled={busy || dirty}
+            />
+          )}
           <button
             className="button secondary"
             disabled={busy || data.event.status !== "draft" || dirty}

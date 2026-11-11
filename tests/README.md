@@ -43,6 +43,12 @@ cleanup, unknown dependencies, rollback/queued-upload races, idempotent migratio
 and archive/reset ownership preservation. Asset tests verify metadata-only removal
 preserves unrelated bytes and native private cache headers.
 
+Room-preview regressions cover staff authorization, native flag comparison,
+changed-content handling and the absence of native competition writes. Browser
+checks cover local unlocking, hints, tab independence and clearing progress on
+leave/reload. Preview adds no database models or migrations; use disposable staff
+and participant accounts rather than modifying an active event.
+
 Archive tests cover private source collection, microsecond history, published vs
 current credit, preserved authored metadata, excluded native secrets, flag-bound
 fingerprints and checksums. Round-reset tests exercise both modes on disposable

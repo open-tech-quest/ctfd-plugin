@@ -488,8 +488,17 @@ def preview_challenge(slug, challenge_id):
     if set(data) != {"submission"}:
         fail("Provide only a submission for preview")
     submission = checked_text(data["submission"], "Preview submission", FLAG_LIMIT, empty=True)
+    locked_event()
     room = room_by_slug(slug)
     challenge = member_challenge(room, challenge_id)
+    expected = request.headers.get("X-Quest-Preview-Revision")
+    if expected is not None:
+        if re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+            fail("Use a valid saved-content preview revision")
+        from .preview import source
+        saved_room = next(r for r in source()["rooms"] if r["id"] == room.id)
+        if not hmac.compare_digest(expected, saved_room["revision"]):
+            fail("Saved room content changed. Reload the preview before checking another answer.", 409)
     flags = flag_rows(challenge)
     reason = unsupported_reason(challenge, flags, allow_native_flags=True)
     if reason:

@@ -1,5 +1,6 @@
 type PollingOptions<T> = {
   interval: number;
+  periodic?: boolean;
   load: (signal: AbortSignal) => Promise<T>;
   accept: (value: T) => void;
   reject: (error: unknown) => void;
@@ -41,7 +42,7 @@ export function createPoller<T>(options: PollingOptions<T>) {
     pending.forEach((resolve) => resolve());
   }
   function schedule(started: number) {
-    if (stopped || !options.active()) return;
+    if (stopped || options.periodic === false || !options.active()) return;
     // Attendance checks retain their <=5s cadence; slower resources spread
     // their periodic load around the existing interval.
     const spread = options.interval <= 5000 ? 1 : 0.9 + random() * 0.2;

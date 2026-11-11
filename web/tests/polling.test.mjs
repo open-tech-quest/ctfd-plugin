@@ -6,7 +6,7 @@ async function flush() {
   for (let index = 0; index < 5; ++index) await Promise.resolve();
 }
 
-function fixture(interval = 10000, random = 0.5) {
+function fixture(interval = 10000, random = 0.5, periodic = true) {
   let now = 0;
   let active = true;
   let nextTimer = 0;
@@ -16,6 +16,7 @@ function fixture(interval = 10000, random = 0.5) {
   const errors = [];
   const poller = createPoller({
     interval,
+    periodic,
     random: () => random,
     now: () => now,
     active: () => active,
@@ -283,4 +284,19 @@ test("disposing a resource aborts old work, settles callers, and ignores late da
   assert.deepEqual(f.accepted, []);
   assert.equal(f.requests.length, 1);
   assert.equal(f.timers.size, 0);
+});
+
+test("manual resources load initially and after actions without leaving a periodic timer", async () => {
+  const f = fixture(7000, 0.5, false);
+  f.poller.start();
+  f.requests[0].resolve("initial");
+  await flush();
+  assert.equal(f.timers.size, 0);
+  const refreshed = f.poller.refresh();
+  f.requests[1].resolve("after-action");
+  await refreshed;
+  await flush();
+  assert.deepEqual(f.accepted, ["initial", "after-action"]);
+  assert.equal(f.timers.size, 0);
+  f.poller.stop();
 });

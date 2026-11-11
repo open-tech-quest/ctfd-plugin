@@ -54,6 +54,8 @@ All paths below start with `/api/v1/quest`.
 Despite its name, the room PATCH permits Maintainers. Its `challenge_ids` replaces
 the complete order. Native `category` is not room ownership. Quest derives native
 prerequisites, next links and positions; do not write those fields yourself.
+For a browser walkthrough with sequential unlocking and separate practice
+progress, use [staff room preview](preview.md).
 
 Creation requires `name`, `description`, `state`, `flags`; `value` defaults to 100.
 PATCH accepts fields independently; omitted fields are preserved.

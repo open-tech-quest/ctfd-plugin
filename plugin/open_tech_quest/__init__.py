@@ -49,6 +49,8 @@ def load(app):
     app.register_blueprint(authoring_api, url_prefix="/api/v1/quest")
     from .assets import assets_api, install as install_assets
     app.register_blueprint(assets_api, url_prefix="/api/v1/quest")
+    from .preview import preview_api
+    app.register_blueprint(preview_api, url_prefix="/api/v1/quest/manage/preview")
     install_guards(app)
     from .recovery import install_recovery
     install_recovery(app)

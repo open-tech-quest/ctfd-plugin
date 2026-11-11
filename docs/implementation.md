@@ -16,6 +16,7 @@ schemas into feature documents.
 | Roles, account safety and recovery | [`roles.py`](../plugin/open_tech_quest/roles.py), [`lifecycle.py`](../plugin/open_tech_quest/lifecycle.py), [`recovery.py`](../plugin/open_tech_quest/recovery.py) |
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
 | Owned native assets and automation contract | [`assets.py`](../plugin/open_tech_quest/assets.py), [automation guide](automation.md) |
+| Staff room preview | [`preview.py`](../plugin/open_tech_quest/preview.py), [Preview guide](preview.md) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
 | Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
 | Browser API types and transport | [`types.ts`](../web/src/types.ts), [`api.ts`](../web/src/api.ts) |
@@ -87,6 +88,14 @@ snapshots and CSV exports carry the scoring version; legacy published results
 continue to display their original count-based rules.
 
 ## Frontend and assets
+
+Staff room preview uses explicit `/quest/preview` routes and a scoped transport
+for the existing participant components. The real session/viewer remains separate
+from the preview presentation. Starts, solves and revealed hints live only in
+tab memory; no models or migrations are added. Staff-only reads supply sanitized
+saved content, and the existing authoring preview checks native flags without
+native solve/fail/unlock writes. Content revisions prevent silently mixing edited
+challenges with old preview progress. See [room preview](preview.md).
 
 The React/Vite app is copied into the plugin's `assets/app/`; the Jinja shell
 serves `/quest` and its routes. Only safe viewer/CSRF data belongs in

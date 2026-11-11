@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, request } from "./api";
 import { createPoller } from "./polling";
-export function useResource<T>(path: string | null, interval = 10000) {
+export function useResource<T>(
+  path: string | null,
+  interval = 10000,
+  transport: typeof request = request,
+  periodic = true,
+) {
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
@@ -26,8 +31,9 @@ export function useResource<T>(path: string | null, interval = 10000) {
     if (!path) return;
     const poller = createPoller<T>({
       interval,
+      periodic,
       active: () => !document.hidden && navigator.onLine !== false,
-      load: (signal) => request<T>(path, "GET", undefined, signal),
+      load: (signal) => transport<T>(path, "GET", undefined, signal),
       accept: (result) => {
         if (currentPath.current !== path) return;
         setData(result);
@@ -48,7 +54,9 @@ export function useResource<T>(path: string | null, interval = 10000) {
     });
     resource.current = { path, poller };
     poller.start();
-    const activity = () => poller.activity();
+    const activity = () => {
+      if (periodic) poller.activity();
+    };
     window.addEventListener("online", activity);
     window.addEventListener("offline", activity);
     window.addEventListener("focus", activity);
@@ -61,7 +69,7 @@ export function useResource<T>(path: string | null, interval = 10000) {
       window.removeEventListener("focus", activity);
       document.removeEventListener("visibilitychange", activity);
     };
-  }, [path, interval]);
+  }, [path, interval, transport, periodic]);
   return { data, error, loading, refresh, setData, updatedAt };
 }
 export function usePath() {

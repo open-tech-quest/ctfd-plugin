@@ -121,8 +121,16 @@ eligibility stays authoritative, including supported regex flags. See the
 
 Administrators manage the event and roles; maintainers manage rooms and supported
 standard challenges. Staff are excluded from attendance, team allocation, naming,
-play and awards. Authorization must be enforced by the server, not hidden buttons.
+competition play and awards. Authorization must be enforced by the server,
+not hidden buttons.
 See the [administration contract](administration.md).
+
+Staff [room preview](preview.md) uses the participant interface with progress in
+the current tab's memory. It follows visibility and sequential unlocking, with
+native server-side flag checking and free hint reveals showing configured costs.
+There are no saved preview runs, clocks, scores or purchases. Leaving or reloading
+clears progress; changed content prompts a refresh. Native competition records,
+rankings, projector responses and event archives remain separate.
 
 The explicit draft-only demo owns the content it creates and never creates
 participants or progress. Removing it preserves unrelated content and later room

@@ -1,0 +1,54 @@
+.participant-preview-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border: 1px solid var(--cyan);
+  border-left-width: 5px;
+  background: var(--cyan-light);
+  color: var(--indigo);
+  padding: 20px 24px;
+  margin-bottom: 32px;
+}
+.participant-preview-banner > div:first-child {
+  max-width: 65ch;
+}
+.participant-preview-banner strong {
+  font-family: "Red Hat Display", sans-serif;
+  font-size: 1.375rem;
+}
+.participant-preview-banner p {
+  margin: 4px 0 0;
+}
+.participant-preview-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.participant-preview-back {
+  display: inline-block;
+  margin-bottom: 20px;
+}
+.staff-participant-preview {
+  margin-top: 32px;
+  padding: 24px 0;
+  border-top: 1px solid var(--line);
+}
+.staff-participant-preview p {
+  max-width: 66ch;
+}
+@media (max-width: 900px) {
+  .participant-preview-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+}
+@media (max-width: 480px) {
+  .participant-preview-banner {
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+}

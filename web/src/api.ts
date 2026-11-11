@@ -11,6 +11,7 @@ export async function request<T>(
   method = "GET",
   body?: unknown,
   signal?: AbortSignal,
+  headers?: Record<string, string>,
 ): Promise<T> {
   let response: Response;
   try {
@@ -21,6 +22,7 @@ export async function request<T>(
         credentials: "same-origin",
         signal,
         headers: {
+          ...headers,
           Accept: "application/json",
           "X-Quest-Attendance-UI": "1",
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),

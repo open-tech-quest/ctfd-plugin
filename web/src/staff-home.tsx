@@ -1,4 +1,6 @@
 import type { Bootstrap } from "./types";
+import { StartParticipantPreview } from "./preview";
+import { previewRoom } from "./preview-routing";
 import { Arrow, Link, Notice } from "./ui";
 export function StaffHome({ data }: { data: Bootstrap }) {
   const viewer = data.viewer;
@@ -40,16 +42,26 @@ export function StaffHome({ data }: { data: Bootstrap }) {
           </Notice>
         )}
       </section>
-      {viewer.admin && viewer.can_manage_rooms && (
+      {viewer.can_manage_rooms && (
+        <section className="staff-participant-preview">
+          <h2>Play the participant journey</h2>
+          <p>
+            Walk through the rooms and check saved challenge answers as an
+            example team. Preview progress stays in this tab; leaving or
+            refreshing clears it.
+          </p>
+          <StartParticipantPreview />
+        </section>
+      )}
+      {viewer.can_manage_rooms && (
         <section className="staff-room-preview">
-          <h2>Preview configured rooms</h2>
+          <h2>Preview a room</h2>
           <p className="meta">
-            Organizer preview checks challenge content without recording team
-            progress
+            Open a room in the participant preview with local progress.
           </p>
           <div>
             {data.rooms.map((room) => (
-              <Link key={room.id} href={`/quest/rooms/${room.slug}`}>
+              <Link key={room.id} href={previewRoom(room.slug)}>
                 {room.name}
                 <Arrow />
               </Link>

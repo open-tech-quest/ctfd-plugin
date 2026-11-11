@@ -29,6 +29,10 @@ teams, including in draft mode, and serves targeted UI verification instead.
 Use disposable accounts/data and real native sessions for affected journeys:
 
 - Shared teammate starts/solves; future challenge, hint and known-file-URL denial.
+- Staff preview landing/room flow, local sequential unlocking, hint reveals,
+  changed-content notices and tab isolation. Leaving/reloading clears local
+  progress. Compare all database tables and public read generations before/after
+  preview; native security tracking may still change.
 - Registration closure, attendance prompts, reviewed grouping, optional naming,
   finalization and controlled late admission, including stale requests.
 - Role revocation, account ID reuse, safe deletion/captain repair, bans, legitimate
