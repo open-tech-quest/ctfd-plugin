@@ -3441,6 +3441,15 @@ body:has(.participant-attendance-bar) {
   margin-top: 0;
   align-items: flex-start;
 }
+.challenge-deletion {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 24px;
+}
+.challenge-deletion > p {
+  font-size: 14px;
+  line-height: 1.6;
+}
 .challenge-authoring > .section-heading h2 {
   font-size: 26px;
 }

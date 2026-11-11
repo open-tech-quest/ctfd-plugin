@@ -53,6 +53,12 @@ browsing as Admin and Maintainer, hidden/locked content, scoped files and pure
 flag checks. Staff actions must preserve all domain data; ordinary participant
 access and native Maintainer restrictions remain enforced.
 
+Deletion checks use actual native login and CSRF validation, including the JSON
+body/header required by session DELETE. They exercise mapped path rebuilding,
+owned native metadata, unknown foreign-key blockers, malformed native prerequisites
+and rollback. Browser checks cover unsaved order, permanent deletion versus Unmap,
+persistent reasons and reconciliation after an uncertain server response.
+
 Maintainer automation regressions cover bounded metadata and native regex grading,
 token/session authentication and post-lock revocation, stable keys and explicit
 unmapped reattachment, owned assets/previews and solution unlocks, atomic room

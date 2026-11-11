@@ -292,6 +292,7 @@ export interface EditableChallenge {
   description: string;
   state: "hidden" | "visible" | "locked";
   type: string;
+  source_key?: string | null;
   flags: EditableFlag[];
   hints: EditableHint[];
   can_edit: boolean;

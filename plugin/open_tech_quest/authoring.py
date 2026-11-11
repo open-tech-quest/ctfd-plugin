@@ -1,5 +1,6 @@
 """Room-scoped standard challenge editing; native CTFd still owns grading."""
 import hmac
+import math
 import re
 from datetime import datetime
 from flask import Blueprint, request, session
@@ -58,14 +59,32 @@ def hint_prerequisites(hint):
     return values if isinstance(values, list) else []
 
 
+def dependency_prerequisites(requirements, owner):
+    """Inspect native JSON without binding arbitrary imported objects as SQL IDs."""
+    if requirements is None:
+        return [], None
+    values = requirements.get("prerequisites", []) if isinstance(requirements, dict) else None
+    if (not isinstance(values, list) or any(
+            type(value) not in (int, float, str, bool)
+            or type(value) is int and not -(2 ** 63) <= value < 2 ** 63
+            or type(value) is float and not math.isfinite(value)
+            for value in values)):
+        return [], (f"Native {owner} has invalid prerequisite metadata. An administrator must repair "
+                    "its prerequisites in native CTFd before deleting challenges or hints.")
+    return values, None
+
+
 def hint_deletion_reason(ids):
     if not ids:
         return None
     for hint in db.session.query(Hints.id, Hints.requirements).filter(~Hints.id.in_(ids)):
-        required = hint_prerequisites(hint)
+        required, invalid = dependency_prerequisites(hint.requirements, f"hint #{hint.id}")
+        if invalid:
+            return invalid
         # Match the native purchase lookup, including imported numeric strings.
         if required and Hints.query.filter(Hints.id.in_(ids), Hints.id.in_(required)).first():
-            return "A remaining hint depends on a hint being removed. Resolve its native hint prerequisites before deletion."
+            return (f"Native hint #{hint.id} depends on a hint being removed. An administrator must "
+                    "resolve its hint prerequisites in native CTFd before deletion.")
     return None
 
 
@@ -95,21 +114,28 @@ def mutation_reason(room, challenge, e, allow_native_flags=False):
 def outside_dependency(room, challenge, removed_hint_ids=None):
     own_ids = {s.challenge_id for s in room_steps(room)}
     for candidate in Challenges.query.filter(~Challenges.id.in_(list(own_ids))).all():
-        requirements = candidate.requirements or {}
-        prerequisites = requirements.get("prerequisites", []) if isinstance(requirements, dict) else []
-        referenced = isinstance(prerequisites, list) and Challenges.query.filter(Challenges.id == challenge.id, Challenges.id.in_(prerequisites)).first()
+        prerequisites, invalid = dependency_prerequisites(candidate.requirements, f"challenge #{candidate.id}")
+        if invalid:
+            return invalid
+        referenced = Challenges.query.filter(Challenges.id == challenge.id, Challenges.id.in_(prerequisites)).first() if prerequisites else None
         if candidate.next_id == challenge.id or referenced:
-            return "A challenge outside this room depends on this challenge. Resolve that dependency in native CTFd before deletion."
+            return (f"Native challenge #{candidate.id} outside this room depends on challenge #{challenge.id}. "
+                    "An administrator must resolve that dependency in native CTFd before deletion.")
     return hint_deletion_reason(removed_hint_ids if removed_hint_ids is not None else {h.id for h in hint_rows(challenge)})
 
 
-def editable(room, challenge, e=None, mapped=True):
+_UNINSPECTED = object()
+
+
+def editable(room, challenge, e=None, mapped=True, deletion_blocker=_UNINSPECTED):
     e = e if e is not None else event()
     flags = flag_rows(challenge)
     unsupported = unsupported_reason(challenge, flags)
     edit_reason = mutation_reason(room, challenge, e)
     automation_reason = mutation_reason(room, challenge, e, allow_native_flags=True)
     delete_reason = automation_reason or topology_reason(room, e) or outside_dependency(room, challenge)
+    if delete_reason is None:
+        delete_reason = unknown_deletion_reason() if deletion_blocker is _UNINSPECTED else deletion_blocker
     reattach_reason = ("This challenge is already mapped." if mapped else
                        automation_reason or topology_reason(room, e, challenge_ids=[challenge.id]))
     if not mapped:
@@ -352,6 +378,12 @@ def deletion_dependents(roots=None):
         affected = expanded
 
 
+def unknown_deletion_reason():
+    unknown = deletion_dependents()
+    return ("Additional plugin tables need an administrator-reviewed cleanup plan before deletion: "
+            + ", ".join(unknown)) if unknown else None
+
+
 def remove_challenges(ids):
     """Only called after all topology/history/dependency checks. Never commits."""
     if not ids:
@@ -388,9 +420,9 @@ def clear_room(slug):
     reason = topology_reason(room, e)
     if reason:
         fail(reason, 409)
-    unknown = deletion_dependents()
-    if unknown:
-        fail("Additional plugin tables need a cleanup plan: " + ", ".join(unknown), 409)
+    reason = unknown_deletion_reason()
+    if reason:
+        fail(reason, 409)
     hint_ids = {hid for (hid,) in db.session.query(Hints.id).filter(Hints.challenge_id.in_(ids))}
     for cid in ids:
         challenge = member_challenge(room, cid)
@@ -410,10 +442,11 @@ def clear_room(slug):
 def workspace(slug):
     room, e = room_by_slug(slug), event()
     reason = topology_reason(room, e)
+    deletion_blocker = unknown_deletion_reason() if reason is None else None
     unmapped = QuestChallengeSource.query.filter(QuestChallengeSource.room_id == room.id,
         ~QuestChallengeSource.challenge_id.in_(db.session.query(QuestStep.challenge_id))).order_by(QuestChallengeSource.challenge_id).all()
-    return success({"challenges": [editable(room, member_challenge(room, s.challenge_id), e) for s in room_steps(room)],
-                    "unmapped_catalog": [editable(room, challenge, e, mapped=False) for source in unmapped
+    return success({"challenges": [editable(room, member_challenge(room, s.challenge_id), e, deletion_blocker=deletion_blocker) for s in room_steps(room)],
+                    "unmapped_catalog": [editable(room, challenge, e, mapped=False, deletion_blocker=deletion_blocker) for source in unmapped
                                          if (challenge := Challenges.query.get(source.challenge_id)) is not None],
                     "can_create": reason is None, "create_reason": reason})
 
@@ -467,9 +500,9 @@ def delete_challenge(slug, challenge_id):
     reason = mutation_reason(room, challenge, e, allow_native_flags=True) or topology_reason(room, e) or outside_dependency(room, challenge)
     if reason:
         fail(reason, 409)
-    unknown = deletion_dependents()
-    if unknown:
-        fail("Additional plugin tables need a cleanup plan: " + ", ".join(unknown), 409)
+    reason = unknown_deletion_reason()
+    if reason:
+        fail(reason, 409)
     set_challenge_order(room, [s.challenge_id for s in room_steps(room) if s.challenge_id != challenge_id])
     # Solution files lack ON DELETE CASCADE upstream. Other owned metadata
     # cascades in the same database transaction; never call native delete(),

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { request } from "./api";
+import { ApiError, request } from "./api";
+import { deleteChallenge, deletionFailure } from "./challenge-deletion";
 import { useResource } from "./hooks";
 import type {
   ChallengeWorkspace,
@@ -7,7 +8,7 @@ import type {
   EditableFlag,
   Room,
 } from "./types";
-import { Confirm, Empty, Markdown, Notice } from "./ui";
+import { ConfirmDialog, Empty, Markdown, Notice } from "./ui";
 import { DescriptionEditor } from "./description-editor";
 interface Draft {
   name: string;
@@ -42,10 +43,16 @@ function draftOf(challenge?: EditableChallenge): Draft {
 
 export function ChallengeEditor({
   room,
+  orderDirty,
+  roomBusy,
+  onDeleting,
   onChanged,
   onDirty,
 }: {
   room: Room;
+  orderDirty: boolean;
+  roomBusy: boolean;
+  onDeleting: (busy: boolean) => void;
   onChanged: () => Promise<void>;
   onDirty: (dirty: boolean) => void;
 }) {
@@ -166,27 +173,41 @@ export function ChallengeEditor({
               canCreate={workspace.can_create}
               createReason={workspace.create_reason}
               busy={busy}
+              orderDirty={orderDirty}
+              roomBusy={roomBusy}
+              onRefresh={() => resource.refresh()}
               onDirty={setDirty}
               onSave={save}
               onCancel={() => select(null)}
               onDelete={async () => {
                 if (!challenge) return;
+                if (roomBusy)
+                  throw new Error(
+                    "Wait for the room change to finish before deleting a challenge.",
+                  );
+                if (orderDirty)
+                  throw new Error(
+                    "Save or discard room order changes before deleting a challenge.",
+                  );
                 setBusy(true);
+                onDeleting(true);
                 setError("");
                 try {
-                  await request(
-                    `/manage/rooms/${room.slug}/challenges/${challenge.id}`,
-                    "DELETE",
-                  );
+                  await deleteChallenge(request, room.slug, challenge.id);
                   setSelected(null);
                   setDirty(false);
                   await Promise.all([resource.refresh(), onChanged()]);
-                  setMessage("Challenge removed");
+                  setMessage("Challenge deleted; saved room path updated");
                 } catch (error) {
-                  setError((error as Error).message);
-                  throw error;
+                  throw new Error(
+                    deletionFailure(
+                      (error as Error).message,
+                      error instanceof ApiError ? error.status : undefined,
+                    ),
+                  );
                 } finally {
                   setBusy(false);
+                  onDeleting(false);
                 }
               }}
               previewPath={
@@ -216,6 +237,9 @@ function ChallengeForm({
   canCreate,
   createReason,
   busy,
+  orderDirty,
+  roomBusy,
+  onRefresh,
   onDirty,
   onSave,
   onCancel,
@@ -226,6 +250,9 @@ function ChallengeForm({
   canCreate: boolean;
   createReason: string | null;
   busy: boolean;
+  orderDirty: boolean;
+  roomBusy: boolean;
+  onRefresh: () => Promise<void>;
   onDirty: (dirty: boolean) => void;
   onSave: (draft: Draft) => Promise<EditableChallenge>;
   onCancel: () => void;
@@ -236,6 +263,8 @@ function ChallengeForm({
     [remote, setRemote] = useState(false),
     [submission, setSubmission] = useState(""),
     [checking, setChecking] = useState(false),
+    [deleteOpen, setDeleteOpen] = useState(false),
+    [deleteError, setDeleteError] = useState(""),
     [feedback, setFeedback] = useState<{
       good: boolean;
       message: string;
@@ -630,21 +659,101 @@ function ChallengeForm({
           >
             Save challenge
           </button>
-          {challenge && (
-            <Confirm
-              key={`${challenge.id}-${challenge.can_delete}`}
-              label="Remove challenge"
-              description={`Permanently remove “${challenge.name}” and its accepted answers? The ordered room path will be rebuilt. Challenges with activity cannot be deleted.`}
-              danger
-              disabled={busy || !challenge.can_delete}
-              onConfirm={onDelete}
-            />
-          )}
         </div>
-        {challenge && !challenge.can_delete && challenge.delete_reason && (
-          <p className="meta">{challenge.delete_reason}</p>
-        )}
       </form>
+      {challenge && (
+        <section className="challenge-deletion" aria-label="Delete challenge">
+          <h3>Delete challenge</h3>
+          <p>
+            Permanently delete this challenge, its accepted answers, hints,
+            solution and attachment links. Its saved path step is removed and
+            the remaining challenges are relinked automatically. You do not need
+            to unmap it first. To keep its content, use Unmap in the room path
+            instead.
+          </p>
+          <p className="meta">
+            Deletion requires Draft, no loaded demo, no room starts or
+            corrections, and no submissions, unlocks or ratings in the room's
+            path. External challenge dependencies, remaining hint prerequisites
+            and unsupported native content can also block deletion. History is
+            never cleared by this action.
+          </p>
+          {challenge.source_key && (
+            <p className="authoring-lock">
+              This challenge is catalog-managed ({challenge.source_key}).
+              Deletion also removes its source mapping; a later catalog sync can
+              create it again. Unmap retains its catalog identity.
+            </p>
+          )}
+          {dirty && (
+            <p className="meta">
+              Unsaved challenge edits will be discarded if you delete it.
+            </p>
+          )}
+          {orderDirty && (
+            <p className="authoring-lock">
+              Save or discard room order changes before deleting a challenge.
+              Use Save room or Discard changes in Room presentation and path
+              above.
+            </p>
+          )}
+          {!challenge.can_delete && challenge.delete_reason && (
+            <Notice>{challenge.delete_reason}</Notice>
+          )}
+          {deleteError && <Notice tone="error">{deleteError}</Notice>}
+          <div className="actions">
+            <button
+              type="button"
+              className="button danger"
+              disabled={busy || roomBusy || orderDirty || !challenge.can_delete}
+              onClick={() => setDeleteOpen(true)}
+            >
+              Delete challenge
+            </button>
+            <button
+              type="button"
+              className="text-button"
+              disabled={busy}
+              onClick={() => void onRefresh()}
+            >
+              Refresh deletion status
+            </button>
+          </div>
+          {deleteOpen && (
+            <ConfirmDialog
+              label="Delete challenge"
+              description={`Permanently delete “${challenge.name}”, its accepted answers, hints, solution and attachment links? Its saved path step will be removed and the remaining challenges relinked. This cannot be undone.`}
+              disabled={busy || roomBusy || orderDirty || !challenge.can_delete}
+              onClose={() => setDeleteOpen(false)}
+              onConfirm={async () => {
+                setDeleteError("");
+                try {
+                  await onDelete();
+                } catch (error) {
+                  setDeleteError((error as Error).message);
+                  throw error;
+                }
+              }}
+            >
+              {orderDirty && (
+                <Notice>
+                  Save or discard room order changes before deleting a
+                  challenge.
+                </Notice>
+              )}
+              {!challenge.can_delete && challenge.delete_reason && (
+                <Notice>{challenge.delete_reason}</Notice>
+              )}
+              {challenge.source_key && (
+                <p>
+                  A later catalog sync can recreate this catalog-managed
+                  challenge.
+                </p>
+              )}
+            </ConfirmDialog>
+          )}
+        </section>
+      )}
       {challenge && (
         <section className="answer-preview">
           <h3>Check a saved answer</h3>

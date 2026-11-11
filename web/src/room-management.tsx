@@ -34,6 +34,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
   const [slug, setSlug] = useState(""),
     [newRoom, setNewRoom] = useState(false),
     [roomDirty, setRoomDirty] = useState(false),
+    [orderDirty, setOrderDirty] = useState(false),
     [challengeDirty, setChallengeDirty] = useState(false),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
@@ -197,11 +198,15 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
                   data={data}
                   busy={busy}
                   onDirty={setRoomDirty}
+                  onOrderDirty={setOrderDirty}
                   onSave={saveRoom}
                 />
                 <ChallengeEditor
                   key={`challenges-${room.id}`}
                   room={room}
+                  orderDirty={orderDirty}
+                  roomBusy={busy}
+                  onDeleting={setBusy}
                   onChanged={resource.refresh}
                   onDirty={setChallengeDirty}
                 />
@@ -330,12 +335,14 @@ function RoomPresentation({
   data,
   busy,
   onDirty,
+  onOrderDirty,
   onSave,
 }: {
   room: Room;
   data: ManagedRooms;
   busy: boolean;
   onDirty: (dirty: boolean) => void;
+  onOrderDirty: (dirty: boolean) => void;
   onSave: (body: unknown) => Promise<Room>;
 }) {
   const [draft, setDraft] = useState(() => draftOf(room)),
@@ -348,6 +355,10 @@ function RoomPresentation({
     JSON.stringify(draft.challenge_ids) !==
     JSON.stringify(baseline.current.challenge_ids);
   const canOrder = room.can_configure_topology ?? data.event.status === "draft";
+  useEffect(() => {
+    onOrderDirty(orderChanged);
+    return () => onOrderDirty(false);
+  }, [orderChanged, onOrderDirty]);
   useEffect(() => {
     onDirty(dirty);
     return () => onDirty(false);
@@ -618,7 +629,10 @@ function RoomPresentation({
         )}
         <p className="meta">
           Saving the path updates challenge requirements and links. Unmapping
-          keeps the native challenge.
+          keeps the native challenge and its content; it does not delete it. To
+          permanently delete a challenge, keep it mapped and use Delete
+          challenge in its editor below. Deletion removes its saved path step
+          automatically.
         </p>
         <div className="actions">
           <button

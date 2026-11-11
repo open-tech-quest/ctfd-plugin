@@ -105,6 +105,34 @@ challenge and external dependency before deletion. Asset deletion removes owned
 metadata, never another file owner's bytes; provider cleanup remains an operator
 task. Maintainers do not gain global native authoring permissions.
 
+### Removing challenges
+
+**Unmap** in the room order keeps the native challenge and its content for reuse.
+Save the room order to apply it. **Delete challenge** in the challenge editor is
+permanent: it removes the challenge, answers, hints, solution and attachment links,
+and rebuilds the saved room path automatically. Do not unmap it first. Save or
+discard pending room-order changes before deleting.
+
+Deletion is allowed only in Draft, without a loaded demo or activity in the room.
+Starts, corrections, submissions (including incorrect answers), hint/solution
+unlocks and ratings protect the room's history. An unused challenge can therefore
+be blocked by another challenge's activity in the same room. Unmapping does not
+bypass these protections.
+
+External challenge links/prerequisites, remaining hint prerequisites and additional
+plugin tables can also block deletion. The displayed reason identifies the
+reference to resolve; native prerequisites and other-plugin cleanup require an
+administrator. Unsupported challenge behavior remains native administrator work.
+Mapped challenges must be deleted through Quest, not native CTFd. Unmapped
+catalog challenges must be reattached before Quest can delete them. Deleting a
+catalog-managed challenge does not change its source repository; a later sync can
+create it again.
+
+If a connection or server error leaves deletion unconfirmed, refresh the challenge
+list before retrying: the server may have completed it despite a lost response.
+Stored upload bytes require separate operator cleanup; unrelated content and
+competition history are never deleted to force an ordinary challenge removal.
+
 ### Personalized descriptions
 
 Room introductions and challenge instructions offer **Insert placeholder** at the

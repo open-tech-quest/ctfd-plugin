@@ -19,8 +19,10 @@ curl --fail-with-body "$BASE/api/v1/quest/manage/capabilities" \
 CTFd authenticates token requests when their content type is JSON;
 `Accept: application/json` alone is insufficient. Tokens need no separate CSRF
 nonce. Cookie clients use native `/login`, read `csrfNonce` from
-`/api/v1/quest/bootstrap` and send `CSRF-Token` on writes. HTTP Basic and custom
-multipart uploads are not alternatives.
+`/api/v1/quest/bootstrap` and send both `CSRF-Token` and
+`Content-Type: application/json` on writes, including DELETE with an empty JSON
+body (`{}`). Without JSON content type, native CTFd expects a form nonce instead
+of the header. HTTP Basic and custom multipart uploads are not alternatives.
 
 Before any writes, require `automation_version:1` and the needed features from
 `GET /manage/capabilities`: `challenge_metadata`, `source_keys`, `owned_assets`,
