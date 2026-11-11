@@ -469,3 +469,41 @@ class MaintenanceIntegration(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(Challenges.query.get(1).value, 100)
         self.assertEqual(self.apply({"value": 250}, client=self.admin).status_code, 200)
+
+    def test_queued_revoked_token_cannot_edit_or_create_live_rooms(self):
+        self.begin()
+        cases = [(P + "/admin/rooms/openshift", "PATCH", {"subtitle": "Revoked queued text"}),
+                 (P + "/manage/rooms", "POST", {"slug": "revoked-room", "name": "Revoked queued room"})]
+        for path, method, changes in cases:
+            with self.subTest(method=method):
+                with self.app.app_context():
+                    token = generate_user_token(Users.query.get(5)).value
+                headers = {"Authorization": "Token " + token, "Content-Type": "application/json"}
+                saved = self.app.test_client().get(P + "/manage/rooms", headers=headers).json["data"]
+                revision = saved["rooms"][0]["revision"] if method == "PATCH" else saved["revision"]
+                entered, release = threading.Event(), threading.Event()
+                original = authoring.event
+                def gate(lock=False):
+                    if lock and request.path == path:
+                        entered.set()
+                        if not release.wait(6):
+                            raise RuntimeError("Fixture gate timed out")
+                    return original(lock)
+                def write():
+                    return self.app.test_client().open(path, method=method, json=changes,
+                        headers={**headers, "X-Quest-Content-Revision": revision})
+                with patch.object(authoring, "event", side_effect=gate), ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(write)
+                    self.assertTrue(entered.wait(4))
+                    try:
+                        with self.app.app_context():
+                            UserTokens.query.filter_by(value=token).delete()
+                            db.session.commit()
+                    finally:
+                        release.set()
+                    self.assertEqual(future.result(timeout=8).status_code, 401)
+                with self.app.app_context():
+                    self.assertNotEqual(QuestRoom.query.filter_by(slug="openshift").one().subtitle, "Revoked queued text")
+                    self.assertIsNone(QuestRoom.query.filter_by(slug="revoked-room").first())
+                    self.assertEqual(QuestAudit.query.filter_by(action="room.create").count(), 0)
+                    self.assertEqual(QuestAudit.query.filter_by(action="room.configure").count(), 1)

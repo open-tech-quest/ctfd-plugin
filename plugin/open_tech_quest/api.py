@@ -439,7 +439,8 @@ def room_theme(value, existing=None):
 @api.route("/admin/rooms/<slug>", methods=["PATCH"])
 @roles.room_manager
 def configure_room(slug):
-    data, e = body(), event(lock=True)
+    from .authoring import locked_event
+    data, e = body(), locked_event()
     if not roles.can_manage_rooms():
         fail("Room management access required", 403)
     room = room_by_slug(slug)
@@ -979,7 +980,8 @@ def manage_rooms():
 @api.route("/manage/rooms", methods=["POST"])
 @roles.room_manager
 def create_room():
-    data, e = body(), event(lock=True)
+    from .authoring import locked_event
+    data, e = body(), locked_event()
     if not roles.can_manage_rooms():
         fail("Room management access required", 403)
     from . import maintenance

@@ -1991,8 +1991,8 @@ class QuestIntegration(unittest.TestCase):
         self.open_onboarding()
         self.assertEqual(self.grant_role().status_code,200)
         self.assertEqual(self.alice.get(PREFIX+"/manage/rooms").status_code,200)
-        from CTFd.plugins.open_tech_quest import api as api_module
-        original = api_module.event
+        from CTFd.plugins.open_tech_quest import authoring as authoring_module
+        original = authoring_module.event
         entered,release = threading.Event(),threading.Event()
         def gate(lock=False):
             from flask import request
@@ -2001,7 +2001,7 @@ class QuestIntegration(unittest.TestCase):
                 if not release.wait(3):
                     raise RuntimeError("Room role gate not released")
             return original(lock=lock)
-        with patch.object(api_module,"event",side_effect=gate):
+        with patch.object(authoring_module,"event",side_effect=gate):
             with ThreadPoolExecutor(max_workers=1) as pool:
                 editing = pool.submit(lambda:self.post(self.client(2),PREFIX+"/admin/rooms/openshift",{"subtitle":"Stale privileged tab"},"PATCH"))
                 try:
