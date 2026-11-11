@@ -27,7 +27,12 @@ export function RoomPauseControls({
   const [blockedAt, setBlockedAt] = useState<number | null | undefined>();
   const needsRefresh = blockedAt !== undefined;
   useEffect(() => {
-    if (needsRefresh && updatedAt !== blockedAt) setBlockedAt(undefined);
+    if (
+      typeof blockedAt === "number" &&
+      updatedAt !== null &&
+      updatedAt > blockedAt
+    )
+      setBlockedAt(undefined);
   }, [updatedAt, blockedAt, needsRefresh]);
   const paused = room.pause?.paused === true;
   const action = paused ? "resume" : "pause";
@@ -117,7 +122,7 @@ export function RoomPauseControls({
                 failure instanceof ApiError ? failure.status : undefined,
               );
               setError(message);
-              setBlockedAt(updatedAt);
+              setBlockedAt(Date.now());
               throw new Error(message);
             }
           }}
