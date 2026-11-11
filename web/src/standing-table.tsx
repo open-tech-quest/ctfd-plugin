@@ -71,8 +71,20 @@ export function StandingTable({
           {!room &&
             !overall &&
             data.rooms.map((r) => (
-              <th key={r.id} scope="col" className="room-col" title={r.name}>
+              <th
+                key={r.id}
+                scope="col"
+                className="room-col"
+                title={
+                  r.pause?.paused
+                    ? `${r.name} paused: ${r.pause.reason ?? ""}`
+                    : r.name
+                }
+              >
                 {r.name}
+                {r.pause?.paused && (
+                  <small className="room-pause-summary">Paused</small>
+                )}
               </th>
             ))}
           {stage && room && (

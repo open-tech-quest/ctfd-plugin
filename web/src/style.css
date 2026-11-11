@@ -4259,6 +4259,28 @@ body:has(.participant-attendance-bar) {
 .placeholder-example-note {
   margin-bottom: 12px;
 }
+.room-pause-summary {
+  color: #754706;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+.room-pause-summary strong {
+  font-weight: 700;
+}
+.room-col .room-pause-summary {
+  display: block;
+}
+.stage-room-pause {
+  margin-bottom: 16px;
+  padding: 12px 20px;
+  color: #5c3804;
+  background: #fff1cf;
+  border-left: 4px solid #b27600;
+  overflow-wrap: anywhere;
+}
+.room-pause-controls textarea {
+  min-height: 88px;
+}
 @media (max-width: 480px) {
   .description-placeholder-tools > label {
     flex-basis: 100%;

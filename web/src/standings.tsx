@@ -242,6 +242,12 @@ function YourTeam({
               <p className="personal-solved">
                 <strong>{p?.solved ?? 0}</strong> / {room.total} solved
               </p>
+              {room.pause?.paused && (
+                <p className="room-pause-summary">
+                  <strong>Room paused</strong>
+                  {room.pause.reason ? ` · ${room.pause.reason}` : ""}
+                </p>
+              )}
               <progress
                 value={p?.solved ?? 0}
                 max={Math.max(1, room.total)}

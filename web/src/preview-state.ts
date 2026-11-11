@@ -323,6 +323,12 @@ export function previewRoomView(
   // Clocks remain static; scores are derived solely from this tab's existing IDs.
   return {
     ...room.source,
+    pause: {
+      paused: false,
+      started_at: null,
+      reason: null,
+      revision: "preview",
+    },
     steps,
     startable: previewSteps({ ...room, started: true }).some(
       (step) => step.state === "available",

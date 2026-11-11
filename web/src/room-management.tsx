@@ -6,6 +6,7 @@ import { Arrow, Confirm, Empty, Notice } from "./ui";
 import { DescriptionEditor } from "./description-editor";
 import { StartParticipantPreview } from "./preview";
 import { ChallengeEditor } from "./challenge-editor";
+import { RoomPauseControls } from "./room-pause-controls";
 const layouts = ["generic", "openshift", "ansible", "rhel", "security", "ai"];
 interface RoomDraft {
   name: string;
@@ -139,7 +140,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
         <p className="meta">
           {readOnly
             ? "This event is read-only. An administrator must unpublish results if published, then reopen the event before maintenance."
-            : "Saved content changes apply immediately. Competitive changes require an impact review and reason. Pausing remains a separate, manual event action. Existing played paths cannot be reordered or unmapped."}
+            : "Saved content changes apply immediately. Competitive changes require an impact review and reason. Pausing remains a separate, manual organizer action. Existing played paths cannot be reordered or unmapped."}
         </p>
       )}
       {message && <Notice tone="success">{message}</Notice>}
@@ -194,6 +195,7 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
               >
                 {item.name}
                 <span>
+                  {item.pause?.paused && "Paused · "}
                   {item.steps.length} challenge
                   {item.steps.length === 1 ? "" : "s"} ·{" "}
                   {item.steps
@@ -207,6 +209,16 @@ export function RoomManagement({ viewer }: { viewer: Viewer }) {
           <div className="room-management-content">
             {room && (
               <>
+                {viewer.admin && (
+                  <RoomPauseControls
+                    key={`pause-${room.id}`}
+                    room={room}
+                    phase={data.event.status}
+                    disabled={busy}
+                    updatedAt={resource.updatedAt}
+                    onChanged={resource.refresh}
+                  />
+                )}
                 <RoomPresentation
                   key={room.id}
                   room={room}

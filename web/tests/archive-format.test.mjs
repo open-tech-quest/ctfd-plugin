@@ -139,6 +139,51 @@ test("verified archive retains server ranks, negative points and published snaps
   assert.equal(result.data.challenges[0].description, "<script>bad()</script>"); // Data, never trusted HTML.
 });
 
+test("room pause history is optional for older archives and retained with exact timestamps in new reports", async () => {
+  const legacy = await parseEventArchive(JSON.stringify(sign(fixture())));
+  assert.equal(legacy.data.room_pauses, undefined);
+  const current = fixture();
+  current.data.room_pauses = [
+    {
+      id: 1,
+      room_id: 1,
+      started_at: "2026-11-10T12:01:00.123456Z",
+      ended_at: "2026-11-10T12:02:00.234567Z",
+      reason: "Lab outage",
+    },
+  ];
+  const imported = await parseEventArchive(JSON.stringify(sign(current)));
+  assert.deepEqual(
+    imported.data.room_pauses.map((row) => ({ ...row })),
+    current.data.room_pauses,
+  );
+  const open = fixture();
+  open.data.room_pauses = [{ ...current.data.room_pauses[0], ended_at: null }];
+  await parseEventArchive(JSON.stringify(sign(open)));
+});
+
+test("malformed room pause records are refused even with a valid report checksum", async () => {
+  const valid = {
+    id: 1,
+    room_id: 1,
+    started_at: "2026-11-10T12:01:00.123456Z",
+    ended_at: null,
+    reason: "Lab outage",
+  };
+  for (const replacement of [
+    [{ ...valid, ended_at: "2026-11-10T12:00:59Z" }],
+    [{ ...valid, room_id: "1" }],
+    [{ ...valid, started_at: "not-a-time" }],
+    [{ ...valid, reason: {} }],
+    [valid, valid],
+    {},
+  ]) {
+    const document = fixture();
+    document.data.room_pauses = replacement;
+    await assert.rejects(parseEventArchive(JSON.stringify(sign(document))));
+  }
+});
+
 test("Python canonical compatibility preserves exact float tokens, exponent spelling and code-point key order", () => {
   const source =
     '{"z":1.0,"😀":1e-07,"\uffff":-0.0,"a":{"b":0.0001},"integrity":{"sha256":"ignored"}}';
