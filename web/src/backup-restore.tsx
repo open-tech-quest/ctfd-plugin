@@ -17,6 +17,14 @@ import {
 } from "./backup-transport";
 import { backupJobActive } from "./backup-progress";
 import {
+  backupChecksumLabel,
+  backupCountsKnown,
+  backupOriginLabel,
+  backupRestoreSupported,
+  backupSizeLabel,
+  backupVersionLabel,
+} from "./backup-presentation";
+import {
   backupReasonValid,
   restoreConfirmationValid,
 } from "./backup-confirmation";
@@ -58,19 +66,19 @@ function VersionDetails({ version }: { version: BackupVersions }) {
     <dl className="backup-version-details">
       <div>
         <dt>CTFd</dt>
-        <dd>{version.ctfd_version}</dd>
+        <dd>{backupVersionLabel(version.ctfd_version)}</dd>
       </div>
       <div>
         <dt>Quest</dt>
-        <dd>{version.plugin_version}</dd>
+        <dd>{backupVersionLabel(version.plugin_version)}</dd>
       </div>
       <div>
         <dt>CTFd schema</dt>
-        <dd>{version.ctfd_schema_revision}</dd>
+        <dd>{backupVersionLabel(version.ctfd_schema_revision)}</dd>
       </div>
       <div>
         <dt>Quest schema</dt>
-        <dd>{version.schema_revision}</dd>
+        <dd>{backupVersionLabel(version.schema_revision)}</dd>
       </div>
       <div>
         <dt>Image</dt>
@@ -137,12 +145,6 @@ function RestoreComparison({ review }: { review: RestoreReview }) {
     </>
   );
 }
-function bytes(value: number) {
-  if (value < 1024) return `${value.toLocaleString()} B`;
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KiB`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MiB`;
-  return `${(value / 1024 ** 3).toFixed(1)} GiB`;
-}
 function ReasonField({
   value,
   onChange,
@@ -203,6 +205,13 @@ export function BackupRestore() {
       void resource.refresh();
   }, [terminal]);
   async function inspect(snapshot: BackupSnapshot) {
+    if (!backupRestoreSupported(snapshot)) {
+      setError(
+        snapshot.compatibility.reason ||
+          "This legacy or unsupported backup needs operator verification before restore.",
+      );
+      return;
+    }
     setBusy(true);
     setError("");
     setReason("");
@@ -210,7 +219,7 @@ export function BackupRestore() {
     try {
       const result = await reviewBackupRestore(request, snapshot.id);
       if (
-        !result.snapshot.compatibility.supported ||
+        !backupRestoreSupported(result.snapshot) ||
         result.safety_backup_required !== true ||
         result.full_replace !== true ||
         !result.confirmation_text
@@ -372,20 +381,39 @@ export function BackupRestore() {
                 <div>
                   <h3>{dateTime(snapshot.created_at)}</h3>
                   <p className="meta">
-                    {snapshot.origin} · {bytes(snapshot.bytes)}
+                    {backupOriginLabel(snapshot.origin)} ·{" "}
+                    {backupSizeLabel(snapshot)}
                   </p>
                   <p className="meta">
-                    CTFd {snapshot.source.ctfd_version} · Quest{" "}
-                    {snapshot.source.plugin_version} · Schema{" "}
-                    {snapshot.source.schema_revision}
+                    CTFd {backupVersionLabel(snapshot.source.ctfd_version)} ·
+                    Quest {backupVersionLabel(snapshot.source.plugin_version)} ·
+                    Schema {backupVersionLabel(snapshot.source.schema_revision)}
                   </p>
                   <details>
-                    <summary>Versions and signature reference</summary>
+                    <summary>Versions and recorded metadata</summary>
                     <VersionDetails version={snapshot.source} />
-                    <p className="backup-digest">SHA-256: {snapshot.sha256}</p>
+                    <p className="backup-digest">
+                      {backupChecksumLabel(snapshot.sha256)}
+                    </p>
+                    {backupCountsKnown(snapshot) ? (
+                      <dl className="backup-version-details">
+                        {Object.entries(snapshot.counts).map(([key, value]) => (
+                          <div key={key}>
+                            <dt>{key.replaceAll("_", " ")}</dt>
+                            <dd>{value.toLocaleString()}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p>
+                        {snapshot.origin === "legacy"
+                          ? "Event counts unknown; inspect the downloaded capture with an operator."
+                          : "Event counts not recorded."}
+                      </p>
+                    )}
                   </details>
                   <p>
-                    {snapshot.compatibility.supported
+                    {backupRestoreSupported(snapshot)
                       ? "Compatible with this instance"
                       : `Operator-only restore: ${snapshot.compatibility.reason || "Unsupported source version or backup format."}`}
                   </p>
@@ -396,12 +424,14 @@ export function BackupRestore() {
                     href={backupDownloadPath(snapshot.id)}
                     download
                   >
-                    Download backup
+                    {snapshot.origin === "legacy"
+                      ? "Download for inspection"
+                      : "Download backup"}
                   </a>
                   <button
                     type="button"
                     className="button secondary"
-                    disabled={disabled || !snapshot.compatibility.supported}
+                    disabled={disabled || !backupRestoreSupported(snapshot)}
                     onClick={() => void inspect(snapshot)}
                   >
                     Review restore

@@ -1,4 +1,5 @@
 import type { RestoreReview } from "./backup-types";
+import { backupRestoreSupported } from "./backup-presentation.ts";
 
 export function backupReasonValid(reason: string) {
   const length = [...reason.trim()].length;
@@ -14,7 +15,7 @@ export function restoreConfirmationValid(
   return (
     review.full_replace === true &&
     review.safety_backup_required === true &&
-    review.snapshot.compatibility.supported &&
+    backupRestoreSupported(review.snapshot) &&
     !!review.confirmation_text &&
     confirmation === review.confirmation_text &&
     backupReasonValid(reason) &&

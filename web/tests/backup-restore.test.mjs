@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  backupChecksumLabel,
+  backupCountsKnown,
+  backupOriginLabel,
+  backupRestoreSupported,
+  backupSizeLabel,
+  backupVersionLabel,
+} from "../src/backup-presentation.ts";
+import {
   createBackup,
   reviewBackupRestore,
   restoreBackup,
@@ -43,6 +51,76 @@ const review = {
   snapshot: { compatibility: { supported: true } },
 };
 const at = Date.parse("2026-11-12T00:00:00Z");
+const legacy = {
+  id: "prior-restic-capture",
+  origin: "legacy",
+  created_at: "2026-11-01T10:00:00Z",
+  bytes: 0,
+  sha256: "",
+  counts: {},
+  source: {
+    ctfd_version: "unknown",
+    plugin_version: "legacy",
+    schema_revision: "unknown",
+    ctfd_schema_revision: "unknown",
+    image_digest: "",
+  },
+  compatibility: {
+    supported: false,
+    reason: "This legacy backup needs operator verification before restoration",
+  },
+};
+
+test("a real legacy index placeholder means unknown metadata, not a zero-byte empty event", () => {
+  assert.equal(backupOriginLabel(legacy.origin), "Legacy Restic backup");
+  assert.equal(backupSizeLabel(legacy), "Size unknown");
+  assert.equal(backupCountsKnown(legacy), false);
+  assert.equal(backupChecksumLabel(legacy.sha256), "Checksum not recorded.");
+  assert.equal(backupVersionLabel(legacy.source.ctfd_version), "Unknown");
+  assert.equal(backupVersionLabel(legacy.source.plugin_version), "Unknown");
+  assert.equal(backupRestoreSupported(legacy), false);
+});
+test("known zero event counts remain distinguishable from absent legacy counts", () => {
+  const snapshot = {
+    ...legacy,
+    origin: "manual",
+    bytes: 4096,
+    sha256: "fixture-checksum",
+    counts: { users: 0, teams: 0, challenges: 0, solves: 0 },
+    compatibility: { supported: true, reason: null },
+  };
+  assert.equal(backupCountsKnown(snapshot), true);
+  assert.equal(backupSizeLabel(snapshot), "4.0 KiB");
+  assert.equal(
+    backupChecksumLabel(snapshot.sha256),
+    "SHA-256: fixture-checksum",
+  );
+  assert.equal(backupRestoreSupported(snapshot), true);
+  assert.deepEqual(Object.values(snapshot.counts), [0, 0, 0, 0]);
+});
+test("inspecting legacy capture metadata may reveal size and counts but never enables automatic restore", () => {
+  const inspected = {
+    ...legacy,
+    bytes: 8192,
+    counts: { users: 4, teams: 2 },
+    sha256: "inspected-checksum",
+    source: { ...legacy.source, plugin_version: "0.1.17" },
+    compatibility: { supported: true, reason: null },
+  };
+  assert.equal(backupSizeLabel(inspected), "8.0 KiB");
+  assert.equal(backupCountsKnown(inspected), true);
+  assert.equal(backupVersionLabel(inspected.source.plugin_version), "0.1.17");
+  assert.equal(backupRestoreSupported(inspected), false);
+  assert.equal(
+    restoreConfirmationValid(
+      { ...review, snapshot: inspected },
+      review.confirmation_text,
+      "Inspect prior capture",
+      at,
+    ),
+    false,
+  );
+});
 async function flush() {
   for (let n = 0; n < 8; n++) await Promise.resolve();
 }
