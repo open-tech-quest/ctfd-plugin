@@ -4531,7 +4531,7 @@ body:has(.participant-attendance-bar) {
 }
 .backup-schema-pairs {
   display: grid;
-  grid-template-columns: 42px repeat(2, minmax(0, 1fr));
+  grid-template-columns: max-content repeat(2, minmax(0, 1fr));
   gap: 4px 10px;
   max-width: 360px;
   margin-block: 12px 8px;
