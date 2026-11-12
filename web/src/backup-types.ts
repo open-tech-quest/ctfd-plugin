@@ -20,7 +20,11 @@ export interface BackupSnapshot {
   sha256: string;
   source: BackupVersions;
   counts: BackupCounts;
-  compatibility: { supported: boolean; reason: string | null };
+  compatibility: {
+    supported: boolean;
+    reason: string | null;
+    checked?: boolean;
+  };
 }
 export interface BackupJob {
   id: string;
@@ -70,4 +74,30 @@ export interface RestoreReview {
   warnings: string[];
   safety_backup_required: true;
   full_replace: true;
+}
+
+export interface BackupDayGroup {
+  key: string;
+  count: number;
+}
+export interface BackupMonthGroup {
+  key: string;
+  label: string;
+  count: number;
+  days: BackupDayGroup[];
+}
+export interface BackupOverview extends Omit<
+  BackupIndex,
+  "target" | "snapshots"
+> {
+  target: Pick<BackupTarget, "id" | "name" | "origin"> | null;
+  catalog_revision: string;
+  groups: BackupMonthGroup[];
+}
+export interface BackupDayPage {
+  day: string;
+  snapshots: BackupSnapshot[];
+  next_cursor: string | null;
+  total: number;
+  catalog_revision: string;
 }

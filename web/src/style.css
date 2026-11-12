@@ -35,6 +35,126 @@
 .backup-snapshots .actions {
   align-content: start;
 }
+.backup-instance {
+  color: var(--muted);
+  margin-block: -8px 24px;
+}
+.backup-protection {
+  padding-block: 20px;
+  margin-bottom: 20px;
+  border-block: 1px solid var(--line);
+}
+.backup-protection-heading,
+.backup-schedule-times,
+.backup-page-controls {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px 32px;
+}
+.backup-protection-heading h3,
+.backup-protection > p {
+  margin: 0 0 8px;
+}
+.backup-schedule-times {
+  margin: 16px 0;
+}
+.backup-schedule-times dt {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.backup-schedule-times dd {
+  margin: 0;
+}
+.backup-service-details {
+  font-size: 14px;
+}
+.backup-month h3,
+.backup-day h4 {
+  margin: 0;
+}
+.backup-month {
+  border-top: 1px solid var(--line);
+}
+.backup-group-toggle {
+  width: 100%;
+  padding: 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-weight: 600;
+  cursor: pointer;
+}
+.backup-group-toggle:hover {
+  color: var(--cyan);
+}
+.backup-group-toggle:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+.backup-group-chevron {
+  width: 16px;
+  flex: 0 0 16px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 400;
+}
+.backup-group-count {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.backup-days {
+  margin-left: 28px;
+}
+.backup-day {
+  border-top: 1px solid var(--line);
+}
+.backup-day .backup-group-toggle {
+  font-size: 16px;
+}
+.backup-day-content {
+  padding: 0 0 20px 28px;
+}
+.backup-snapshots h5 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+.backup-snapshots p {
+  margin-block: 6px 10px;
+}
+.backup-compatibility {
+  max-width: 65ch;
+}
+.backup-page-controls {
+  justify-content: space-between;
+  margin-top: 12px;
+}
+@media (max-width: 700px) {
+  .backup-days {
+    margin-left: 0;
+  }
+  .backup-day-content {
+    padding-left: 0;
+  }
+  .backup-group-toggle {
+    gap: 8px;
+  }
+  .backup-history .section-heading {
+    flex-wrap: wrap;
+  }
+  .backup-group-count {
+    font-size: 12px;
+  }
+}
 .backup-version-details > div {
   display: grid;
   grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);

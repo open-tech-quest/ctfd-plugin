@@ -1,7 +1,28 @@
 import type { request } from "./api";
-import type { BackupOperation, BackupJob, RestoreReview } from "./backup-types";
+import type {
+  BackupOperation,
+  BackupJob,
+  BackupDayPage,
+  RestoreReview,
+} from "./backup-types";
 
 const base = "/admin/backups";
+export function getBackupDay(
+  send: typeof request,
+  day: string,
+  before: string | null,
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({ day, limit: "20" });
+  if (before) query.set("before", before);
+  return send<BackupDayPage>(
+    `${base}/snapshots?${query}`,
+    "GET",
+    undefined,
+    signal,
+  );
+}
+
 export function backupDownloadPath(id: string) {
   return `/api/v1/quest${base}/${encodeURIComponent(id)}/download`;
 }

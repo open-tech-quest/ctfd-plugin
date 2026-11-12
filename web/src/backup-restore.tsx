@@ -3,26 +3,22 @@ import { ApiError, dateTime, request } from "./api";
 import { useResource } from "./hooks";
 import { ConfirmDialog, Empty, Notice } from "./ui";
 import type {
-  BackupIndex,
+  BackupOverview,
   BackupSnapshot,
-  BackupVersions,
   RestoreReview,
 } from "./backup-types";
 import {
-  backupDownloadPath,
   createBackup,
   restoreBackup,
   reviewBackupRestore,
   uploadBackup,
 } from "./backup-transport";
 import { backupJobActive } from "./backup-progress";
+import { VersionDetails } from "./backup-details";
+import { BackupHistory, BackupSchedule } from "./backup-history";
 import {
-  backupChecksumLabel,
-  backupCountsKnown,
-  backupOriginLabel,
   backupRestoreSupported,
-  backupSizeLabel,
-  backupVersionLabel,
+  backupReviewAvailable,
 } from "./backup-presentation";
 import {
   backupReasonValid,
@@ -40,10 +36,9 @@ export function BackupRestoreIntroduction() {
       <div>
         <h2>Backup &amp; Restore</h2>
         <p>
-          Full signed backups contain the database, uploaded files and instance
-          configuration, including accounts and challenge answers. Keep
-          downloaded backups private. Event JSON reports are separate and cannot
-          restore the instance.
+          Save and recover this instance, including accounts, challenges and
+          uploaded files. Downloaded backups contain private data and answers;
+          keep them secure.
         </p>
       </div>
     </div>
@@ -62,32 +57,6 @@ export function RestoreReplacementNotice() {
   );
 }
 
-function VersionDetails({ version }: { version: BackupVersions }) {
-  return (
-    <dl className="backup-version-details">
-      <div>
-        <dt>CTFd</dt>
-        <dd>{backupVersionLabel(version.ctfd_version)}</dd>
-      </div>
-      <div>
-        <dt>Quest</dt>
-        <dd>{backupVersionLabel(version.plugin_version)}</dd>
-      </div>
-      <div>
-        <dt>CTFd schema</dt>
-        <dd>{backupVersionLabel(version.ctfd_schema_revision)}</dd>
-      </div>
-      <div>
-        <dt>Quest schema</dt>
-        <dd>{backupVersionLabel(version.schema_revision)}</dd>
-      </div>
-      <div>
-        <dt>Image</dt>
-        <dd>{version.image_digest || "Not recorded"}</dd>
-      </div>
-    </dl>
-  );
-}
 function RestoreComparison({ review }: { review: RestoreReview }) {
   const counts = [
     ...new Set([
@@ -174,8 +143,8 @@ function ReasonField({
 
 export function BackupRestore() {
   // Remote control-plane inspection can outlast ordinary participant reads.
-  const resource = useResource<BackupIndex>(
-    "/admin/backups",
+  const resource = useResource<BackupOverview>(
+    "/admin/backups?view=summary",
     60000,
     request,
     true,
@@ -183,6 +152,7 @@ export function BackupRestore() {
   );
   const progress = useBackupProgress();
   const [error, setError] = useState("");
+  const [historyRefresh, setHistoryRefresh] = useState(0);
   const [busy, setBusy] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [action, setAction] = useState<{
@@ -214,7 +184,7 @@ export function BackupRestore() {
       void resource.refresh();
   }, [terminal]);
   async function inspect(snapshot: BackupSnapshot) {
-    if (!backupRestoreSupported(snapshot)) {
+    if (!backupReviewAvailable(snapshot)) {
       setError(
         snapshot.compatibility.reason ||
           "This legacy or unsupported backup needs operator verification before restore.",
@@ -272,6 +242,11 @@ export function BackupRestore() {
           {data.unavailable_reason ||
             "Backup & Restore is not configured. Ask an operator to connect the backup service."}
         </Notice>
+        <p>
+          <a href="https://github.com/open-tech-quest/ctfd-plugin/blob/main/docs/backups.md#hosting-the-worker">
+            Backup setup guide for hosting operators
+          </a>
+        </p>
         {progress && <BackupJobProgress state={progress} />}
         <button
           type="button"
@@ -288,44 +263,11 @@ export function BackupRestore() {
     <div className="backup-workspace">
       <section className="admin-panel">
         <BackupRestoreIntroduction />
-        <p>
-          Instance: <strong>{data.target.name}</strong>{" "}
-          <span className="meta">({data.target.id})</span>
-        </p>
+        <p className="backup-instance">{data.target.name}</p>
         {(error || resource.error) && (
           <Notice tone="error">{error || resource.error}</Notice>
         )}
-        <dl className="backup-version-details">
-          <div>
-            <dt>Scheduled backups</dt>
-            <dd>
-              {data.schedule.enabled
-                ? `Every ${data.schedule.interval_seconds.toLocaleString()} seconds`
-                : "Disabled"}
-            </dd>
-          </div>
-          <div>
-            <dt>Last successful backup</dt>
-            <dd>{dateTime(data.schedule.last_success_at)}</dd>
-          </div>
-          <div>
-            <dt>Next scheduled backup</dt>
-            <dd>
-              {data.schedule.enabled
-                ? dateTime(data.schedule.next_run_at)
-                : "Not scheduled"}
-            </dd>
-          </div>
-          {data.schedule.last_job && (
-            <div>
-              <dt>Last scheduled attempt</dt>
-              <dd>
-                {data.schedule.last_job.status}:{" "}
-                {data.schedule.last_job.message}
-              </dd>
-            </div>
-          )}
-        </dl>
+        <BackupSchedule data={data} />
         <div className="actions">
           <button
             type="button"
@@ -342,7 +284,11 @@ export function BackupRestore() {
             type="button"
             className="button secondary"
             disabled={busy}
-            onClick={() => void resource.refresh()}
+            onClick={() =>
+              void resource
+                .refresh()
+                .then(() => setHistoryRefresh((value) => value + 1))
+            }
           >
             Refresh backup status
           </button>
@@ -377,83 +323,15 @@ export function BackupRestore() {
           Upload backup
         </button>
       </section>
-      <section className="admin-panel">
-        <h2>Saved backups</h2>
-        {!data.snapshots.length ? (
-          <Empty title="No saved backups">
-            Create a backup or upload a full signed backup to review it here.
-          </Empty>
-        ) : (
-          <ul className="backup-snapshots">
-            {data.snapshots.map((snapshot) => (
-              <li key={snapshot.id}>
-                <div>
-                  <h3>{dateTime(snapshot.created_at)}</h3>
-                  <p className="meta">
-                    {backupOriginLabel(snapshot.origin)} ·{" "}
-                    {backupSizeLabel(snapshot)}
-                  </p>
-                  <p className="meta">
-                    CTFd {backupVersionLabel(snapshot.source.ctfd_version)} ·
-                    Quest {backupVersionLabel(snapshot.source.plugin_version)} ·
-                    Schema {backupVersionLabel(snapshot.source.schema_revision)}
-                  </p>
-                  <details>
-                    <summary>Versions and recorded metadata</summary>
-                    <VersionDetails version={snapshot.source} />
-                    <p className="backup-digest">
-                      {backupChecksumLabel(snapshot.sha256)}
-                    </p>
-                    {backupCountsKnown(snapshot) ? (
-                      <dl className="backup-version-details">
-                        {Object.entries(snapshot.counts).map(([key, value]) => (
-                          <div key={key}>
-                            <dt>{key.replaceAll("_", " ")}</dt>
-                            <dd>{value.toLocaleString()}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    ) : (
-                      <p>
-                        {snapshot.origin === "legacy"
-                          ? "Event counts unknown; inspect the downloaded capture with an operator."
-                          : "Event counts not recorded."}
-                      </p>
-                    )}
-                  </details>
-                  <p>
-                    {backupRestoreSupported(snapshot)
-                      ? "Compatible with this instance"
-                      : `Operator-only restore: ${snapshot.compatibility.reason || "Unsupported source version or backup format."}`}
-                  </p>
-                </div>
-                <div className="actions">
-                  <a
-                    className="button secondary"
-                    href={backupDownloadPath(snapshot.id)}
-                    download
-                  >
-                    {snapshot.origin === "legacy"
-                      ? "Download for inspection"
-                      : "Download backup"}
-                  </a>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={disabled || !backupRestoreSupported(snapshot)}
-                    onClick={(event) => {
-                      reviewOrigin.current = event.currentTarget;
-                      void inspect(snapshot);
-                    }}
-                  >
-                    Review restore
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <BackupHistory
+        data={data}
+        disabled={disabled}
+        refreshSequence={historyRefresh}
+        inspect={(snapshot, origin) => {
+          reviewOrigin.current = origin;
+          void inspect(snapshot);
+        }}
+      />
       {action && (
         <ConfirmDialog
           label={action.kind === "backup" ? "Create backup" : "Upload backup"}
