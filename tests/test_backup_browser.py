@@ -27,6 +27,40 @@ class BackupBrowser(unittest.TestCase):
             self.assertIn("snapshots", value)
             parser.assert_not_called()
 
+    def test_rfc3339_fractions_match_older_worker_datetime_rules(self):
+        real_datetime = worker.datetime
+        def strict_timestamp(value):
+            import re
+            match = re.search(r"\.(\d+)", value)
+            if match and len(match.group(1)) not in (3, 6):
+                raise ValueError("older datetime fractional precision")
+            return real_datetime.fromisoformat(value)
+        with patch.object(worker, "datetime", wraps=real_datetime) as clock:
+            clock.fromisoformat.side_effect = strict_timestamp
+            for digits in ["1", "12", "123", "1234", "12345", "123456", "1234567", "12345678", "123456789"]:
+                expected = "2026-11-12T00:00:00." + digits[:6].ljust(6, "0") + "Z"
+                self.assertEqual(worker._catalog_time("2026-11-12T00:00:00." + digits + "Z"), expected)
+            self.clear_index()
+            raw = "2026-11-12T00:30:00.123456789+01:00"
+            identifier = self.record(1, raw, legacy=True)
+            overview = self.get("/v1/backups?view=summary")
+            self.assertEqual(overview["groups"][0]["days"], [{"key": "2026-11-11", "count": 1}])
+            page = self.get("/v1/backups/snapshots?day=2026-11-11")
+            self.assertEqual(page["snapshots"][0]["created_at"], raw)
+            self.assertEqual(self.profile.snapshot_record(identifier)["manifest"]["created_at"], raw)
+            self.assertFalse(page["snapshots"][0]["compatibility"]["supported"])
+
+    def test_nanosecond_sort_ties_have_stable_day_cursors(self):
+        self.clear_index()
+        first = self.record(1, "2026-11-12T00:00:00.123456789Z", legacy=True)
+        second = self.record(2, "2026-11-12T00:00:00.123456700Z", legacy=True)
+        page = self.get("/v1/backups/snapshots?day=2026-11-12&limit=1")
+        self.assertEqual([r["id"] for r in page["snapshots"]], [second])
+        cursor = urllib.parse.quote(page["next_cursor"], safe="")
+        following = self.get("/v1/backups/snapshots?day=2026-11-12&limit=1&before=" + cursor)
+        self.assertEqual([r["id"] for r in following["snapshots"]], [first])
+        self.assertIsNone(following["next_cursor"])
+
     def setUp(self):
         fixtures.BackupWorker.setUp(self)
         self.config.update(instance_name="Synthetic event", adapter={"route_host": "event.example.test"})
