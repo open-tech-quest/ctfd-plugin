@@ -1,8 +1,13 @@
 """Reviewed price scopes against real native solves, purchases and score reads."""
+import importlib
+import json
 import unittest
 
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
+
 from CTFd.models import Awards, Challenges, Hints, Solves, db
-from CTFd.plugins.open_tech_quest.models import QuestAudit, QuestHintPurchase
+from CTFd.plugins.open_tech_quest.models import QuestAudit, QuestHintPurchase, QuestPriceChange
 from CTFd.plugins.open_tech_quest.service import projection
 import test_integration as integration
 import test_maintenance as maintenance_tests
@@ -370,3 +375,98 @@ class PriceEditsIntegration(unittest.TestCase):
         self.assertEqual(self.score(), 175)
         access(False)
         self.assertEqual(self.score(), 175)
+
+    def cohort_history(self):
+        self.begin(both=True)
+        self.checked(self.solve(self.alice, 1))
+        self.checked(self.buy())
+        self.checked(self.apply_price(self.value_change(200)))
+        self.checked(self.solve(self.carol, 1))
+        self.checked(self.buy(self.carol))
+        self.checked(self.apply_price(self.hint_change({1: 80}), cid=2))
+        self.checked(self.apply_price(self.hint_change({1: 80}, existing=[1]), cid=2))
+        self.assertEqual((self.score(), self.score(self.other_id)), (20, 120))
+
+    def test_archive_retains_price_timeline_earned_points_and_original_effective_hint_costs(self):
+        self.cohort_history()
+        history, receipts = self.history(), self.receipts()
+        archived = self.checked(self.post(self.admin, P + "/admin/archives", {}))
+        document = archived["document"]
+        source = document["data"]
+        self.assertEqual(len(source["price_changes"]), 3)
+        self.assertEqual([(p["kind"], p["before_value"], p["after_value"], p["apply_existing"])
+                         for p in source["price_changes"]],
+                         [("challenge", 100, 200, False), ("hint", 50, 80, False), ("hint", 80, 80, True)])
+        changes = [event for event in source["timeline"] if event["type"] == "pricing.change"]
+        self.assertEqual(len(changes), 3)
+        self.assertEqual({row["team_id"]: row["earned_points"] for row in source["scoring_credits"]},
+                         {self.team_id: 100, self.other_id: 200})
+        self.assertEqual([(row["cost"], row["effective_cost"]) for row in source["hint_purchases"]],
+                         [(50, 80), (50, 80)])
+        self.assertEqual({row["id"]: row["points"] for row in source["results"]["teams"]},
+                         {self.team_id: 20, self.other_id: 120})
+        self.assertNotIn("fixture-answer", json.dumps(document))
+        self.assertEqual(self.admin.get(P + "/admin/archives/" + str(archived["id"])).json, document)
+        self.assertEqual(self.history(), history)
+        self.assertEqual(self.receipts(), receipts)
+
+    def test_new_round_archives_cohorts_before_clearing_price_history_and_keeps_current_prices(self):
+        self.cohort_history()
+        self.action("close")
+        previous = self.checked(self.post(self.admin, P + "/admin/archives", {}))
+        preview = self.checked(self.admin.get(P + "/admin/round/preview?mode=new_round"))
+        self.assertTrue(preview["allowed"])
+        self.assertEqual(preview["counts"]["price_changes"], 3)
+        reset = self.checked(self.post(self.admin, P + "/admin/round/reset", {
+            "revision": preview["revision"], "confirm": True, "event_name": preview["event_name"],
+            "reason": "Prepare a fresh synthetic round", "mode": "new_round"}))
+        self.assertEqual(reset["cleared"]["price_changes"], 3)
+        saved = self.admin.get(P + "/admin/archives/" + str(reset["archive_id"])).json["data"]
+        self.assertEqual(len(saved["price_changes"]), 3)
+        self.assertEqual({row["team_id"]: row["earned_points"] for row in saved["scoring_credits"]},
+                         {self.team_id: 100, self.other_id: 200})
+        self.assertEqual([(row["cost"], row["effective_cost"]) for row in saved["hint_purchases"]],
+                         [(50, 80), (50, 80)])
+        self.assertEqual(self.admin.get(P + "/admin/archives/" + str(previous["id"])).json, previous["document"])
+        with self.app.app_context():
+            self.assertEqual(QuestPriceChange.query.count(), 0)
+            self.assertEqual(QuestHintPurchase.query.count(), 0)
+            self.assertEqual(Solves.query.count(), 0)
+            self.assertEqual(Challenges.query.get(1).value, 200)
+            self.assertEqual(Hints.query.get(1).cost, 80)
+
+    def test_pricing_migration_adds_empty_history_and_preserves_rows_on_rerun(self):
+        self.begin()
+        self.checked(self.solve(self.alice, 1))
+        self.checked(self.buy())
+        history, receipts = self.history(), self.receipts()
+        migration = importlib.import_module("CTFd.plugins.open_tech_quest.migrations.0013_pricing")
+        with self.app.app_context():
+            db.session.remove()
+            try:
+                with db.engine.begin() as connection:
+                    QuestPriceChange.__table__.drop(connection)
+                    operations = Operations(MigrationContext.configure(connection))
+                    migration.upgrade(operations)
+                    migration.upgrade(operations)
+            finally:
+                QuestPriceChange.__table__.create(db.engine, checkfirst=True)
+            db.session.rollback()
+            self.assertEqual(QuestPriceChange.query.count(), 0)
+            self.assertEqual(Challenges.query.get(1).value, 100)
+            self.assertEqual(Hints.query.get(1).cost, 50)
+        self.assertEqual(self.history(), history)
+        self.assertEqual(self.receipts(), receipts)
+        self.assertEqual(self.score(), 50)
+        self.checked(self.apply_price(self.value_change(225)))
+        with self.app.app_context():
+            rows = [tuple(row) for row in db.session.execute(QuestPriceChange.__table__.select())]
+            self.assertEqual(len(rows), 1)
+            db.session.remove()
+            with db.engine.begin() as connection:
+                migration.upgrade(Operations(MigrationContext.configure(connection)))
+            self.assertEqual([tuple(row) for row in db.session.execute(QuestPriceChange.__table__.select())], rows)
+            self.assertEqual(Challenges.query.get(1).value, 225)
+        self.assertEqual(self.history(), history)
+        self.assertEqual(self.receipts(), receipts)
+        self.assertEqual(self.score(), 50)
