@@ -6,6 +6,7 @@ import os
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 from pathlib import Path
 
 spec = importlib.util.spec_from_file_location("otq_backup_contract", Path(__file__).resolve().parents[1] / "plugin/open_tech_quest/backup_contract.py")
@@ -16,6 +17,31 @@ spec.loader.exec_module(contract)
 
 
 class BackupContract(unittest.TestCase):
+    def test_legacy_nanosecond_manifest_keeps_signed_bytes_on_older_runtimes(self):
+        real_datetime = contract.datetime
+        def strict_timestamp(value):
+            import re
+            match = re.search(r"\.(\d+)", value)
+            if match and len(match.group(1)) not in (3, 6):
+                raise ValueError("older datetime fractional precision")
+            return real_datetime.fromisoformat(value)
+        original = "2026-11-12T00:00:00.123456789Z"
+        metadata = copy.deepcopy(self.manifest)
+        metadata.update(created_at=original, legacy=True)
+        with patch.object(contract, "datetime", wraps=real_datetime) as clock:
+            clock.fromisoformat.side_effect = strict_timestamp
+            bundle = self.root / "legacy-nanoseconds.otqbackup"
+            signed = contract.build_bundle(bundle, metadata, self.parts, "test-key", self.key)
+            verified = contract.verify_bundle(bundle, {"test-key": self.key})
+            self.assertEqual(verified["created_at"], original)
+            self.assertTrue(verified["legacy"])
+            repacked = self.root / "legacy-repacked.otqbackup"
+            contract.build_bundle(repacked, signed, self.parts, "test-key", self.key)
+            self.assertEqual(bundle.read_bytes(), repacked.read_bytes())
+            metadata["created_at"] = "2026-11-12T00:00:00.123456789+01:00"
+            with self.assertRaisesRegex(contract.BackupError, "UTC"):
+                contract.validate_manifest(dict(signed, created_at=metadata["created_at"]))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="quest-backup-contract-")
         self.addCleanup(self.temp.cleanup)

@@ -75,6 +75,14 @@ def _json(raw, label):
         raise BackupError(label + " is not valid UTF-8 JSON") from exc
 
 
+def parse_timestamp(value):
+    """Read RFC3339 precision consistently without rewriting signed metadata."""
+    # Restic emits nanoseconds; Python 3.9 accepts only 3 or 6 fractional digits.
+    value = re.sub(r"\.(\d+)(?=Z$|[+-]\d{2}:\d{2}$)",
+                   lambda match: "." + match.group(1)[:6].ljust(6, "0"), value)
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def validate_manifest(manifest, max_bytes=DEFAULT_MAX_BYTES):
     _object(manifest, "Manifest")
     if manifest.get("format") != FORMAT or type(manifest.get("schema_version")) is not int or manifest["schema_version"] != SCHEMA_VERSION:
@@ -83,7 +91,7 @@ def validate_manifest(manifest, max_bytes=DEFAULT_MAX_BYTES):
         raise BackupError("The backup snapshot identity is invalid")
     stamp = _text(manifest.get("created_at"), "Backup time", 64)
     try:
-        created = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        created = parse_timestamp(stamp)
         if created.tzinfo is None or created.utcoffset() != timezone.utc.utcoffset(created):
             raise ValueError()
     except ValueError as exc:

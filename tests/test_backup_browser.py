@@ -28,14 +28,14 @@ class BackupBrowser(unittest.TestCase):
             parser.assert_not_called()
 
     def test_rfc3339_fractions_match_older_worker_datetime_rules(self):
-        real_datetime = worker.datetime
+        real_datetime = worker.contract.datetime
         def strict_timestamp(value):
             import re
             match = re.search(r"\.(\d+)", value)
             if match and len(match.group(1)) not in (3, 6):
                 raise ValueError("older datetime fractional precision")
             return real_datetime.fromisoformat(value)
-        with patch.object(worker, "datetime", wraps=real_datetime) as clock:
+        with patch.object(worker.contract, "datetime", wraps=real_datetime) as clock:
             clock.fromisoformat.side_effect = strict_timestamp
             for digits in ["1", "12", "123", "1234", "12345", "123456", "1234567", "12345678", "123456789"]:
                 expected = "2026-11-12T00:00:00." + digits[:6].ljust(6, "0") + "Z"

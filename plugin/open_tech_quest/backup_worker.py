@@ -90,11 +90,7 @@ def parse_day(value):
 def _catalog_time(value):
     if not isinstance(value, str) or len(value) > 40:
         raise ValueError()
-    # Restic uses RFC3339 nanoseconds. Python 3.9 accepts only 3 or 6
-    # fractional digits; normalize the sort key without changing the manifest.
-    value = re.sub(r"\.(\d+)(?=Z$|[+-]\d{2}:\d{2}$)",
-                   lambda match: "." + match.group(1)[:6].ljust(6, "0"), value)
-    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    stamp = contract.parse_timestamp(value)
     if stamp.tzinfo is None:
         raise ValueError()
     return stamp.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
