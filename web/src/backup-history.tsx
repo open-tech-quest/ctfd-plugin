@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { dateTime, request } from "./api";
 import { Empty, Notice } from "./ui";
-import type { BackupOverview, BackupSnapshot } from "./backup-types";
+import type {
+  BackupOverview,
+  BackupSnapshot,
+  BackupCurrentVersions,
+} from "./backup-types";
 import { backupDownloadPath, getBackupDay } from "./backup-transport";
 import { createBackupDayLoader, type BackupDayState } from "./backup-catalog";
 import { VersionDetails } from "./backup-details";
@@ -15,6 +19,8 @@ import {
   backupDayLabel,
   backupTimeLabel,
   backupIntervalLabel,
+  backupSchemaComparison,
+  backupVersionLabel,
 } from "./backup-presentation";
 
 export function BackupSchedule({ data }: { data: BackupOverview }) {
@@ -100,17 +106,45 @@ function SnapshotRow({
   snapshot,
   disabled,
   inspect,
+  current,
 }: {
   snapshot: BackupSnapshot;
+  current: BackupCurrentVersions | null | undefined;
   disabled: boolean;
   inspect: (snapshot: BackupSnapshot, origin: HTMLButtonElement) => void;
 }) {
+  const comparison = backupSchemaComparison(snapshot.source, current);
   return (
     <li>
       <div>
         <h5>{backupTimeLabel(snapshot.created_at)}</h5>
         <p className="meta">
           {backupOriginLabel(snapshot.origin)} · {backupSizeLabel(snapshot)}
+        </p>
+        <div
+          className="backup-schema-pairs"
+          aria-label="Current and backup schemas"
+        >
+          <span>Schema</span>
+          <span>Current</span>
+          <span>Backup</span>
+          <strong>Quest</strong>
+          <span>{backupVersionLabel(current?.schema_revision ?? "")}</span>
+          <span>{backupVersionLabel(snapshot.source.schema_revision)}</span>
+          <strong>CTFd</strong>
+          <span>{backupVersionLabel(current?.ctfd_schema_revision ?? "")}</span>
+          <span>
+            {backupVersionLabel(snapshot.source.ctfd_schema_revision)}
+          </span>
+        </div>
+        <p
+          className={`backup-schema-status meta${comparison === "mismatch" ? " mismatch" : ""}`}
+        >
+          {comparison === "match"
+            ? "Schemas match; full compatibility is checked on review."
+            : comparison === "mismatch"
+              ? "Schema mismatch; operator review is required."
+              : "Schema unknown; compatibility is checked on review."}
         </p>
         <details>
           <summary>Versions and recorded metadata</summary>
@@ -257,6 +291,14 @@ export function BackupHistory({
           <p className="meta">
             Grouped by month and day in UTC. Open a day to browse its backups.
           </p>
+          <p className="meta backup-current-schemas">
+            Current schemas: Quest{" "}
+            {backupVersionLabel(data.current_versions?.schema_revision ?? "")} ·
+            CTFd{" "}
+            {backupVersionLabel(
+              data.current_versions?.ctfd_schema_revision ?? "",
+            )}
+          </p>
         </div>
         {!!groups.length && (
           <span className="meta">
@@ -361,6 +403,7 @@ export function BackupHistory({
                                     <SnapshotRow
                                       key={snapshot.id}
                                       snapshot={snapshot}
+                                      current={data.current_versions}
                                       disabled={disabled}
                                       inspect={inspect}
                                     />

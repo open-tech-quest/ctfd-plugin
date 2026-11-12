@@ -95,3 +95,16 @@ test("day cache is bounded and evicts old entries rather than retaining an unbou
   for(let n=1;n<=9;n++){f.browser.open(`2026-11-${String(n).padStart(2,"0")}`,"one");await flush();}
   f.browser.open("2026-11-01","one");await flush();assert.equal(f.calls.length,10);
 });
+
+test("schema comparison requires both Quest and native schema agreement and never grants restore compatibility", async () => {
+  const {backupSchemaComparison} = await import("../src/backup-presentation.ts");
+  const current = {ctfd_version:"3.8.9",plugin_version:"synthetic",schema_revision:"quest_0013",ctfd_schema_revision:"native-a"};
+  assert.equal(backupSchemaComparison(current,current),"match");
+  assert.equal(backupSchemaComparison({...current,schema_revision:"quest_0012"},current),"mismatch");
+  assert.equal(backupSchemaComparison({...current,ctfd_schema_revision:"native-b"},current),"mismatch");
+  assert.equal(backupSchemaComparison({...current,schema_revision:"unknown"},current),"unknown");
+  assert.equal(backupSchemaComparison({...current,ctfd_schema_revision:""},current),"unknown");
+  assert.equal(backupSchemaComparison(current,null),"unknown");
+  assert.equal(backupSchemaComparison({...current,schema_revision:"legacy",ctfd_schema_revision:"native-b"},current),"mismatch");
+  assert.equal(backupRestoreSupported({origin:"manual",compatibility:{supported:false,checked:false,reason:null}}),false);
+});

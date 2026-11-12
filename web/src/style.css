@@ -4529,3 +4529,24 @@ body:has(.participant-attendance-bar) {
     flex-basis: 100%;
   }
 }
+.backup-schema-pairs {
+  display: grid;
+  grid-template-columns: 42px repeat(2, minmax(0, 1fr));
+  gap: 4px 10px;
+  max-width: 360px;
+  margin-block: 12px 8px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.backup-schema-pairs strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.backup-schema-status.mismatch {
+  color: #a30000;
+}
+
+.backup-current-schemas {
+  overflow-wrap: anywhere;
+}

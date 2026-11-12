@@ -86,6 +86,7 @@ export interface BackupMonthGroup {
   count: number;
   days: BackupDayGroup[];
 }
+export type BackupCurrentVersions = Omit<BackupVersions, "image_digest">;
 export interface BackupOverview extends Omit<
   BackupIndex,
   "target" | "snapshots"
@@ -93,6 +94,7 @@ export interface BackupOverview extends Omit<
   target: Pick<BackupTarget, "id" | "name" | "origin"> | null;
   catalog_revision: string;
   groups: BackupMonthGroup[];
+  current_versions?: BackupCurrentVersions | null;
 }
 export interface BackupDayPage {
   day: string;

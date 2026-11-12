@@ -1,4 +1,4 @@
-import type { BackupSnapshot } from "./backup-types";
+import type { BackupSnapshot, BackupCurrentVersions } from "./backup-types";
 
 export function backupOriginLabel(origin: string) {
   return origin === "legacy" ? "Legacy Restic backup" : origin;
@@ -69,4 +69,29 @@ export function backupTimeLabel(value: string) {
     timeZone: "UTC",
     timeZoneName: "short",
   }).format(new Date(value));
+}
+
+/** Schema agreement alone never establishes image/configuration restore compatibility. */
+export function backupSchemaComparison(
+  backup: Pick<
+    BackupCurrentVersions,
+    "schema_revision" | "ctfd_schema_revision"
+  >,
+  current: BackupCurrentVersions | null | undefined,
+): "match" | "mismatch" | "unknown" {
+  const fields = ["schema_revision", "ctfd_schema_revision"] as const;
+  const known = (value: string | undefined) =>
+    !!value && value !== "unknown" && value !== "legacy";
+  if (
+    fields.some(
+      (field) =>
+        known(backup[field]) &&
+        known(current?.[field]) &&
+        backup[field] !== current?.[field],
+    )
+  )
+    return "mismatch";
+  if (!fields.every((field) => known(backup[field]) && known(current?.[field])))
+    return "unknown";
+  return "match";
 }
