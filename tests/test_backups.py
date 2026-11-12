@@ -119,6 +119,10 @@ class BackupsIntegration(unittest.TestCase):
             self.assertEqual(response.status_code, 503)
             self.assertTrue(response.json["maintenance"])
         self.assertEqual(self.admin.get("/healthcheck").status_code, 200)
+        from CTFd.plugins.open_tech_quest.service import event
+        with self.app.app_context():
+            self.assertEqual(event(lock=True).id, 1)
+            db.session.rollback()  # Startup/worker inspection must work while HTTP stays fenced.
         self.marker.write_text("incomplete worker marker")
         self.assertEqual(self.admin.get(PREFIX).status_code, 503)
         self.marker.unlink()

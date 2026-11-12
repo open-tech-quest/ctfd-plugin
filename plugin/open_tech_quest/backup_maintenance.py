@@ -4,7 +4,7 @@ import os
 import re
 from pathlib import Path
 
-from flask import current_app, jsonify, request
+from flask import current_app, has_request_context, jsonify, request
 from werkzeug.exceptions import ServiceUnavailable
 
 MESSAGE = "Backup restore maintenance is in progress. Use the operation status window and wait before signing in again."
@@ -33,7 +33,9 @@ def state():
 
 
 def require_available():
-    if state() is not None:
+    # CTFd must initialize while fenced so the worker can verify it before
+    # reopening. This post-lock check applies to queued HTTP writers only.
+    if has_request_context() and state() is not None:
         raise ServiceUnavailable(MESSAGE)
 
 

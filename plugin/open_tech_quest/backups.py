@@ -130,9 +130,9 @@ class Worker:
 
     def json(self, method, path, data=None, headers=None, timeout=30):
         with self.open(method, path, data, headers, timeout) as response:
-            raw = response.read(1024 * 1024 + 1)
+            raw = response.read(8 * 1024 * 1024 + 1)
         try:
-            if len(raw) > 1024 * 1024:
+            if len(raw) > 8 * 1024 * 1024:
                 raise ValueError()
             value = json.loads(raw)
             if not isinstance(value, dict):
@@ -246,7 +246,7 @@ def upload():
 @admin
 def download(snapshot_id):
     sid = identifier(snapshot_id)
-    response = worker().open("GET", "/backups/" + sid + "/download")
+    response = worker().open("GET", "/backups/" + sid + "/download", timeout=600)
     def chunks():
         try:
             while True:

@@ -1,5 +1,6 @@
 """Portable worker controller tests with a disposable, complete fake provider."""
 import copy
+import fcntl
 import importlib.util
 import json
 import threading
@@ -75,7 +76,7 @@ class FakeAdapter:
             if path.name != "portable.otqbackup":
                 shutil.copyfile(path, temporary / path.name)
 
-    def publish_bundle(self, path, manifest):
+    def publish_bundle(self, path, manifest, record):
         storage = self.store / manifest["snapshot_id"]
         storage.mkdir(exist_ok=True)
         with zipfile.ZipFile(path) as bundle:
@@ -338,3 +339,17 @@ class BackupWorker(unittest.TestCase):
         self.assertTrue(self.profile.index(ACTOR)["snapshots"][0]["compatibility"]["supported"])
         self.adapter.source["schema_revision"] = "unqualified-next-schema"
         self.assertFalse(self.profile.index(ACTOR)["snapshots"][0]["compatibility"]["supported"])
+
+    def test_download_refuses_during_exclusive_operation_and_retains_signed_recovery_index(self):
+        snapshot = self.backup()
+        record = self.profile.snapshot_record(snapshot)
+        durable = json.loads((self.adapter.store / record["storage_id"] / "portable-record.json").read_text())
+        self.assertEqual(durable["manifest"], record["manifest"])
+        self.assertEqual(durable["sha256"], record["sha256"])
+        with (self.profile.root / "operation.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(worker.WorkerError, "Wait before downloading"):
+                with self.profile.materialize(record):
+                    self.fail("Concurrent download acquired an exclusive operation's repository")
+        with self.profile.materialize(record) as (bundle, _):
+            self.assertEqual(contract.file_digest(bundle)["sha256"], record["sha256"])

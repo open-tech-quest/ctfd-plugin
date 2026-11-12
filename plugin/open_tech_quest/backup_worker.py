@@ -167,7 +167,7 @@ class Profile:
     def snapshot(self, record, current):
         manifest = record["manifest"]
         compatible = self.compatibility(manifest, current)
-        if record.get("signing_key_id") not in self.trusted_keys:
+        if not manifest.get("legacy") and record.get("signing_key_id") not in self.trusted_keys:
             compatible = {"supported": False, "reason": "The backup signing key requires operator recovery"}
         return {"id": manifest["snapshot_id"], "created_at": manifest["created_at"],
                 "origin": record["origin"], "bytes": record["bytes"], "sha256": record["sha256"],
@@ -177,7 +177,19 @@ class Profile:
     def index(self, actor):
         self.authorize(actor)
         current = self.current()
-        records = [json.loads(path.read_text()) for path in (self.root / "snapshots").glob("*.json")]
+        with (self.root / "operation.lock").open("a") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                if hasattr(self.adapter, "sync_inventory"):
+                    self.adapter.sync_inventory(self.root / "snapshots")
+            except BlockingIOError:
+                pass  # Read the durable index while a mutation owns the repository.
+            records = []
+            for path in (self.root / "snapshots").glob("*.json"):
+                try:
+                    records.append(json.loads(path.read_text()))
+                except FileNotFoundError:
+                    continue  # Retention may have just removed this entry.
         jobs = [json.loads(path.read_text()) for path in (self.root / "jobs").glob("*.json")]
         jobs.sort(key=lambda value: value["created_at"], reverse=True)
         active = next((job for job in jobs if job["status"] in ("queued", "running")), None)
@@ -254,6 +266,7 @@ class Profile:
             manifest = contract.build_bundle(bundle, manifest, self.adapter.components(temporary),
                                                self.key_id, self.key, self.max_bytes)
             record = {"manifest": manifest, "origin": origin, "signing_key_id": self.key_id, **contract.file_digest(bundle)}
+            write_json(temporary / "portable-record.json", record)
             record["storage_id"] = self.adapter.publish(temporary, manifest, contract.signature(manifest, self.key_id, self.key))
             write_json(self.root / "snapshots" / (manifest["snapshot_id"] + ".json"), record)
             return manifest["snapshot_id"]
@@ -261,12 +274,27 @@ class Profile:
             shutil.rmtree(temporary)
 
     @contextlib.contextmanager
-    def materialize(self, record):
+    def materialize(self, record, operation_locked=False):
+        lock = None
+        if not operation_locked:
+            lock = (self.root / "operation.lock").open("a")
+            try:
+                fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                lock.close()
+                raise WorkerError("Another backup or recovery operation is running. Wait before downloading.")
         temporary = self.root / "temporary" / uuid.uuid4().hex
         temporary.mkdir(mode=0o700)
         try:
             self.adapter.materialize(record["storage_id"], temporary)
             bundle = temporary / "portable.otqbackup"
+            if record.get("legacy_storage"):
+                manifest = self.adapter.legacy_manifest(temporary, record)
+                manifest = contract.build_bundle(bundle, manifest, self.adapter.components(temporary),
+                                                 self.key_id, self.key, self.max_bytes)
+                record.update(manifest=manifest, signing_key_id=self.key_id, **contract.file_digest(bundle))
+                record.pop("legacy_storage", None)
+                write_json(self.root / "snapshots" / (manifest["snapshot_id"] + ".json"), record)
             if bundle.exists():
                 signed = contract.verify_bundle(bundle, self.trusted_keys, self.max_bytes)
                 with zipfile.ZipFile(bundle) as archive:
@@ -290,6 +318,8 @@ class Profile:
             yield bundle, components
         finally:
             shutil.rmtree(temporary)
+            if lock:
+                lock.close()
 
     def enqueue(self, kind, actor, body, snapshot_id=None, upload_path=None, synchronous=False):
         identifier = operation_id(body.get("operation_id"))
@@ -356,12 +386,12 @@ class Profile:
                 path = self.root / "snapshots" / (manifest["snapshot_id"] + ".json")
                 if path.exists() and json.loads(path.read_text())["sha256"] != record["sha256"]:
                     raise WorkerError("A different backup already uses this identity")
-                record["storage_id"] = self.adapter.publish_bundle(upload_path, manifest)
+                record["storage_id"] = self.adapter.publish_bundle(upload_path, manifest, record)
                 write_json(path, record)
                 job["snapshot_id"] = manifest["snapshot_id"]
             else:
                 record = self._check_review(snapshot_id, job["actor"], body, self.current())
-                with self.materialize(record) as (bundle, components):
+                with self.materialize(record, operation_locked=True) as (bundle, components):
                     manifest = contract.verify_bundle(bundle, self.trusted_keys, self.max_bytes)
                     self.adapter.validate_uploaded_bundle(bundle, manifest)
                     self.authorize(job["actor"])
@@ -386,6 +416,8 @@ class Profile:
                     pass
             message = str(error) if isinstance(error, (WorkerError, contract.BackupError)) else "The operation failed. An operator must inspect recovery before retrying."
             job.update(status="failed", stage="failed", message=message)
+            if job["kind"] == "backup" and job["scheduled"]:
+                write_json(self.root / "backup-failure.json", {"at": now(), "job_id": job["id"]})
         finally:
             job["updated_at"] = now()
             write_json(self._job_path(job["id"]), job)
