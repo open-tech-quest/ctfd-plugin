@@ -11,6 +11,8 @@ from .recovery_models import QuestRecoverySolve
 
 
 def load(app):
+    from .backup_maintenance import install as install_backup_maintenance
+    install_backup_maintenance(app)
     upgrade(plugin_name="open_tech_quest")
     from .schema import upgrade_sqlite_attendance
     upgrade_sqlite_attendance()
@@ -45,6 +47,8 @@ def load(app):
 
     app.register_blueprint(shell)
     app.register_blueprint(api, url_prefix="/api/v1/quest")
+    from .backups import backups_api
+    app.register_blueprint(backups_api, url_prefix="/api/v1/quest")
     from .authoring import authoring_api
     app.register_blueprint(authoring_api, url_prefix="/api/v1/quest")
     from .assets import assets_api, install as install_assets

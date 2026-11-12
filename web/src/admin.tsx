@@ -5,6 +5,7 @@ import { ProjectorControls } from "./projector-controls";
 import { DemoControls } from "./demo";
 import { Attendance } from "./attendance";
 import { ArchiveWorkspace } from "./event-archive";
+import { BackupRestore } from "./backup-restore";
 import { RegistrationControls } from "./registration";
 import { AttendanceWindowControls } from "./attendance-window";
 import { RoomManagement } from "./room-management";
@@ -26,6 +27,7 @@ const tabs = [
   "Awards",
   "Projector",
   "Archives",
+  "Backup & Restore",
   "Danger zone",
   "Audit",
 ] as const;
@@ -65,7 +67,11 @@ export function Admin({ viewer }: { viewer: Viewer }) {
 }
 function FullAdmin({ viewer }: { viewer: Viewer }) {
   const resource = useResource<AdminState>("/admin/state", 20000),
-    [tab, setTab] = useState<(typeof tabs)[number]>("Event"),
+    [tab, setTab] = useState<(typeof tabs)[number]>(() =>
+      new URLSearchParams(location.search).get("section") === "backups"
+        ? "Backup & Restore"
+        : "Event",
+    ),
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -126,6 +132,12 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
               key={t}
               onClick={() => {
                 setTab(t);
+                const url = new URL(location.href);
+                if (t === "Backup & Restore")
+                  url.searchParams.set("section", "backups");
+                else if (url.searchParams.get("section") === "backups")
+                  url.searchParams.delete("section");
+                history.replaceState(null, "", url);
                 setMessage("");
                 setError("");
               }}
@@ -174,6 +186,8 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
             onChanged={resource.refresh}
             pane="archives"
           />
+        ) : tab === "Backup & Restore" ? (
+          <BackupRestore />
         ) : tab === "Danger zone" ? (
           <ArchiveWorkspace
             key="danger"

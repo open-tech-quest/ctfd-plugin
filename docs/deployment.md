@@ -167,8 +167,11 @@ the namespace's default UID range includes 1001.
 
 A backup represents its capture time. Different content or software in the live
 instance is expected; choose the recovery scope before replacing anything.
-These are operator procedures. **Organize → Archives** exports event reports;
-it does not browse or restore infrastructure backups.
+**Organize → Backup & Restore** supports a reviewed full replacement when the
+operator has configured the external worker and qualified the exact source/target.
+Granular recovery and incompatible backups remain operator procedures. See
+[backup setup, compatibility and recovery](backups.md). **Organize → Archives**
+exports event reports, which cannot restore the database.
 
 | Problem | Recovery action |
 |---|---|

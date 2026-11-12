@@ -6,6 +6,7 @@
 | Host the image, combine plugins or upgrade | [Hosting](deployment.md) |
 | Prepare and run an event | [Event operations](operations.md) |
 | Save event records, read archives or prepare another round | [Archives and reset](archives.md) |
+| Back up the full event or restore an earlier state | [Backup and restore](backups.md) |
 | Explore or test an event from setup through cleanup | [Full-event rehearsal](rehearsal.md) |
 | Browse rooms freely or test the participant journey as staff | [Staff browsing and journey](preview.md) |
 | Personalize descriptions and lab links | [Description placeholders](administration.md#personalized-descriptions) |

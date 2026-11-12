@@ -60,6 +60,12 @@ Keep operator access, snapshots and deployment commands out of public guidance.
   delete every other account and teams/play; defaults also clears challenge/room
   content and restores five empty rooms. Never run either reset as an upgrade,
   QA side effect or implicit rehearsal setup. Event JSON is not a restore backup.
+- Full backup restoration is a separate reviewed administrator action. Keep its
+  worker authority, jobs and persistent maintenance fence outside restored data;
+  stop all writers and create a safety backup before replacement. Do not perform
+  live restores as deployment/QA side effects. Changes to persistent state must
+  preserve backup readability or document an operator migration; only explicitly
+  tested exact producer→target combinations may be qualified. See `docs/backups.md`.
 - Every finished unit is committed and pushed. Every release runs backend
   integration tests, frontend checks/build, and container smoke tests.
 - CI publishes tested versioned images and a `latest` alias for the Compose

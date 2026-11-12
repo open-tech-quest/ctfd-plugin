@@ -14,6 +14,7 @@ import { StaffHome } from "./staff-home";
 import { ParticipantPreview } from "./preview";
 import { isPreviewPath, previewHome, previewSlug } from "./preview-routing";
 import { ParticipantSession } from "./participant-session";
+import { RestoreProgressScreen, useBackupProgress } from "./backup-runtime";
 import "./style.css";
 const branding = "/plugins/open_tech_quest/assets/branding";
 const pluginVersion = import.meta.env.VITE_PLUGIN_VERSION || "dev";
@@ -22,6 +23,7 @@ fonts.rel = "stylesheet";
 fonts.href = `${branding}/fonts.css`;
 document.head.appendChild(fonts);
 function App() {
+  const backupState = useBackupProgress();
   const path = usePath();
   const bootstrap = useQuestSession(path);
   const data = bootstrap.data;
@@ -30,6 +32,11 @@ function App() {
   const participantPreview = isPreviewPath(path);
   const roomPreviewSlug = previewSlug(path);
   const stage = path.replace(/\/$/, "") === "/quest/stage";
+  if (
+    backupState?.pendingRestoreId ||
+    backupState?.operation?.job.kind === "restore"
+  )
+    return <RestoreProgressScreen state={backupState} />;
   return (
     <ParticipantSession
       key={bootstrap.live ? viewerIdentity(bootstrap.live.viewer) : "loading"}

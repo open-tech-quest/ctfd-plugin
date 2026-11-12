@@ -52,6 +52,8 @@ def event(lock=False):
     if reuse:
         g.quest_read_event = result
     if lock:
+        from .backup_maintenance import require_available
+        require_available()
         from flask import abort, g, has_request_context, request
         if has_request_context() and getattr(g, "quest_administrator", False):
             from .lifecycle import administrator
