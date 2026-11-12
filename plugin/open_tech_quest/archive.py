@@ -19,7 +19,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          UserComments, UserFieldEntries, UserFields, Users, db)
 from . import read_cache, registration
 from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestDemoBatch, QuestDemoChallenge, QuestExclusion,
-                     QuestHintPurchase, QuestMaintainer, QuestOnboarding,
+                     QuestHintPurchase, QuestPriceChange, QuestMaintainer, QuestOnboarding,
                      QuestPause, QuestRoomPause, QuestReadiness, QuestRoom, QuestStart,
                      QuestStep, QuestTeamName)
 from .recovery_models import QuestRecoverySolve
@@ -77,12 +77,19 @@ def _audit_detail(action, raw):
     result = _flat(raw, _SCALARS | (set(_EVENT_FIELDS) if action == "event.configure" else set()))
     if action in {"challenge.create", "challenge.update"} and isinstance(raw.get("maintenance"), dict):
         maintenance = raw["maintenance"]
-        selected = _flat(maintenance, {"reason", "revision", "before_revision", "after_revision"})
+        selected = _flat(maintenance, {"reason", "revision", "before_revision", "after_revision", "acknowledge_negative"})
+        if isinstance(maintenance.get("pricing"), dict):
+            scope = maintenance["pricing"]
+            selected["pricing"] = {**({"challenge_existing": scope["challenge_existing"]} if type(scope.get("challenge_existing")) is bool else {}),
+                "hint_existing_ids": [hid for hid in scope.get("hint_existing_ids", []) if type(hid) is int]}
+        if isinstance(maintenance.get("price_change_ids"), list):
+            selected["price_change_ids"] = [pid for pid in maintenance["price_change_ids"] if type(pid) is int]
         if isinstance(maintenance.get("fields"), list):
             selected["fields"] = [field for field in maintenance["fields"] if isinstance(field, str)]
         impact = maintenance.get("impact")
         if isinstance(impact, dict):
-            keys = {"counted_teams", "solve_records", "hint_purchase_teams", "hint_receipts", "completed_teams", "teams_with_score_changes"}
+            keys = {"counted_teams", "solve_records", "hint_purchase_teams", "hint_receipts", "completed_teams", "teams_with_score_changes",
+                    "negative_overall_teams", "negative_room_teams", "new_negative_overall_teams", "new_negative_room_teams", "repriced_solve_records", "repriced_hint_receipts"}
             selected["impact"] = {key: value for key, value in impact.items() if key in keys and type(value) is int}
             if isinstance(impact.get("team_scores"), list):
                 score_keys = {"team_id", "before_points", "after_points", "before_room_points", "after_room_points", "before_solved", "after_solved"}
@@ -135,6 +142,9 @@ def _timeline(data):
         add("room.pause", row, row["started_at"], "Room paused", room_id=row["room_id"],
             details={"reason": row["reason"]})
         add("room.resume", row, row["ended_at"], "Room pause ended", room_id=row["room_id"])
+    for row in data.get("price_changes", []):
+        add("pricing.change", row, row["changed_at"], "Challenge points changed" if row["kind"] == "challenge" else "Hint price changed",
+            challenge_id=row["challenge_id"], details={key: row[key] for key in ("hint_id", "before_value", "after_value", "apply_existing", "existing_through_id")})
     for key, kind, date, summary in (("readiness", "attendance.ready", "ready_at", "Attendance confirmed"),
                                      ("corrections", "ranking.correct", "created_at", "Room time corrected"),
                                      ("hint_purchases", "hint.purchase", "purchased_at", "Hint purchased"),
@@ -203,6 +213,13 @@ def collect_event(e):
                         "name": (row.location or "").replace("\\", "/").split("/")[-1], "embedded": False}
                        for row in SolutionFiles.query.order_by(SolutionFiles.id).all())
     state = QuestOnboarding.query.get(1)
+    price_changes = [_row(row, "id kind challenge_id hint_id before_value after_value existing_through_id apply_existing changed_at")
+                     for row in QuestPriceChange.query.order_by(QuestPriceChange.id).all()]
+    hint_prices = {}
+    for change in price_changes:
+        if change["kind"] == "hint":
+            hint_prices.setdefault(change["hint_id"], []).append(change)
+    from .pricing import hint_cost
     data = {
         "event": _row(e, "id name status start_at end_at paused_at rosters_release_at room_clock overall_clock projector snapshot"),
         "results": deepcopy(standings(e)),
@@ -232,14 +249,18 @@ def collect_event(e):
         "challenge_sources": [_row(row, "challenge_id room_id source_key") for row in QuestChallengeSource.query.order_by(QuestChallengeSource.challenge_id).all()],
         "managed_assets": [_row(row, "file_id challenge_id kind name size sha256 created_at") for row in QuestAsset.query.order_by(QuestAsset.file_id).all()],
         "attempts": attempts,
-        "scoring_credits": [{"team_id": team_id, "challenge_id": challenge_id, "at": timestamp(at)}
+        "price_changes": price_changes,
+        "scoring_credits": [{"team_id": team_id, "challenge_id": challenge_id, "at": timestamp(at),
+                             "earned_points": view.solve_values[team_id][challenge_id]}
                             for team_id, solves in sorted(view.solves.items()) for challenge_id, at in sorted(solves.items())],
         "starts": [_row(row, "id team_id room_id started_at") for row in QuestStart.query.order_by(QuestStart.started_at, QuestStart.id).all()],
         "pauses": [_row(row, "id started_at ended_at") for row in QuestPause.query.order_by(QuestPause.started_at, QuestPause.id).all()],
         "room_pauses": [_row(row, "id room_id started_at ended_at reason closed_by_event") for row in QuestRoomPause.query.order_by(QuestRoomPause.started_at, QuestRoomPause.id).all()],
         "corrections": [_row(row, "id team_id room_id adjustment_ms reason created_at") for row in QuestCorrection.query.order_by(QuestCorrection.created_at, QuestCorrection.id).all()],
         "exclusions": [_row(row, "team_id reason") for row in QuestExclusion.query.order_by(QuestExclusion.team_id).all()],
-        "hint_purchases": [_row(row, "id team_id challenge_id hint_id unlock_id award_id cost purchased_at") for row in QuestHintPurchase.query.order_by(QuestHintPurchase.purchased_at, QuestHintPurchase.id).all()],
+        "hint_purchases": [{**_row(row, "id team_id challenge_id hint_id unlock_id award_id cost purchased_at"),
+                            "effective_cost": hint_cost(row.cost, row.id, hint_prices.get(row.hint_id, []))}
+                           for row in QuestHintPurchase.query.order_by(QuestHintPurchase.purchased_at, QuestHintPurchase.id).all()],
         "unlocks": [_row(row, "id user_id team_id target date type") for row in Unlocks.query.order_by(Unlocks.date, Unlocks.id).all()],
         "awards": [_row(row, "id user_id team_id type name description date value category") for row in Awards.query.order_by(Awards.date, Awards.id).all()],
         "ratings": [_row(row, "id user_id challenge_id value review date") for row in Ratings.query.order_by(Ratings.date, Ratings.id).all()],

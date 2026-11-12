@@ -57,8 +57,8 @@ Naming defaults to fixed generated names; member naming is optional. See the
 | Overall | Net points across all rooms, descending; active time to the last counted solve, ascending |
 
 A complete room outranks an incomplete one. A zero-solve room has no prize rank.
-Net points are native challenge values earned once per eligible team solve,
-minus paid hint costs. A room's hint costs affect its room score and the overall
+Net points are the effective challenge values earned once per eligible team solve,
+minus effective hint costs after any explicitly reviewed repricing. A room's hint costs affect its room score and the overall
 score. Incomplete rooms remain eligible: 9/10 always outranks 8/10 regardless of
 points or time. True ties across every ranking measure share rank; database ID
 is not a sporting tie breaker. Counts remain separate from points. A stuck
@@ -83,8 +83,10 @@ A prerequisite on a later hint conflicts with this order and requires organizer
 review; authored requirements and purchase history are never rewritten.
 
 Staff edit multiple native hints per supported challenge, including text and cost.
-Live/paused price changes require reviewed confirmation; past receipt costs stay
-fixed and new prices apply only to future purchases. Existing IDs and native
+Live/paused price changes require reviewed confirmation and an explicit choice:
+future-only by default, or adjust existing purchases for each selected hint.
+Original receipt costs stay fixed; audited revisions determine effective deductions.
+Existing IDs and native
 prerequisites survive saves; purchased hints cannot be deleted. New purchases
 require the displayed quote's current cost/content revision, checked after locking;
 a stale quote must be reopened rather than silently charged at a new price.
@@ -98,8 +100,11 @@ stays in its blue banner; player labels are reused and clocks remain stopped.
 See [staff browsing and journey](preview.md).
 
 The room editor supports fixed point values, including zero. Reviewed live/paused
-point changes apply uniformly to all eligible prior and future solves, preserving
-original solve times. Accepted-answer changes affect future attempts; old solves
+point changes default to future solves; an explicit checkbox can align existing
+solves too, including earlier price cohorts. Effective credit follows the earliest
+eligible contribution's recorded price cohort, preserving original solve times.
+The review shows affected teams, room/overall point deltas and negative balances;
+new negative balances require acknowledgment checked again at save. Accepted-answer changes affect future attempts; old solves
 and failures are not regraded automatically. Supported native dynamic scoring
 retains CTFd's automatic value changes. Published snapshots keep their original
 rankings until an explicit reasoned unpublish/review/republish.

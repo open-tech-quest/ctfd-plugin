@@ -63,6 +63,10 @@ credentials must match too. Future schema changes must keep old formats readable
 or explicitly document an operator migration. Never add a version range to the
 qualification list without testing the real recovery path.
 
+Scoped live pricing adds `quest_0013` price history. Earlier `quest_0012` captures
+remain readable for operator recovery, but cannot automatically replace the new
+schema. Restore the recorded old stack in isolation and qualify its upgrade first.
+
 For one bad instruction, flag, hint or attachment, an operator extracts a private
 copy and deliberately reapplies selected content through the current guarded
 editor. This preserves current IDs, solves and purchase receipts. There is no

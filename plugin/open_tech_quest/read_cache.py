@@ -17,13 +17,13 @@ from CTFd.cache import cache
 from CTFd.models import db
 from .models import QuestReadVersion
 
-_SCHEMA = "quest-read-v4-room-pauses"
+_SCHEMA = "quest-read-v5-price-cohorts"
 _TABLE = re.compile(r'^\s*(?:INSERT(?:\s+OR\s+\w+)?\s+INTO|REPLACE\s+INTO|UPDATE|DELETE\s+FROM)\s+[`"\[]?([\w]+)', re.I)
 _CONTENT = {"quest_rooms", "quest_steps", "challenges", "flags", "hints", "files",
             "solutions", "tags", "challenge_tags", "topics", "challenge_topics",
             "quest_challenge_sources", "quest_assets"}
 _ROSTER = {"users", "teams", "quest_maintainers", "quest_onboarding", "quest_readiness", "quest_team_names"}
-_HISTORY = {"submissions", "solves", "quest_recovery_solves", "quest_starts", "quest_corrections", "awards", "unlocks", "quest_hint_purchases"}
+_HISTORY = {"submissions", "solves", "quest_recovery_solves", "quest_starts", "quest_corrections", "awards", "unlocks", "quest_hint_purchases", "quest_price_changes"}
 _ACTIVITY = {"submissions", "solves", "quest_recovery_solves", "awards", "unlocks", "ratings"}
 
 

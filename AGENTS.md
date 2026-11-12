@@ -47,6 +47,10 @@ Keep operator access, snapshots and deployment commands out of public guidance.
 - Live/paused challenge maintenance uses current content revisions and explicit
   impact/reason confirmation for competitive changes. Pausing is always manual.
   Preserve native solves/attempts/timestamps and immutable purchase receipts;
+  live point/cost changes require explicit future-only or existing-activity scope.
+  Keep original receipts intact; audited price cutovers determine effective score
+  deductions and earned points. Show affected teams and newly negative balances,
+  and recheck negative-risk acknowledgment after locking. See `pricing.py`.
   bind new hint purchases to their displayed quote. Additions are append-only
   and cannot extend completed rooms. Native/token paths must not bypass these
   rules; closed/published content stays read-only. See `docs/administration.md`.

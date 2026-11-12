@@ -8,7 +8,7 @@ from flask import current_app, request
 from sqlalchemy import or_
 from CTFd.models import (Challenges, ChallengeTopics, Files, Flags, Hints, Solutions,
                          Solves, Submissions, Tags, Teams, Topics, db)
-from .models import QuestAsset, QuestAudit, QuestChallengeSource, QuestHintPurchase, QuestRoom, QuestStep
+from .models import QuestAsset, QuestAudit, QuestChallengeSource, QuestHintPurchase, QuestRoom, QuestStep, QuestPriceChange
 
 ACTIVE = {"live", "paused"}
 
@@ -32,6 +32,7 @@ def room_revision(room):
         "challenges": records(Challenges, Challenges.id.in_(ids)),
         "flags": records(Flags, Flags.challenge_id.in_(ids)),
         "hints": records(Hints, Hints.challenge_id.in_(ids)),
+        "price_changes": records(QuestPriceChange, QuestPriceChange.challenge_id.in_(ids)),
         "solutions": records(Solutions, Solutions.challenge_id.in_(ids)),
         "files": records(Files, or_(Files.__table__.c.challenge_id.in_(ids), Files.__table__.c.solution_id.in_(solution_ids))),
         "assets": records(QuestAsset, QuestAsset.challenge_id.in_(ids)),
@@ -80,6 +81,8 @@ def competitive_fields(challenge, changes):
         return ["append"]
     fields = [key for key in ("value", "state", "max_attempts")
               if key in changes and changes[key] != getattr(challenge, key)]
+    if changes.get("pricing", {}).get("challenge_existing") and "value" not in fields:
+        fields.append("value")
     if "flags" in changes:
         old = [(f.type, f.content, f.data or "") for f in flag_rows(challenge)]
         new = [(f["type"], f["content"], f["data"] or "") for f in changes["flags"]]
@@ -88,7 +91,7 @@ def competitive_fields(challenge, changes):
     if "hints" in changes:
         old = {h.id: h.cost for h in hint_rows(challenge)}
         new = {h["id"]: h["cost"] for h in changes["hints"] if "id" in h}
-        if old != new or any("id" not in h for h in changes["hints"]):
+        if old != new or any("id" not in h for h in changes["hints"]) or changes.get("pricing", {}).get("hint_existing_ids"):
             fields.append("hints")
     if "solution" in changes:
         old = Solutions.query.filter_by(challenge_id=challenge.id).first()
@@ -100,25 +103,35 @@ def competitive_fields(challenge, changes):
 
 def impact(room, challenge, changes, e):
     from .service import Projection
+    from . import pricing
+    from .recovery_models import QuestRecoverySolve
     before = Projection(e)
     cid = challenge.id if challenge else None
     override = {cid: {k: changes[k] for k in ("value", "state") if k in changes}} if cid else None
-    after = Projection(e, challenge_overrides=override, at=before.at) if override else before
-    teams = [tid for tid, in db.session.query(Teams.id).filter_by(banned=False, hidden=False).order_by(Teams.id)]
+    price_changes = pricing.plan(challenge, changes, e)
+    after = Projection(e, challenge_overrides=override, at=before.at, price_changes=price_changes) if override or price_changes else before
+    teams = db.session.query(Teams.id, Teams.name).filter_by(banned=False, hidden=False).order_by(Teams.id).all()
     scores = []
-    for tid in teams:
+    for tid, name in teams:
         left, right = before.progress(room, tid), after.progress(room, tid)
         old, new = before.score(tid)["points"], after.score(tid)["points"]
         if old != new or left["credited_solved"] != right["credited_solved"]:
-            scores.append({"team_id": tid, "before_points": old, "after_points": new,
+            scores.append({"team_id": tid, "team_name": name, "before_points": old, "after_points": new,
                 "before_room_points": left["points"], "after_room_points": right["points"],
                 "before_solved": left["credited_solved"], "after_solved": right["credited_solved"]})
     purchases = QuestHintPurchase.query.filter_by(challenge_id=cid).all() if cid else []
-    return {"counted_teams": sum(cid in s for s in before.solves.values()) if cid else 0,
-        "solve_records": Solves.query.filter_by(challenge_id=cid).count() if cid else 0,
+    solve_records = sum(model.query.filter_by(challenge_id=cid).count() for model in (Solves, QuestRecoverySolve)) if cid else 0
+    return {"counted_teams": sum(cid in before.solves.get(tid, {}) for tid, _ in teams) if cid else 0,
+        "solve_records": solve_records,
         "hint_purchase_teams": len({p.team_id for p in purchases}), "hint_receipts": len(purchases),
-        "completed_teams": sum(before.progress(room, tid)["status"] == "complete" for tid in teams),
-        "teams_with_score_changes": len(scores), "team_scores": scores}
+        "completed_teams": sum(before.progress(room, tid)["status"] == "complete" for tid, _ in teams),
+        "teams_with_score_changes": len(scores), "team_scores": scores,
+        "negative_overall_teams": sum(s["after_points"] < 0 for s in scores),
+        "negative_room_teams": sum(s["after_room_points"] < 0 for s in scores),
+        "new_negative_overall_teams": sum(s["before_points"] >= 0 > s["after_points"] for s in scores),
+        "new_negative_room_teams": sum(s["before_room_points"] >= 0 > s["after_room_points"] for s in scores),
+        "repriced_solve_records": solve_records if any(p["kind"] == "challenge" and p["apply_existing"] for p in price_changes) else 0,
+        "repriced_hint_receipts": sum(p.hint_id in changes.get("pricing", {}).get("hint_existing_ids", []) for p in purchases)}
 
 
 def review_token(room, challenge, changes, e, result):
@@ -143,9 +156,14 @@ def review(room, challenge, changes, e):
     if "flags" in fields:
         warnings.append("Only future submissions use the new answers. Existing solves and failed attempts are not regraded.")
     if "value" in fields:
-        warnings.append("The new point value applies uniformly to existing eligible solves and future solves; solve times do not change.")
+        warnings.append("Challenge points: existing solves are adjusted to the displayed value, including earlier price cohorts. Future solves use that value too; solve times stay unchanged."
+                        if changes.get("pricing", {}).get("challenge_existing") else
+                        "Challenge points: only new solves earn the displayed value. Existing solves retain their earned points, so teams can earn different points for the same challenge.")
     if "hints" in fields:
-        warnings.append("New hint prices apply only to future purchases. Existing purchase costs and native charges are preserved.")
+        selected = changes.get("pricing", {}).get("hint_existing_ids", [])
+        warnings.append("Hint prices: selected existing purchases receive the new effective deduction, charging or refunding the difference. Other existing purchases retain their effective costs. New purchases use the current price. Original receipts and native charges remain as purchase history."
+                        if selected else
+                        "Hint prices: only future purchases use the new prices. Existing purchases retain their effective costs; no retrospective charge or refund is made.")
     if "state" in fields:
         warnings.append("Hidden withdraws this challenge and its hint costs from every team's results without deleting history or automatically compensating elapsed time. Locked blocks access without withdrawing credit.")
     return {"revision": review_token(room, challenge, changes, e, result),
@@ -155,17 +173,23 @@ def review(room, challenge, changes, e):
 
 def confirmation(room, challenge, changes, e, maintenance):
     from .api import fail
+    from .pricing import plan
+    plan(challenge, changes, e)
     if e.status not in ACTIVE or not competitive_fields(challenge, changes):
         return None
-    if (not isinstance(maintenance, dict) or set(maintenance) != {"revision", "reason", "confirm"}
+    if (not isinstance(maintenance, dict) or set(maintenance) - {"revision", "reason", "confirm", "acknowledge_negative"}
+            or not {"revision", "reason", "confirm"} <= set(maintenance)
             or maintenance["confirm"] is not True or not isinstance(maintenance["reason"], str)
+            or ("acknowledge_negative" in maintenance and type(maintenance["acknowledge_negative"]) is not bool)
             or not 3 <= len(maintenance["reason"].strip()) <= 1000 or "\x00" in maintenance["reason"]):
         fail("Review this competitive change, confirm the current impact and provide a reason (3–1000 characters).", 409)
     result = review(room, challenge, changes, e)
     if not isinstance(maintenance["revision"], str) or not hmac.compare_digest(maintenance["revision"], result["revision"]):
         fail("Content or competition progress changed since review. Review the current impact again before applying.", 409)
+    if (result["impact"]["new_negative_overall_teams"] or result["impact"]["new_negative_room_teams"]) and maintenance.get("acknowledge_negative") is not True:
+        fail("This change would create negative team balances. Review the latest impact and explicitly acknowledge the negative balances before applying.", 409)
     return {"reason": maintenance["reason"].strip(), "fields": result["competitive_fields"],
-            "impact": result["impact"], "revision": result["revision"]}
+            "impact": result["impact"], "revision": result["revision"], "acknowledge_negative": maintenance.get("acknowledge_negative", False)}
 
 
 def grading_revision(challenge):

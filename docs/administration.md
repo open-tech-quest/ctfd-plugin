@@ -76,8 +76,8 @@ case-sensitive or explicitly case-insensitive flags. Accepted answers are readab
 in the authorized editor. Each challenge can have multiple native CTFd hints,
 with an optional title, Markdown text and nonnegative point cost; zero means free.
 Saving preserves existing hint IDs and prerequisites. Referenced or purchased
-hints cannot be removed. Historical purchase costs stay fixed even when staff
-review a new price for future purchases. Advanced flags remain read-only in the simple editor;
+hints cannot be removed. Original purchase receipts stay fixed; an explicit
+reviewed repricing can change their effective score deduction. Advanced flags remain read-only in the simple editor;
 the bounded [automation API](automation.md) also preserves native static/regex
 flags and supports metadata, solutions and owned assets. Unsupported custom
 challenge/flag/hint behavior and advanced settings/prerequisites remain native
@@ -117,10 +117,21 @@ visibility, attempt limits or hint availability/prices show a competitive-impact
 review and require a reason. Preview counts describe review time; ongoing solves
 continue, and application rechecks/recomputes the impact under the event lock.
 
-- New challenge values apply to eligible existing and future solves. Solve and
-  attempt records/timestamps remain; answers are not retroactively regraded.
-- Hint text can change and hints can be added. Old purchase costs/IDs remain;
-  new prices affect future purchases. An open stale purchase quote is rejected.
+- Point and hint-price edits default to **future activity only**. **Also adjust
+  existing solves** aligns prior challenge credit to the displayed value;
+  **Also adjust existing purchases** is independent for each hint and charges or
+  refunds the difference in its effective deduction. These boxes also allow
+  aligning earlier activity to the current price after a future-only edit.
+- Review shows affected teams, before/after room and overall points, retained
+  solves/purchases and balances below zero. Newly negative room or overall
+  balances require explicit acknowledgment. Play continues: impact is recomputed
+  under the save lock; newly arising negative risk cannot pass without acknowledgment.
+- Original solves, timestamps, unlocks and purchase receipts/native charges remain
+  as evidence. Audited price cutovers determine effective scoring. With future-only
+  edits, teams can earn/pay different values for the same challenge/hint. Standings,
+  projector, hint affordability and exports use those effective values together.
+- Hint text can change and hints can be added. An open stale purchase quote is
+  rejected. Answer changes grade future attempts; old solves are not regraded.
 - **Withdraw** sets Hidden: everyone skips the step and its solve credit/points
   and associated hint costs stop counting. Raw history remains. Locked instead
   blocks the path and retains credit. Re-enabling is another reviewed change.

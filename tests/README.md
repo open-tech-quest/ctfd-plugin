@@ -63,9 +63,14 @@ p95/max latency and bounding the shared projection to 12 SQL statements.
 
 Points regressions exercise unequal challenge weights, progress/points/time room
 ordering, net-points overall ordering, zero/negative balances, concurrent shared
-hint purchases, immutable purchase prices, native-route ID aliases, legacy charge
+hint purchases, immutable original purchase receipts, native-route ID aliases, legacy charge
 migration and versioned publication/CSV results. Disposable browser challenges
 have varied point values and paid hints after each room's free first hint.
+
+Live pricing tests cover future-only/retroactive challenge and per-hint edits,
+repeated price cohorts, same-price alignment, ID cutoffs with equal timestamps,
+recovery/unban, refunds and new charges, negative room/overall acknowledgment at
+the apply lock, effective affordability and unchanged original native history.
 
 Description-placeholder checks cover cursor/selection insertion, character limits,
 viewer/team privacy, zero/negative net points, literal names and escaping, encoded

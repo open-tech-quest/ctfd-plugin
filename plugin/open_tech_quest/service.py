@@ -4,9 +4,9 @@ from types import SimpleNamespace
 from sqlalchemy import exists, or_, literal
 from CTFd.models import Awards, Challenges, Solves, Submissions, Teams, Unlocks, Users, db
 from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause,
-                     QuestExclusion, QuestCorrection, QuestMaintainer, QuestHintPurchase, QuestRoomPause, QuestAudit)
+                     QuestExclusion, QuestCorrection, QuestMaintainer, QuestHintPurchase, QuestRoomPause, QuestAudit, QuestPriceChange)
 from .ranking import active_ms, prefix, assign_point_ranks
-from . import read_cache, room_pauses
+from . import read_cache, room_pauses, pricing
 
 
 def now():
@@ -123,9 +123,9 @@ def _history_inputs(mapped, counted_ids, team_id, challenge_id):
         starts = starts.filter_by(room_id=room_id)
         corrections = corrections.filter_by(room_id=room_id)
     from .recovery_models import QuestRecoverySolve
-    contributions = []
+    queries = []
     for model, timestamp in ((Solves, Solves.date), (QuestRecoverySolve, QuestRecoverySolve.credited_at)):
-        query = (model.query.with_entities(model.team_id, model.challenge_id, timestamp)
+        query = (model.query.with_entities(model.id, model.team_id, model.challenge_id, timestamp)
                  .join(Users, Users.id == model.user_id)
                  .filter(Users.type == "user", Users.banned.isnot(True), model.team_id.isnot(None), model.challenge_id.in_(counted_ids),
                          ~model.user_id.in_(QuestMaintainer.query.with_entities(QuestMaintainer.user_id))))
@@ -133,7 +133,11 @@ def _history_inputs(mapped, counted_ids, team_id, challenge_id):
             query = query.filter(model.team_id == team_id)
         if challenge_id is not None:
             query = query.filter(model.challenge_id == challenge_id)
-        contributions.extend(query.all())
+        queries.append(query)
+    # One SQL read for native/recovery contributions leaves room for the price
+    # history read without increasing the bounded projection statement count.
+    contributions = queries[0].union_all(queries[1]).all()
+    price_changes = QuestPriceChange.query.filter(QuestPriceChange.challenge_id.in_(counted_ids)).order_by(QuestPriceChange.id).all()
     purchases = QuestHintPurchase.query.filter(QuestHintPurchase.challenge_id.in_(counted_ids))
     if team_id is not None:
         purchases = purchases.filter_by(team_id=team_id)
@@ -145,13 +149,14 @@ def _history_inputs(mapped, counted_ids, team_id, challenge_id):
         literal(None).label("reason"), literal(False).label("closed_by_event")).union_all(
             db.session.query(QuestRoomPause.room_id, QuestRoomPause.id, QuestRoomPause.started_at,
                 QuestRoomPause.ended_at, QuestRoomPause.reason, QuestRoomPause.closed_by_event)).all()
-    return {"purchases": [[p.team_id, p.challenge_id, p.hint_id, p.cost, _stamp(p.purchased_at)] for p in purchases.all()],
+    return {"purchases": [[p.id, p.team_id, p.challenge_id, p.hint_id, p.cost, _stamp(p.purchased_at)] for p in purchases.all()],
+            "price_changes": [{key: getattr(row, key) for key in ("kind", "challenge_id", "hint_id", "before_value", "after_value", "existing_through_id", "apply_existing")} for row in price_changes],
             "starts": [[s.team_id, s.room_id, _stamp(s.started_at)] for s in starts.all()],
             "pauses": [[_stamp(left), _stamp(right)] for rid, pid, left, right, why, closed in pauses if rid is None],
             "room_pauses": [[pid, rid, _stamp(left), _stamp(right), why, bool(closed)]
                             for rid, pid, left, right, why, closed in pauses if rid is not None],
             "corrections": [[c.team_id, c.room_id, c.adjustment_ms] for c in corrections.all()],
-            "contributions": [[tid, cid, _stamp(at)] for tid, cid, at in contributions]}
+            "contributions": [[sid, tid, cid, _stamp(at)] for sid, tid, cid, at in contributions]}
 
 
 class Projection:
@@ -160,7 +165,7 @@ class Projection:
     No participant credentials or raw submitted flags are selected. Reuse one
     instance throughout a response so every view uses the same input history.
     """
-    def __init__(self, e=None, team_id=None, challenge_id=None, challenge_overrides=None, at=None):
+    def __init__(self, e=None, team_id=None, challenge_id=None, challenge_overrides=None, at=None, price_changes=None):
         self.event = e or event()
         self.at = at or now()
         generation = read_cache.versions(team_id) if read_cache.read_request() else {}
@@ -192,15 +197,22 @@ class Projection:
         for tid, rid, adjustment in history["corrections"]:
             key = tid, rid
             self.corrections[key] = self.corrections.get(key, 0) + adjustment
-        self.solves, self.hint_costs, self.used_hints = {}, {}, {}
+        self.price_changes = history["price_changes"] + (price_changes or [])
+        challenge_prices, hint_prices = {}, {}
+        for row in self.price_changes:
+            target = challenge_prices if row["kind"] == "challenge" else hint_prices
+            key = row["challenge_id"] if row["kind"] == "challenge" else row["hint_id"]
+            target.setdefault(key, []).append(row)
+        self.solves, self.solve_values, self.hint_costs, self.used_hints, self.original_hint_costs = {}, {}, {}, {}, {}
+        chosen = {}
         if not self.event.start_at:
             return
         e = self.event
         # Only raw eligible contributions are shared. Time filtering runs on
         # every read, so future/imported dates, open pauses and cutoffs never
         # freeze until a cache expires or another write happens.
-        contributions = [(tid, cid, parse_time(at)) for tid, cid, at in history["contributions"]]
-        for team_id, challenge_id, at in contributions:
+        contributions = [(sid, tid, cid, parse_time(at)) for sid, tid, cid, at in history["contributions"]]
+        for submission_id, team_id, challenge_id, at in contributions:
             room_id = self.mapped[challenge_id]
             start = self.starts.get((team_id, room_id))
             if not start or not at or at > self.at or at < max(start, e.start_at) or (e.end_at and at > e.end_at):
@@ -208,17 +220,24 @@ class Projection:
             if any(left <= at < (right or self.at) for left, right in self.clock_pauses(room_id)):
                 continue
             solves = self.solves.setdefault(team_id, {})
-            solves[challenge_id] = min(at, solves.get(challenge_id, at))
-        for tid, cid, hint_id, cost, stamp in history["purchases"]:
+            candidate = at, submission_id
+            if (team_id, challenge_id) not in chosen or candidate < chosen[team_id, challenge_id]:
+                chosen[team_id, challenge_id] = candidate
+                solves[challenge_id] = at
+                self.solve_values.setdefault(team_id, {})[challenge_id] = pricing.solve_value(
+                    self.challenges[challenge_id].value, submission_id, challenge_prices.get(challenge_id, []))
+        for purchase_id, tid, cid, hint_id, original_cost, stamp in history["purchases"]:
             at = parse_time(stamp)
             start = self.starts.get((tid, self.mapped[cid]))
             if not start or not at or at < max(start, e.start_at) or at > self.at or (e.end_at and at > e.end_at):
                 continue
             if any(left <= at < (right or self.at) for left, right in self.clock_pauses(self.mapped[cid])):
                 continue
+            cost = pricing.hint_cost(original_cost, purchase_id, hint_prices.get(hint_id, []))
             costs = self.hint_costs.setdefault(tid, {})
             costs[cid] = costs.get(cid, 0) + cost
             self.used_hints.setdefault(tid, {}).setdefault(cid, {})[hint_id] = cost
+            self.original_hint_costs.setdefault(tid, {}).setdefault(cid, {})[hint_id] = original_cost
 
     def clock_pauses(self, room_id):
         return self.pauses + [(p[2], p[3]) for p in self.room_pauses.get(room_id, [])]
@@ -230,7 +249,7 @@ class Projection:
     def score(self, team_id, ids=None):
         ids = set(self.mapped if ids is None else ids)
         solves = self.solves.get(team_id, {})
-        gross = sum(self.challenges[cid].value for cid in ids if cid in solves)
+        gross = sum(self.solve_values.get(team_id, {})[cid] for cid in ids if cid in solves)
         costs = sum(cost for cid, cost in self.hint_costs.get(team_id, {}).items() if cid in ids)
         return {"gross_points": gross, "hint_costs": costs, "points": gross - costs}
 
@@ -253,8 +272,11 @@ class Projection:
             score_time = max(0, score_time + self.corrections.get((team_id, room.id), 0))
         used_costs = {hid: cost for cid in ids
                       for hid, cost in self.used_hints.get(team_id, {}).get(cid, {}).items()}
+        original_costs = {hid: cost for cid in ids
+                          for hid, cost in self.original_hint_costs.get(team_id, {}).get(cid, {}).items()}
         return {**self.score(team_id, ids), "available_points": sum(self.challenges[cid].value for cid in ids),
                 "used_hint_ids": sorted(used_costs), "used_hint_costs": dict(sorted(used_costs.items())),
+                "used_hint_original_costs": dict(sorted(original_costs.items())),
                 "solved_steps": [index + 1 for index, cid in enumerate(ids) if cid in solves],
                 "credited_solved": len(counted), "score_elapsed_ms": score_time,
                 "solved": len(milestones), "total": len(ids), "started_at": iso(start),
@@ -281,7 +303,8 @@ class Projection:
             else:
                 state = "solved" if solved else ("available" if admin or (enabled and visible) else "locked")
             data.append({"id": step.challenge_id, "title": challenge.name, "position": step.position if admin else position,
-                         "state": state, "value": challenge.value, "solved_at": iso(solves.get(step.challenge_id))})
+                         "state": state, "value": challenge.value, "solved_at": iso(solves.get(step.challenge_id)),
+                         "earned_points": self.solve_values.get(team_id, {}).get(step.challenge_id)})
             prefix_open = prefix_open and solved
         result = {"id": room.id, "slug": room.slug, "name": room.name, "subtitle": room.subtitle,
                   "description": room.description, "position": room.position, "theme": room.theme,

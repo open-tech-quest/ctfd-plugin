@@ -56,6 +56,21 @@ content/round/phase/authority requires a new review; ongoing ordinary submission
 not invalidate every confirmation. Apply recomputes current impact under lock.
 Never retry a competitive write blindly after an uncertain response.
 
+Live/paused point or existing-hint price edits must include an explicit scope in
+both `changes` for review and the PATCH payload:
+
+```json
+{"pricing":{"challenge_existing":false,"hint_existing_ids":[]}}
+```
+
+False/empty means future solves and purchases only. Select `challenge_existing`
+to align earlier solves, and list each existing hint ID whose earlier purchases
+should receive the new effective cost (charge or refund). This also supports
+aligning earlier cohorts to an unchanged current price. Scope requires the
+corresponding value/hint payload. Review reports affected teams and newly negative
+room/overall balances; those require `maintenance.acknowledge_negative:true` at
+apply. Original solves, dates, native charges and receipts remain audit evidence.
+
 New room creation uses the management catalog revision; room presentation uses
 the room revision. Live/paused challenge creation appends only, and is refused
 once any eligible team has completed that room. Existing path reorder/unmap,
@@ -67,7 +82,8 @@ For participant clients, fetch the next hint through authorized native
 `GET /api/v1/hints/<id>` and send its `quote_revision` as `X-Quest-Hint-Quote`
 when POSTing `{target:<id>,type:"hints"}` to `/api/v1/unlocks`. A changed quote
 requires reopening confirmation, not silently paying a different price. Existing
-team redemptions remain idempotent and retain their historical cost.
+team redemptions remain idempotent and retain their original receipt; only an
+explicit organizer repricing changes its effective deduction.
 
 ## Endpoints and fields
 

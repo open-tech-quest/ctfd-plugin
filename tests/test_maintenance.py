@@ -18,6 +18,22 @@ P = integration.PREFIX
 C = P + "/manage/rooms/openshift/challenges"
 
 
+def reviewed_prices(case, changes, cid):
+    """Old maintenance cases explicitly retain their original scoring intent."""
+    if "pricing" in changes or cid is None:
+        return changes
+    with case.app.app_context():
+        if QuestEvent.query.get(1).status not in ("live", "paused"):
+            return changes
+        challenge = Challenges.query.get(cid)
+        value_changed = "value" in changes and changes["value"] != challenge.value
+        hints = {h.id: h.cost for h in Hints.query.filter_by(challenge_id=cid)}
+        hint_changed = any(h.get("id") in hints and h["cost"] != hints[h["id"]] for h in changes.get("hints", []))
+    if value_changed or hint_changed:
+        return {**changes, "pricing": {"challenge_existing": value_changed, "hint_existing_ids": []}}
+    return changes
+
+
 class MaintenanceIntegration(unittest.TestCase):
     setUpClass = classmethod(integration.QuestIntegration.setUpClass.__func__)
     tearDownClass = classmethod(integration.QuestIntegration.tearDownClass.__func__)
@@ -41,6 +57,7 @@ class MaintenanceIntegration(unittest.TestCase):
         return response.json["data"]
 
     def review(self, changes, cid=1, client=None, collection=C):
+        changes = reviewed_prices(self, changes, cid)
         client = client or self.maintainer
         saved = client.get(collection).json["data"]["revision"]
         path = collection + ("/" + str(cid) if cid is not None else "")
@@ -49,6 +66,7 @@ class MaintenanceIntegration(unittest.TestCase):
         return saved, response.json["data"]
 
     def apply(self, changes, cid=1, reviewed=None, client=None, collection=C):
+        changes = reviewed_prices(self, changes, cid)
         client = client or self.maintainer
         saved, review = reviewed or self.review(changes, cid, client, collection)
         body = dict(changes)
@@ -334,9 +352,10 @@ class MaintenanceIntegration(unittest.TestCase):
         token_client = self.app.test_client()
         headers = {"Authorization": "Token " + token, "Content-Type": "application/json"}
         revision = token_client.get(C, headers=headers).json["data"]["revision"]
-        reviewed = token_client.post(C + "/1/review", headers=headers, json={"changes": {"value": 200}, "revision": revision})
+        changes = {"value": 200, "pricing": {"challenge_existing": True, "hint_existing_ids": []}}
+        reviewed = token_client.post(C + "/1/review", headers=headers, json={"changes": changes, "revision": revision})
         self.assertEqual(reviewed.status_code, 200)
-        payload = {"value": 200, "maintenance": {"revision": reviewed.json["data"]["revision"], "reason": "Queued correction", "confirm": True}}
+        payload = {**changes, "maintenance": {"revision": reviewed.json["data"]["revision"], "reason": "Queued correction", "confirm": True}}
         entered, release = threading.Event(), threading.Event()
         original = authoring.event
         def gate(lock=False):

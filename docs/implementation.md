@@ -18,6 +18,7 @@ schemas into feature documents.
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
 | Owned native assets and automation contract | [`assets.py`](../plugin/open_tech_quest/assets.py), [automation guide](automation.md) |
 | Live content review and revision guards | [`maintenance.py`](../plugin/open_tech_quest/maintenance.py), [maintenance policy](administration.md#live-maintenance) |
+| Price cohorts and reviewed scope | [`pricing.py`](../plugin/open_tech_quest/pricing.py), migration `0013_pricing` |
 | Staff room preview | [`preview.py`](../plugin/open_tech_quest/preview.py), [Preview guide](preview.md) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
 | Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
@@ -95,12 +96,22 @@ fall back to the database. Scheduled privacy/cutoff boundaries also affect visib
 revisions. Use supported APIs during events; out-of-band SQL edits require cache
 clearing/restarting readers.
 
-Challenge values and immutable hint receipts feed the same batched projection
+Challenge price cohorts and immutable hint receipts feed the same batched projection
 as solves. `scoring.py` handles event hint purchases through the guarded native
 unlock route, using fresh Quest net balance and native unlock/award records.
 New mapped hint purchases carry `X-Quest-Hint-Quote` from the authorized metadata
 GET. Cost/content revisions are rechecked under the event lock; existing unlocks
-remain idempotent and historical costs immutable. Progressive reveal uses native
+remain idempotent and original receipt costs immutable. Migration `0013_pricing`
+adds an initially empty price-change journal. A reviewed edit records a committed
+submission/purchase ID boundary and future-only or existing-activity scope; it
+never rewrites solves, timestamps, native charges or original receipts. Projection
+derives effective earned points/deductions, including recovery and reinstated
+contributions. The journal invalidates shared history/progress reads; combining
+native/recovery contributions keeps the existing bounded SQL statement budget.
+Round reset archives and clears the journal. Reports retain cutovers, original and
+effective costs and credited points. Backup compatibility now requires `quest_0013`;
+older schema captures require operator recovery, not automatic UI replacement.
+Progressive reveal uses native
 hint IDs/unlocks, without new persistence. Native
 hint reads and purchases enforce earlier redemptions; challenge-detail responses
 keep unredeemed hint bodies out of JSON and embedded native view HTML, including

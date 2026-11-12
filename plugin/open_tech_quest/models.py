@@ -174,6 +174,20 @@ class QuestHintPurchase(db.Model):
     __table_args__ = (db.UniqueConstraint("team_id", "hint_id"),)
 
 
+class QuestPriceChange(db.Model):
+    """Reviewed price cutovers; original native solves and receipts stay intact."""
+    __tablename__ = "quest_price_changes"
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(16), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="RESTRICT"), nullable=False, index=True)
+    hint_id = db.Column(db.Integer, db.ForeignKey("hints.id", ondelete="RESTRICT"), index=True)
+    before_value = db.Column(db.Integer, nullable=False)
+    after_value = db.Column(db.Integer, nullable=False)
+    existing_through_id = db.Column(db.Integer, nullable=False)
+    apply_existing = db.Column(db.Boolean, nullable=False)
+    changed_at = db.Column(UTCDateTime, nullable=False)
+
+
 class QuestChallengeSource(db.Model):
     """Explicit catalog identity; a matching display name never grants ownership."""
     __tablename__ = "quest_challenge_sources"

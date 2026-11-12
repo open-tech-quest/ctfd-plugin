@@ -30,7 +30,7 @@ FLAG_LIMIT = 1024
 FLAG_COUNT_LIMIT = 20
 HINT_COUNT_LIMIT = 20
 EDIT_FIELDS = {"name", "description", "state", "flags", "value", "hints", "attribution",
-               "connection_info", "max_attempts", "tags", "topics", "solution", "source_key"}
+               "connection_info", "max_attempts", "tags", "topics", "solution", "source_key", "pricing"}
 
 
 @authoring_api.after_request
@@ -184,6 +184,9 @@ def checked_payload(data, create=False):
     if create and not {"name", "description", "state", "flags"} <= set(data):
         fail("A new challenge requires name, description, state and flags")
     result = {}
+    if "pricing" in data:
+        from .pricing import checked_scope
+        result["pricing"] = checked_scope(data["pricing"])
     for field in ("attribution", "connection_info"):
         if field in data:
             result[field] = checked_text(data[field], field, DESCRIPTION_LIMIT, empty=True)
@@ -310,6 +313,8 @@ def validate_fields(challenge, data, room=None, live=False):
 
 def apply_fields(challenge, data, room=None, live=False):
     existing, removed = validate_fields(challenge, data, room, live)
+    from . import pricing
+    price_changes = pricing.record(pricing.plan(challenge, data, event()) if live else [])
     if "source_key" in data and QuestChallengeSource.query.get(challenge.id) is None:
         db.session.add(QuestChallengeSource(challenge_id=challenge.id, room_id=room.id, source_key=data["source_key"]))
     for field in ("name", "description", "state", "value", "attribution", "connection_info", "max_attempts"):
@@ -327,6 +332,9 @@ def apply_fields(challenge, data, room=None, live=False):
             Flags.query.filter(Flags.id.in_([row.id for row in old[len(data["flags"]):]])).delete(synchronize_session=False)
     if "hints" in data:
         for hid in removed:
+            from .models import QuestPriceChange
+            # No purchase/unlock can reference a removed hint (validated above).
+            QuestPriceChange.query.filter_by(hint_id=hid).delete(synchronize_session=False)
             db.session.delete(existing[hid])
         for value in data["hints"]:
             hint = existing[value["id"]] if "id" in value else Hints(challenge_id=challenge.id, type="standard")
@@ -361,6 +369,7 @@ def apply_fields(challenge, data, room=None, live=False):
                 solution = Solutions(challenge_id=challenge.id)
                 db.session.add(solution)
             solution.content, solution.state = data["solution"]["content"], data["solution"]["state"]
+    return price_changes
 
 
 def locked_event():
@@ -409,6 +418,8 @@ def remove_challenges(ids):
     if not ids:
         return
     solution_ids = [sid for (sid,) in db.session.query(Solutions.id).filter(Solutions.challenge_id.in_(ids))]
+    from .models import QuestPriceChange
+    QuestPriceChange.query.filter(QuestPriceChange.challenge_id.in_(ids)).delete(synchronize_session=False)
     QuestAsset.query.filter(QuestAsset.challenge_id.in_(ids)).delete(synchronize_session=False)
     QuestChallengeSource.query.filter(QuestChallengeSource.challenge_id.in_(ids)).delete(synchronize_session=False)
     SolutionFiles.query.filter(SolutionFiles.solution_id.in_(solution_ids)).delete(synchronize_session=False)
@@ -523,10 +534,11 @@ def update_challenge(slug, challenge_id):
         fail(reason, 409)
     validate_fields(challenge, data, room, live=e.status in maintenance.ACTIVE)
     reviewed = maintenance.confirmation(room, challenge, data, e, confirmation)
-    apply_fields(challenge, data, room, live=e.status in maintenance.ACTIVE)
+    price_changes = apply_fields(challenge, data, room, live=e.status in maintenance.ACTIVE)
     if reviewed:
         db.session.flush()
         reviewed.update(before_revision=before_revision, after_revision=maintenance.room_revision(room))
+        reviewed.update(pricing=data.get("pricing"), price_change_ids=[row.id for row in price_changes])
     audit("challenge.update", {"room_slug": slug, "challenge_id": challenge.id, "fields": sorted(data),
                                **({"maintenance": reviewed} if reviewed else {})})
     db.session.commit()
