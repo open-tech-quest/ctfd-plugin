@@ -212,7 +212,9 @@ def restore(snapshot_id):
         payload[key] = data[key]
     payload["confirmation_text"] = payload.pop("confirmation")
     payload["confirm"] = True
-    return success(worker().json("POST", "/backups/" + identifier(snapshot_id) + "/restore", payload)), 202
+    # Admission revalidates live authority and target metadata before returning
+    # the durable job ticket. A cold/remote control plane can exceed 30 seconds.
+    return success(worker().json("POST", "/backups/" + identifier(snapshot_id) + "/restore", payload, timeout=120)), 202
 
 
 @backups_api.route("/admin/backups/jobs/<job_id>")

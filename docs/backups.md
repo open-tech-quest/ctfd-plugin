@@ -85,6 +85,8 @@ retain old signing keys when rotating. The profile token selects its fixed targe
 neither the browser nor a restored database supplies a kubeconfig or target.
 Use TLS at the worker ingress, restrict the listener to the trusted network and
 allow only each application's exact origin for read-only operation status.
+Allow ingress timeouts to cover restore admission (120 seconds) and portable
+download preparation (600 seconds); ordinary pages keep their normal behavior.
 
 Set these CTFd environment variables:
 
