@@ -9,7 +9,11 @@ import urllib.parse
 import urllib.request
 from flask import Blueprint, Response, current_app, jsonify, request, session, stream_with_context
 from werkzeug.exceptions import HTTPException
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from CTFd import __version__ as ctfd_version
 from CTFd.models import db
+from CTFd.utils import get_config
 from .api import QuestError, admin, body, fail, success
 from .authoring import locked_event
 from .backup_contract import DEFAULT_MAX_BYTES, canonical
@@ -175,6 +179,25 @@ def history_arguments(allowed):
         fail(str(error), error.status)
 
 
+def local_versions():
+    """Display local revision labels without a remote recovery-target probe."""
+    try:
+        plugin_schema = get_config("open_tech_quest_alembic_version") or "unknown"
+        try:
+            native_schema = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        except SQLAlchemyError:
+            # SQLite create_all/development installs may have no native marker.
+            # Unknown is deliberately not presented as a matching schema.
+            native_schema = None
+        return {"ctfd_version": ctfd_version,
+                "plugin_version": os.environ.get("OTQ_PLUGIN_VERSION", "dev"),
+                "schema_revision": str(plugin_schema),
+                "ctfd_schema_revision": str(native_schema or "unknown")}
+    finally:
+        # No read transaction or event lock may survive the worker HTTP call.
+        db.session.rollback()
+
+
 @backups_api.route("/admin/backups")
 @admin
 def index():
@@ -185,11 +208,14 @@ def index():
     if not setting("OTQ_BACKUP_WORKER_URL") or not setting("OTQ_BACKUP_WORKER_TOKEN"):
         value = {"available": False, "unavailable_reason": "The operator has not configured a backup worker for this installation.",
                  "worker_status_origin": None, "target": None, "schedule": None, "active_job": None}
-        value.update({"groups": [], "catalog_revision": ""} if query else {"snapshots": []})
+        value.update({"groups": [], "catalog_revision": "", "current_versions": None} if query else {"snapshots": []})
         return success(value)
+    versions = local_versions() if query else None
     remote = Worker(proof)
     value = remote.json("GET", "/backups?view=summary" if query else "/backups", timeout=120)
     value["worker_status_origin"] = remote.status_origin
+    if query:
+        value["current_versions"] = versions
     return success(value)
 
 

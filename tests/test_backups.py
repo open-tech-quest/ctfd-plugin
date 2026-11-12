@@ -2,15 +2,20 @@
 import hashlib
 import io
 import json
+import os
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 import test_authoring as authoring_tests
 import test_integration as integration
 from CTFd.models import Users, db
+from CTFd import __version__ as ctfd_version
+from CTFd.utils import get_config
 from CTFd.plugins.open_tech_quest import backups
 from CTFd.plugins.open_tech_quest.models import QuestEvent
 from CTFd.plugins.open_tech_quest.service import event
@@ -175,6 +180,7 @@ class BackupsIntegration(unittest.TestCase):
         self.assertFalse(summary.json["data"]["available"])
         self.assertEqual(summary.json["data"]["groups"], [])
         self.assertNotIn("snapshots", summary.json["data"])
+        self.assertIsNone(summary.json["data"]["current_versions"])
         self.assertEqual(self.calls, [])
         self.app.config["OTQ_BACKUP_WORKER_TOKEN"] = "synthetic-worker-token"
         operation = self.operation()
@@ -213,6 +219,38 @@ class BackupsIntegration(unittest.TestCase):
             response = self.admin.get(PREFIX + path)
             self.assertEqual(response.status_code, 400, path)
         self.assertEqual(self.calls, [])
+
+    def test_summary_versions_come_from_local_runtime_without_holding_a_remote_read_transaction(self):
+        with self.app.app_context():
+            expected_schema = str(get_config("open_tech_quest_alembic_version") or "unknown")
+            try:
+                expected_native = str(db.session.execute(text("SELECT version_num FROM alembic_version")).scalar() or "unknown")
+            except SQLAlchemyError:
+                expected_native = "unknown"
+            finally:
+                db.session.rollback()
+        before = self.domain()
+        self.forced = (200, {"available": True, "groups": [], "catalog_revision": "fixture",
+                            "current_versions": {"schema_revision": "untrusted-remote-label"}}, {})
+        original = backups.Worker.json
+        probes = []
+
+        def remote_read(remote, *args, **kwargs):
+            self.assertFalse(db.session().in_transaction())
+            probes.append(args[1])
+            return original(remote, *args, **kwargs)
+
+        with patch.dict(os.environ, {"OTQ_PLUGIN_VERSION": "synthetic-local-build"}), patch.object(backups.Worker, "json", remote_read):
+            response = self.admin.get(PREFIX + "?view=summary")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["current_versions"], {
+            "ctfd_version": ctfd_version, "plugin_version": "synthetic-local-build",
+            "schema_revision": expected_schema, "ctfd_schema_revision": expected_native})
+        self.assertEqual(probes, ["/backups?view=summary"])
+        self.assertEqual([call[1] for call in self.calls], ["/v1/backups?view=summary"])
+        self.assertNotIn("password_sha256", response.get_data(as_text=True))
+        self.assertNotIn("synthetic-worker-token", response.get_data(as_text=True))
+        self.assertEqual(before, self.domain())
 
     def test_create_review_restore_jobs_and_download_are_private_proxy_only(self):
         before = self.domain()
