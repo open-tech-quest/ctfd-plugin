@@ -5,6 +5,37 @@ For hosting requirements and the Compose example, see
 [deployment](../docs/deployment.md). Application tests below do not by themselves
 validate Kubernetes/OpenShift networking, storage or admission policies.
 
+Backup tests include the signed complete-file contract, browser-session/CSRF
+authorization, native/Quest maintenance fencing, durable operation identity,
+fresh authority after queue waits, key rotation, profile-bound status tickets,
+legacy/producer refusal, helper storage/configuration preflights and failure holds.
+The pure contract/controller/provider tests run without CTFd:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_backup_*.py' -v
+```
+
+For full replacement verification, build `web/dist` and use the opt-in disposable
+Podman fixture (Python 3.9+, Podman and image-pull access):
+
+```sh
+python3 tests/backup_deployment_fixture.py --output /private/quest-backup-test
+```
+
+It uses actual CTFd/MariaDB/Redis, generated private credentials and nested uploads,
+then captures/publishes a backup, changes accounts/answers/progress/files and
+performs a reviewed replacement with a safety snapshot. Kubernetes transport is
+emulated: it never invokes `oc` or reads a kubeconfig. SQL must re-export identically
+before startup; business rows/files must match after startup, later accounts/files
+must disappear, old passwords must work and the old Redis session must fail.
+Only native update-check metadata, tracking and read-generation bookkeeping are
+excluded from the post-start semantic comparison. Safe proofs retain no data or
+credentials; owned containers, temporary repositories and decrypted files are
+removed on success/failure. `--hold 900` keeps a successful fixture available for
+browser QA, with temporary access in a private `fixture-access.json`; create
+`stop-fixture` in the output directory to finish early. This tests recovery code,
+not actual Kubernetes RBAC, admission, attachment or production cutover.
+
 From the repository root:
 
 ```sh

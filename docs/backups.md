@@ -114,8 +114,12 @@ reconciliation during replacement. It does not restore Kubernetes objects or
 credentials from the backup. Operators provide/requalify those separately. Enable
 `restore_enabled` only after testing the exact hosting setup with disposable data.
 
-Schedule `python backup_operator.py --config /private/worker.json --profile event
-backup --scheduled` through the same supervised scheduler used for backups.
+Schedule the same operator command through your supervised scheduler:
+
+```sh
+python backup_operator.py --config /private/worker.json --profile event backup --scheduled
+```
+
 Schedule `check` and `drill` as well. All mutations, downloads and operator jobs
 share a repository lock. A schedule overlapping a long restore fails visibly
 rather than competing. Alert on failures and a last successful scheduled backup

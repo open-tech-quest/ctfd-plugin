@@ -12,6 +12,7 @@ CTFd handles accounts, teams, flags, hints and solves.
 - Room progress/points/time rankings and overall net-points rankings, with shared
   ties, team-paid hints, projector and awards views.
 - Organizer authoring, staff controls, CSV exports, JSON archives and round resets.
+- [Full backups and reviewed restore](docs/backups.md) with an external deployment worker.
 - [Maintainer automation](docs/automation.md) for owned challenges, metadata and assets.
 - [Staff room preview](docs/preview.md) with local progress and the participant interface.
 
