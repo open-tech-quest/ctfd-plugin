@@ -42,7 +42,9 @@ def digest(value):
 def pack_uploads(source, destination):
     """Stable bytes reproduce the signed component after a Restic extraction."""
     with Path(destination).open("xb") as output:
-        with gzip.GzipFile(filename="", fileobj=output, mode="wb", mtime=0) as gz:
+        # The signed component must reproduce across worker runtimes. Python
+        # 3.15 changed gzip's default from 9 to 6; format v1 uses level 9.
+        with gzip.GzipFile(filename="", fileobj=output, mode="wb", mtime=0, compresslevel=9) as gz:
             with tarfile.open(fileobj=gz, mode="w|", format=tarfile.PAX_FORMAT) as archive:
                 for path in sorted(Path(source).rglob("*")):
                     if path.is_symlink() or not (path.is_file() or path.is_dir()):

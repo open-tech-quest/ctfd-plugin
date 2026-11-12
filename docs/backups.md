@@ -129,8 +129,9 @@ Capture uses an InnoDB transactional SQL dump, checks stable schema/configuratio
 and upload inventories before/after, then verifies the dump by importing/re-exporting
 it in an isolated MariaDB container. Ordinary solves may continue during capture;
 coordinate schema upgrades separately. Restic stores raw SQL and individual files
-for chunk deduplication. Portable downloads are deterministic signed ZIPs; no
-signing key or worker token is inside them. Default retention keeps every point
+for chunk deduplication. Portable downloads are deterministic signed ZIPs; format
+v1 fixes upload gzip compression at level 9, independently of Python defaults.
+No signing key or worker token is inside them. Default retention keeps every point
 for ten days (daily pruning may retain up to eleven), plus at least the latest.
 Redis and application logs are excluded; the durable event audit is in SQL.
 

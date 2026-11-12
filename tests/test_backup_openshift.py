@@ -124,6 +124,22 @@ class BackupOpenShift(unittest.TestCase):
         actual = {str(p.relative_to(extracted)): p.read_bytes() for p in extracted.rglob("*") if p.is_file()}
         self.assertEqual(actual, expected)
 
+    def test_signed_upload_encoding_survives_python_default_compression_change(self):
+        uploads = self.root / "codec-source"
+        (uploads / "nested").mkdir(parents=True)
+        (uploads / "nested/original.txt").write_bytes(b"synthetic upload bytes\n")
+        real_gzip = provider.gzip.GzipFile
+        encoded = []
+        for default in (9, 6):
+            def runtime_gzip(*args, **kwargs):
+                kwargs.setdefault("compresslevel", default)
+                return real_gzip(*args, **kwargs)
+            target = self.root / (str(default) + ".tar.gz")
+            with patch.object(provider.gzip, "GzipFile", side_effect=runtime_gzip):
+                provider.pack_uploads(uploads, target)
+            encoded.append(target.read_bytes())
+        self.assertEqual(encoded[0], encoded[1])
+
     def test_upload_extraction_refuses_traversal_links_duplicates_and_expanded_size(self):
         for index, (name, kind, data, limit) in enumerate((
                 ("../outside", tarfile.REGTYPE, b"bad", 100), ("/outside", tarfile.REGTYPE, b"bad", 100),
