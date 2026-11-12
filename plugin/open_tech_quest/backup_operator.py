@@ -2,6 +2,7 @@
 import argparse
 import base64
 import fcntl
+import hashlib
 import json
 import os
 import secrets
@@ -17,11 +18,11 @@ from urllib.parse import unquote, urlsplit
 
 try:
     from . import backup_contract as contract
-    from .backup_worker import Profile, WorkerError, write_json
+    from .backup_worker import Profile, WorkerError, write_json, now
     from .backup_openshift import OpenShiftAdapter, DUMP, run, extract_uploads
 except ImportError:
     import backup_contract as contract
-    from backup_worker import Profile, WorkerError, write_json
+    from backup_worker import Profile, WorkerError, write_json, now
     from backup_openshift import OpenShiftAdapter, DUMP, run, extract_uploads
 
 
@@ -163,7 +164,24 @@ def main():
     config = next(p for p in json.loads(args.config.read_text())["profiles"] if p["id"] == args.profile)
     profile = Profile(config, OpenShiftAdapter(config))
     if args.action == "backup":
-        result = profile.enqueue("backup", None, {"operation_id": str(uuid.uuid4()), "scheduled": args.scheduled}, synchronous=True)["job"]
+        body = {"operation_id": str(uuid.uuid4()), "scheduled": args.scheduled}
+        try:
+            result = profile.enqueue("backup", None, body, synchronous=True)["job"]
+        except WorkerError as error:
+            if not args.scheduled:
+                raise
+            # A busy repository can refuse before enqueue creates a job. Keep
+            # that genuine scheduled attempt visible without touching the
+            # running operation or making a manual attempt look scheduled.
+            stamp = now()
+            job = {"id": body["operation_id"], "operation_id": body["operation_id"], "kind": "backup",
+                   "status": "failed", "stage": "not_started", "message": str(error),
+                   "created_at": stamp, "updated_at": stamp, "scheduled": True,
+                   "actor": None, "reason": "Scheduled backup",
+                   "request_hash": hashlib.sha256(contract.canonical({"kind": "backup", "actor": None, "body": body, "snapshot": None})).hexdigest()}
+            write_json(profile._job_path(job["id"]), job)
+            write_json(profile.root / "backup-failure.json", {"at": stamp, "job_id": job["id"]})
+            result = profile.public_job(job)
         print(json.dumps(result))
         if result["status"] != "succeeded":
             raise SystemExit(1)
