@@ -63,6 +63,10 @@ def actor_fingerprint(actor):
 
 def browse_query(query, allowed):
     """Read-only browser selectors are small, unique and allowlisted."""
+    # Python 3.9 treats an empty strict query as malformed; newer runtimes
+    # accept it. The legacy inventory URL intentionally has no selectors.
+    if query == "":
+        return {}
     try:
         if len(query) > 1024:
             raise ValueError()

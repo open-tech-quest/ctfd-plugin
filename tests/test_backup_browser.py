@@ -19,6 +19,14 @@ ACTOR, worker = fixtures.ACTOR, fixtures.worker
 class BackupBrowser(unittest.TestCase):
     backup = fixtures.BackupWorker.backup
 
+    def test_legacy_empty_query_does_not_depend_on_runtime_strict_parser(self):
+        # The deployed worker's Python 3.9 raises on an empty strict query.
+        with patch.object(worker, "parse_qs", side_effect=ValueError("empty strict query")) as parser:
+            self.assertEqual(worker.browse_query("", {"view"}), {})
+            value = self.get("/v1/backups", expected=200)
+            self.assertIn("snapshots", value)
+            parser.assert_not_called()
+
     def setUp(self):
         fixtures.BackupWorker.setUp(self)
         self.config.update(instance_name="Synthetic event", adapter={"route_host": "event.example.test"})
