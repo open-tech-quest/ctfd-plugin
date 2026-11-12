@@ -68,6 +68,12 @@ CTFd's native access-token hook also authenticates Quest management routes when
 grant native administrator privileges to Maintainers. See [automation](automation.md).
 Backup & Restore is an explicit exception: administrator browser sessions and
 fresh worker-side authority checks are required; native access tokens are refused.
+Backup browsing separates a lightweight summary from bounded per-day pages.
+Both revalidate administrator authority and read the maintained worker index;
+neither probes current deployment compatibility or reconciles Restic. Cursor
+pagination orders UTC timestamps and IDs; the browser loads only opened dates.
+Compatibility and target inspection remain fresh at restore review/admission.
+The legacy full-index endpoint remains available to operator tooling.
 Its operation/trust/recovery records live outside the restored database. The first
 request hook and post-event-lock fence refuse writes during recovery, independently
 of event or room pause. Never remove these guards to make a health probe pass.

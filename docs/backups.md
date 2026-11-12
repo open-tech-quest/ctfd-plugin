@@ -3,7 +3,9 @@
 **Organize → Backup & Restore** lets a signed-in administrator create, download,
 upload, review and fully restore event backups. Maintainers and API tokens cannot
 use these controls. Hosting must first configure the external backup worker;
-otherwise the page explains that backups are unavailable.
+otherwise the page explains that backups are unavailable. Automatic scheduling,
+retention and storage are managed by the hosting operator outside Organize. The
+page reports that schedule; administrators can still create an extra backup.
 
 An [event JSON archive](archives.md) is a shareable report. A `.otqbackup` file is
 private recovery material containing **all accounts and password hashes, roles,
@@ -15,12 +17,17 @@ signing keys and a separate data copy outside the application cluster.
 
 ## Organizer workflow
 
-1. Check the target installation, scheduled-backup health and snapshot time.
+Saved backups are grouped by UTC month and day. The newest day opens first;
+other dates load when opened, with 20 entries at a time and **Load more** for the
+rest. Compatibility is checked when you choose **Review restore**, before
+confirmation or replacement; browsing a backup does not qualify it for restore.
+
+1. Check the target installation, automatic-backup health and snapshot time.
    **Create backup** uses the same capture engine and repository as the schedule.
 2. Download a snapshot for safekeeping, or upload an unmodified backup signed by
    a worker key trusted by this installation. Uploading stores/verifies it; it
    does not restore anything. Event reports and arbitrary ZIP/SQL files are refused.
-3. **Review full restore** compares account/team/challenge/solve counts and shows
+3. **Review restore** compares account/team/challenge/solve counts and shows
    the producer versions, target and consequences. An incompatible snapshot stays
    downloadable for operator inspection with a specific refusal reason.
 4. Supply a reason, acknowledge full replacement and the safety backup, and type
@@ -144,7 +151,10 @@ for ten days (daily pruning may retain up to eleven), plus at least the latest.
 Redis and application logs are excluded; the durable event audit is in SQL.
 
 `backup_operator.py` also offers `status`, `snapshots`, `init`, `check`, `extract`
-and `drill`. **Extract writes only to private worker storage**, never the live
+and `drill`. Browsing reads the worker's local index, which capture, upload and
+retention maintain. After out-of-band repository recovery or changes, reconcile
+that index using the operator's `snapshots` command. Browsing does not acquire the
+repository operation lock or run Restic; it cannot delay a scheduled capture. **Extract writes only to private worker storage**, never the live
 application. A drill imports the selected SQL into its recorded MariaDB image,
 requires a byte-identical re-export, then verifies referenced uploads and native
 login with the recorded CTFd/Redis images on an internal Podman network, without
