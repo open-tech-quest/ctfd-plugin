@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shutil
 import threading
@@ -16,7 +17,7 @@ import zipfile
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 try:
     from . import backup_contract as contract
@@ -58,6 +59,67 @@ def operation_id(value):
 
 def actor_fingerprint(actor):
     return hashlib.sha256(contract.canonical(actor)).hexdigest()
+
+
+def browse_query(query, allowed):
+    """Read-only browser selectors are small, unique and allowlisted."""
+    try:
+        if len(query) > 1024:
+            raise ValueError()
+        values = parse_qs(query, keep_blank_values=True, strict_parsing=True, max_num_fields=4)
+        if set(values) - set(allowed) or any(len(value) != 1 for value in values.values()):
+            raise ValueError()
+        return {key: value[0] for key, value in values.items()}
+    except ValueError:
+        raise WorkerError("Supply only the supported backup history selectors", 400)
+
+
+def parse_day(value):
+    try:
+        if not isinstance(value, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+            raise ValueError()
+        return datetime.strptime(value, "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        raise WorkerError("Choose a valid UTC calendar day (YYYY-MM-DD)", 400)
+
+
+def _catalog_time(value):
+    if not isinstance(value, str) or len(value) > 40:
+        raise ValueError()
+    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if stamp.tzinfo is None:
+        raise ValueError()
+    return stamp.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _page_limit(value):
+    if isinstance(value, bool) or not re.fullmatch(r"[1-9][0-9]?", str(value)) or not 1 <= int(value) <= 50:
+        raise WorkerError("Backup page size must be between 1 and 50", 400)
+    return int(value)
+
+
+def _page_cursor(value, day):
+    try:
+        if not isinstance(value, str) or not 1 <= len(value) <= 256 or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+            raise ValueError()
+        raw = base64.b64decode(value + "=" * (-len(value) % 4), altchars=b"-_", validate=True)
+        parts = json.loads(raw)
+        if not isinstance(parts, list) or len(parts) != 3 or parts[0] != day:
+            raise ValueError()
+        stamp, identifier = parts[1:]
+        if _catalog_time(stamp) != stamp or stamp[:10] != day or not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{32}", identifier):
+            raise ValueError()
+        return stamp, identifier
+    except (ValueError, TypeError, UnicodeError, OverflowError):
+        raise WorkerError("The backup history cursor is invalid; reopen this day", 400)
+
+
+def page_arguments(query):
+    day, limit = parse_day(query.get("day")), _page_limit(query.get("limit", 20))
+    before = query.get("before")
+    if before is not None:
+        _page_cursor(before, day)
+    return {"day": day, "limit": limit, "before": before}
 
 
 class Profile:
@@ -164,15 +226,98 @@ class Profile:
             raise WorkerError("Backup not found", 404)
         return json.loads(path.read_text())
 
-    def snapshot(self, record, current):
+    def snapshot(self, record, current=None):
         manifest = record["manifest"]
-        compatible = self.compatibility(manifest, current)
+        if current is None:
+            # Metadata browsing never probes live software/configuration.
+            # Only an explicit review can qualify a full replacement.
+            compatible = {"supported": False, "reason": None, "checked": False}
+            if manifest.get("legacy"):
+                compatible = {"supported": False, "reason": "This legacy backup needs operator verification before restoration", "checked": True}
+        else:
+            compatible = self.compatibility(manifest, current)
         if not manifest.get("legacy") and record.get("signing_key_id") not in self.trusted_keys:
-            compatible = {"supported": False, "reason": "The backup signing key requires operator recovery"}
+            compatible = {"supported": False, "reason": "The backup signing key requires operator recovery", "checked": True}
         return {"id": manifest["snapshot_id"], "created_at": manifest["created_at"],
                 "origin": record["origin"], "bytes": record["bytes"], "sha256": record["sha256"],
                 "source": manifest["source"], "counts": manifest["counts"],
                 "compatibility": compatible}
+
+    def _catalog(self):
+        """Capture/upload/prune maintain this local, atomic metadata index.
+
+        Browsing must not compete with scheduled captures for the repository
+        lock. Existing operator reconciliation handles out-of-band changes.
+        """
+        records = []
+        for path in (self.root / "snapshots").glob("*.json"):
+            try:
+                record = json.loads(path.read_text())
+                manifest = record["manifest"]
+                stamp = _catalog_time(manifest["created_at"])
+                identifier = manifest["snapshot_id"]
+                if not isinstance(identifier, str) or not re.fullmatch(r"[0-9a-f]{32}", identifier) or path.stem != identifier:
+                    raise ValueError()
+                records.append(((stamp, identifier), record))
+            except FileNotFoundError:
+                continue  # Atomic retention can remove entries while browsing.
+            except (KeyError, TypeError, ValueError, OverflowError):
+                raise WorkerError("Backup history metadata needs operator inspection", 503)
+        records.sort(key=lambda row: row[0], reverse=True)
+        revision = contract.fingerprint([[key, record.get("sha256"), record.get("bytes"), record.get("origin"), record.get("signing_key_id")]
+                                         for key, record in records])
+        return records, revision
+
+    def _schedule_and_active(self):
+        jobs = []
+        for path in (self.root / "jobs").glob("*.json"):
+            try:
+                jobs.append(json.loads(path.read_text()))
+            except FileNotFoundError:
+                continue
+        jobs.sort(key=lambda value: value["created_at"], reverse=True)
+        active = next((job for job in jobs if job["status"] in ("queued", "running")), None)
+        schedule = self.adapter.schedule()
+        scheduled = [job for job in jobs if job.get("scheduled")]
+        schedule["last_job"] = self.public_job(scheduled[0]) if scheduled else None
+        successful = next((job for job in scheduled if job["status"] == "succeeded"), None)
+        # A manual recovery point must never masquerade as scheduled health.
+        schedule["last_success_at"] = successful["updated_at"] if successful else None
+        return schedule, self.envelope(active) if active else None
+
+    def overview(self, actor):
+        self.authorize(actor)
+        records, revision = self._catalog()
+        months = {}
+        for (stamp, _), _record in records:
+            day, month = stamp[:10], stamp[:7]
+            days = months.setdefault(month, {})
+            days[day] = days.get(day, 0) + 1
+        groups = [{"key": month, "label": datetime.strptime(month, "%Y-%m").strftime("%B %Y"),
+                   "count": sum(days.values()), "days": [{"key": day, "count": count} for day, count in days.items()]}
+                  for month, days in months.items()]
+        schedule, active = self._schedule_and_active()
+        host = self.config.get("adapter", {}).get("route_host")
+        return {"available": True, "unavailable_reason": None, "worker_status_origin": self.public_origin,
+                "target": {"id": self.config["instance_id"], "name": self.config.get("instance_name", self.config["instance_id"]),
+                           "origin": "https://" + host if host else None},
+                "schedule": schedule, "active_job": active, "catalog_revision": revision, "groups": groups}
+
+    def day_page(self, actor, day, limit=20, before=None):
+        self.authorize(actor)
+        day, limit = parse_day(day), _page_limit(limit)
+        cursor = _page_cursor(before, day) if before is not None else None
+        records, revision = self._catalog()
+        selected = [(key, record) for key, record in records if key[0][:10] == day]
+        total = len(selected)
+        eligible = [(key, record) for key, record in selected if cursor is None or key < cursor]
+        page = eligible[:limit]
+        next_cursor = None
+        if len(eligible) > limit:
+            key = page[-1][0]
+            next_cursor = base64.urlsafe_b64encode(contract.canonical([day, *key])).decode().rstrip("=")
+        return {"day": day, "snapshots": [self.snapshot(record) for _, record in page],
+                "next_cursor": next_cursor, "total": total, "catalog_revision": revision}
 
     def index(self, actor):
         self.authorize(actor)
@@ -190,19 +335,11 @@ class Profile:
                     records.append(json.loads(path.read_text()))
                 except FileNotFoundError:
                     continue  # Retention may have just removed this entry.
-        jobs = [json.loads(path.read_text()) for path in (self.root / "jobs").glob("*.json")]
-        jobs.sort(key=lambda value: value["created_at"], reverse=True)
-        active = next((job for job in jobs if job["status"] in ("queued", "running")), None)
-        schedule = self.adapter.schedule()
-        scheduled = [job for job in jobs if job.get("scheduled")]
-        schedule["last_job"] = self.public_job(scheduled[0]) if scheduled else None
-        successful = next((job for job in scheduled if job["status"] == "succeeded"), None)
-        if successful:
-            schedule["last_success_at"] = successful["updated_at"]
+        schedule, active = self._schedule_and_active()
         return {"available": True, "unavailable_reason": None, "worker_status_origin": self.public_origin,
                 "target": current["target"], "schedule": schedule,
                 "snapshots": [self.snapshot(record, current) for record in sorted(records, key=lambda r: r["manifest"]["created_at"], reverse=True)],
-                "active_job": self.envelope(active) if active else None}
+                "active_job": active}
 
     def review(self, identifier, actor):
         self.authorize(actor)
@@ -520,9 +657,15 @@ class Handler(BaseHTTPRequestHandler):
             actor = self._actor()
             if path == "/v1/backups":
                 if self.command == "GET":
-                    return self._response(200, profile.index(actor))
+                    query = browse_query(urlsplit(self.path).query, {"view"})
+                    if query and query != {"view": "summary"}:
+                        raise WorkerError("Choose the summary backup view", 400)
+                    return self._response(200, profile.overview(actor) if query else profile.index(actor))
                 if self.command == "POST":
                     return self._response(202, profile.enqueue("backup", actor, self._body()))
+            if path == "/v1/backups/snapshots" and self.command == "GET":
+                query = browse_query(urlsplit(self.path).query, {"day", "limit", "before"})
+                return self._response(200, profile.day_page(actor, **page_arguments(query)))
             if path == "/v1/backups/upload" and self.command == "POST":
                 profile.authorize(actor)
                 identifier = operation_id(self.headers.get("X-Quest-Operation-Id"))

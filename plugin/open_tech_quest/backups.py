@@ -13,6 +13,7 @@ from CTFd.models import db
 from .api import QuestError, admin, body, fail, success
 from .authoring import locked_event
 from .backup_contract import DEFAULT_MAX_BYTES, canonical
+from .backup_worker import WorkerError, browse_query, page_arguments
 from . import lifecycle
 
 backups_api = Blueprint("quest_backups", __name__)
@@ -165,17 +166,44 @@ def worker():
     return Worker(actor())
 
 
+def history_arguments(allowed):
+    try:
+        return browse_query(request.query_string.decode("ascii"), allowed)
+    except UnicodeError:
+        fail("Supply only the supported backup history selectors", 400)
+    except WorkerError as error:
+        fail(str(error), error.status)
+
+
 @backups_api.route("/admin/backups")
 @admin
 def index():
     proof = actor()
+    query = history_arguments({"view"})
+    if query and query != {"view": "summary"}:
+        fail("Choose the summary backup view", 400)
     if not setting("OTQ_BACKUP_WORKER_URL") or not setting("OTQ_BACKUP_WORKER_TOKEN"):
-        return success({"available": False, "unavailable_reason": "The operator has not configured a backup worker for this installation.",
-                        "worker_status_origin": None, "target": None, "schedule": None, "snapshots": [], "active_job": None})
+        value = {"available": False, "unavailable_reason": "The operator has not configured a backup worker for this installation.",
+                 "worker_status_origin": None, "target": None, "schedule": None, "active_job": None}
+        value.update({"groups": [], "catalog_revision": ""} if query else {"snapshots": []})
+        return success(value)
     remote = Worker(proof)
-    value = remote.json("GET", "/backups", timeout=120)
+    value = remote.json("GET", "/backups?view=summary" if query else "/backups", timeout=120)
     value["worker_status_origin"] = remote.status_origin
     return success(value)
+
+
+@backups_api.route("/admin/backups/snapshots")
+@admin
+def snapshots():
+    proof = actor()
+    try:
+        selected = page_arguments(history_arguments({"day", "limit", "before"}))
+    except WorkerError as error:
+        fail(str(error), error.status)
+    # Both boundaries validate selectors. Never interpolate a path from them.
+    query = {key: value for key, value in selected.items() if value is not None}
+    return success(Worker(proof).json("GET", "/backups/snapshots?" + urllib.parse.urlencode(query), timeout=120))
 
 
 @backups_api.route("/admin/backups", methods=["POST"])

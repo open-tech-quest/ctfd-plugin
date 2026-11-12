@@ -63,9 +63,12 @@ class BackupOperator(unittest.TestCase):
         # Production publication clears the generic marker on any success;
         # operator status must still report the actual timer failure.
         (self.profile.root / "backup-failure.json").unlink()
+        self.adapter.schedule = lambda: {"enabled": True, "interval_seconds": 900,
+                                         "last_success_at": worker.now(), "next_run_at": None}
         status = self.invoke(False, "status")
         self.assertTrue(status["backup_failed"])
         self.assertEqual(status["schedule"]["last_job"]["id"], failed["id"])
+        self.assertIsNone(status["schedule"]["last_success_at"])
 
     def test_busy_manual_cli_does_not_claim_a_scheduled_attempt(self):
         with (self.profile.root / "operation.lock").open("a") as lock:
@@ -82,3 +85,24 @@ class BackupOperator(unittest.TestCase):
         self.assertEqual(stopped.exception.code, 1)
         self.assertEqual(len(list((self.profile.root / "jobs").glob("*.json"))), 1)
         self.assertEqual(self.profile.index(ACTOR)["schedule"]["last_job"]["status"], "failed")
+
+    def test_snapshots_reconciles_recovered_index_under_existing_lock(self):
+        calls = []
+        expected = [{"id": "a" * 64, "tags": ["synthetic-test"]}]
+        self.adapter.options = {"restic_tag": "synthetic-test", "restic_host": "fixture"}
+
+        def reconcile(directory):
+            self.assertEqual(directory, self.profile.root / "snapshots")
+            with (self.profile.root / "operation.lock").open("a") as contender:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            calls.append("reconcile")
+
+        def restic(arguments):
+            self.assertEqual(calls, ["reconcile"])
+            self.assertEqual(arguments, ["snapshots", "--tag", "synthetic-test", "--host", "fixture", "--json"])
+            return json.dumps(expected).encode()
+
+        self.adapter.sync_inventory, self.adapter.restic = reconcile, restic
+        self.assertEqual(self.invoke(False, "snapshots"), expected)
+        self.assertEqual(calls, ["reconcile"])

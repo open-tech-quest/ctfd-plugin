@@ -97,7 +97,8 @@ class BackupsIntegration(unittest.TestCase):
 
     def test_only_session_administrators_can_reach_any_worker_operation(self):
         for client, expected in ((self.guest, 401), (self.alice, 403), (self.maintainer, 403)):
-            for method, path, data in (("GET", PREFIX, None), ("POST", PREFIX, {"reason": "Synthetic backup", "operation_id": OP}),
+            for method, path, data in (("GET", PREFIX, None), ("GET", PREFIX + "?view=summary", None),
+                    ("GET", PREFIX + "/snapshots?day=2026-11-12", None), ("POST", PREFIX, {"reason": "Synthetic backup", "operation_id": OP}),
                     ("POST", PREFIX + "/snapshot/review", {}), ("GET", PREFIX + "/snapshot/download", None),
                     ("GET", PREFIX + "/jobs/" + OP, None), ("POST", PREFIX + "/snapshot/restore", {})):
                 response = client.open(path, method=method, json=data, headers={"CSRF-Token": "quest-test-csrf"})
@@ -169,6 +170,11 @@ class BackupsIntegration(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json["data"]["available"])
         self.assertIsNone(response.json["data"]["target"])
+        summary = self.admin.get(PREFIX + "?view=summary")
+        self.assertEqual(summary.status_code, 200)
+        self.assertFalse(summary.json["data"]["available"])
+        self.assertEqual(summary.json["data"]["groups"], [])
+        self.assertNotIn("snapshots", summary.json["data"])
         self.assertEqual(self.calls, [])
         self.app.config["OTQ_BACKUP_WORKER_TOKEN"] = "synthetic-worker-token"
         operation = self.operation()
@@ -176,6 +182,37 @@ class BackupsIntegration(unittest.TestCase):
         self.forced = (200, operation, {})
         response = self.post(self.admin, PREFIX, {"reason": "Synthetic backup", "operation_id": OP})
         self.assertEqual(response.status_code, 502)
+
+    def test_lazy_history_proxies_only_selected_private_metadata(self):
+        before = self.domain()
+        overview = {"available": True, "target": {"id": "fixture", "name": "Synthetic event", "origin": "https://event.example.test"},
+                    "groups": [], "catalog_revision": "synthetic-index", "schedule": None, "active_job": None}
+        self.forced = (200, overview, {})
+        response = self.admin.get(PREFIX + "?view=summary")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.calls[-1][1], "/v1/backups?view=summary")
+        self.assertEqual(response.json["data"]["worker_status_origin"], self.origin)
+        self.assertNotIn("snapshots", response.json["data"])
+        self.assertIn("no-store", response.headers["Cache-Control"])
+        page = {"day": "2026-11-12", "snapshots": [], "next_cursor": None, "total": 0, "catalog_revision": "synthetic-index"}
+        self.forced = (200, page, {})
+        response = self.admin.get(PREFIX + "/snapshots?day=2026-11-12&limit=20")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.calls[-1][1], "/v1/backups/snapshots?day=2026-11-12&limit=20")
+        self.assertEqual(response.json["data"], page)
+        self.assertIn("no-store", response.headers["Cache-Control"])
+        self.assertEqual(before, self.domain())
+
+    def test_bad_history_selectors_never_contact_the_worker(self):
+        for path in ("?view=", "?view=summary&view=summary", "?view=all", "?unknown=value", "?view=summary&unknown=value",
+                     "/snapshots", "/snapshots?day=", "/snapshots?day=2026-02-30", "/snapshots?day=2026-11-12&limit=0",
+                     "/snapshots?day=2026-11-12&limit=51", "/snapshots?day=2026-11-12&limit=01", "/snapshots?day=2026-11-12&limit=1.5",
+                     "/snapshots?day=2026-11-12&day=2026-11-13", "/snapshots?%64ay=2026-11-12&day=2026-11-13",
+                     "/snapshots?day=2026-11-12&before=bad",
+                     "/snapshots?day=2026-11-12&unknown=value", "/snapshots?day=2026-11-12&before=" + "a" * 2000):
+            response = self.admin.get(PREFIX + path)
+            self.assertEqual(response.status_code, 400, path)
+        self.assertEqual(self.calls, [])
 
     def test_create_review_restore_jobs_and_download_are_private_proxy_only(self):
         before = self.domain()

@@ -193,6 +193,10 @@ def main():
             adapter.restic(["init", "--repository-version", "2"])
             result = {"initialized": True}
         elif args.action == "snapshots":
+            # Explicit operator reconciliation repairs the local browser index
+            # after out-of-band recovery; ordinary browsing never contends
+            # with scheduled captures for the repository lock.
+            adapter.sync_inventory(profile.root / "snapshots")
             result = json.loads(adapter.restic(["snapshots", "--tag", adapter.options["restic_tag"], "--host", adapter.options["restic_host"], "--json"]))
         elif args.action == "check":
             adapter.restic(["check", "--read-data"])
@@ -215,8 +219,7 @@ def main():
             result["schedule"]["last_job"] = profile.public_job(latest) if latest else None
             result["backup_failed"] = result["backup_failed"] or bool(latest and latest["status"] == "failed")
             successful = next((job for job in scheduled if job["status"] == "succeeded"), None)
-            if successful:
-                result["schedule"]["last_success_at"] = successful["updated_at"]
+            result["schedule"]["last_success_at"] = successful["updated_at"] if successful else None
             success = profile.root / "latest-success.json"
             result["last_success"] = json.loads(success.read_text()) if success.exists() else None
             if result["last_success"]:

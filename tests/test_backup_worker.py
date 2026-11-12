@@ -325,10 +325,14 @@ class BackupWorker(unittest.TestCase):
         self.backup()
         manual_cli = self.profile.enqueue("backup", None, {"operation_id": str(uuid.uuid4()), "scheduled": False}, synchronous=True)
         self.assertEqual(manual_cli["job"]["status"], "succeeded")
+        # The provider's latest-success record includes manual captures too.
+        self.adapter.schedule = lambda: {"enabled": True, "interval_seconds": 900,
+                                         "last_success_at": worker.now(), "next_run_at": None}
         schedule = self.profile.index(ACTOR)["schedule"]
         self.assertEqual(schedule["last_job"]["id"], scheduled["job"]["id"])
         self.assertEqual(schedule["last_job"]["status"], "failed")
         self.assertIsNone(schedule["last_success_at"])
+        self.assertIsNone(self.profile.overview(ACTOR)["schedule"]["last_success_at"])
 
     def test_prior_producer_requires_exact_explicit_target_qualification(self):
         self.backup()
