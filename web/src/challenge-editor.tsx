@@ -288,6 +288,7 @@ function ChallengeForm({
       message: string;
     } | null>(null);
   const baseline = useRef(JSON.stringify(draftOf(challenge)));
+  const maintenanceOrigin = useRef<HTMLElement | null>(null);
   const incoming = JSON.stringify(draftOf(challenge));
   const dirty = JSON.stringify(draft) !== baseline.current;
   useEffect(() => {
@@ -365,7 +366,16 @@ function ChallengeForm({
     setRemote(false);
     onDirty(JSON.stringify(retained) !== JSON.stringify(next));
   }
-  async function prepareSave(nextDraft: Draft, withdrawing = false) {
+  async function prepareSave(
+    nextDraft: Draft,
+    withdrawing = false,
+    trigger?: HTMLElement | null,
+  ) {
+    maintenanceOrigin.current =
+      trigger ??
+      (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null);
     setSaveError("");
     setReviewing(true);
     const preservedDraft = withdrawing && dirty ? draft : undefined;
@@ -421,7 +431,11 @@ function ChallengeForm({
           event.preventDefault();
           if (!editable || !valid || busy || reviewing || remote || maintenance)
             return;
-          await prepareSave(draft);
+          await prepareSave(
+            draft,
+            false,
+            (event.nativeEvent as SubmitEvent).submitter,
+          );
         }}
       >
         <fieldset disabled={!editable || busy || reviewing || !!maintenance}>
@@ -817,10 +831,11 @@ function ChallengeForm({
               type="button"
               className="button secondary"
               disabled={busy || reviewing || !!maintenance || remote}
-              onClick={() =>
+              onClick={(event) =>
                 void prepareSave(
                   { ...draftOf(challenge), state: "hidden" },
                   true,
+                  event.currentTarget,
                 )
               }
             >
@@ -844,6 +859,12 @@ function ChallengeForm({
               : "Apply these changes to the running event. Review their effect on teams and keep a reason in the audit."
           }
           stale={remote || !phaseEditable}
+          focusFallback={() => {
+            const target = maintenanceOrigin.current;
+            return target?.isConnected && !target.matches(":disabled")
+              ? target
+              : null;
+          }}
           onClose={() => setMaintenance(null)}
           onConfirm={async (approval) => {
             try {

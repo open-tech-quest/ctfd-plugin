@@ -22,6 +22,7 @@ export function MaintenanceConfirmation({
   onConfirm,
   onClose,
   stale = false,
+  focusFallback,
 }: {
   review: MaintenanceReview;
   label: string;
@@ -29,6 +30,7 @@ export function MaintenanceConfirmation({
   onConfirm: (approval: MaintenanceApproval) => Promise<void>;
   onClose: () => void;
   stale?: boolean;
+  focusFallback?: () => HTMLElement | null;
 }) {
   const [reason, setReason] = useState("");
   const [acknowledgeNegative, setAcknowledgeNegative] = useState(false);
@@ -41,6 +43,7 @@ export function MaintenanceConfirmation({
         !canConfirmMaintenance(review, reason, acknowledgeNegative, stale)
       }
       onClose={onClose}
+      focusFallback={focusFallback}
       onConfirm={() =>
         onConfirm(
           maintenanceApproval(review, reason, acknowledgeNegative, stale),
