@@ -26,6 +26,11 @@ import {
   type ArchiveValue,
 } from "./archive-format";
 import "./event-archive.css";
+import {
+  archiveHintPurchaseFields,
+  archivePriceScope,
+  archivePriceTarget,
+} from "./archive-pricing";
 
 type ArchiveSummary = {
   id: number;
@@ -579,7 +584,15 @@ function RecordFields({
     </dl>
   );
 }
-function Evidence({ rows, title }: { rows: ArchiveRecord[]; title: string }) {
+function Evidence({
+  rows,
+  title,
+  present,
+}: {
+  rows: ArchiveRecord[];
+  title: string;
+  present?: (row: ArchiveRecord) => ArchiveRecord;
+}) {
   const [open, setOpen] = useState(false),
     [page, setPage] = useState(0);
   const current = archivePage(rows, page, 10);
@@ -595,10 +608,92 @@ function Evidence({ rows, title }: { rows: ArchiveRecord[]; title: string }) {
         <>
           {current.rows.length ? (
             current.rows.map((row, index) => (
-              <RecordFields key={index} record={row} />
+              <RecordFields key={index} record={present ? present(row) : row} />
             ))
           ) : (
             <p>No records.</p>
+          )}
+          <Pager
+            page={current.page}
+            pages={current.pages}
+            total={current.total}
+            onChange={setPage}
+          />
+        </>
+      )}
+    </details>
+  );
+}
+function PriceChangeEvidence({
+  rows,
+  challenges,
+  hints,
+}: {
+  rows: ArchiveRecord[];
+  challenges: Map<ArchiveValue | undefined, ArchiveRecord>;
+  hints: Map<ArchiveValue | undefined, ArchiveRecord>;
+}) {
+  const [open, setOpen] = useState(false),
+    [page, setPage] = useState(0);
+  const current = archivePage(rows, page, 10);
+  return (
+    <details
+      className="archive-evidence"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        Point and hint price history ({rows.length.toLocaleString()})
+      </summary>
+      {open && (
+        <>
+          <p className="meta">
+            Recorded price changes and their scope. Earlier cohorts and original
+            hint receipts are retained; results above stay as recorded by the
+            server.
+          </p>
+          {current.rows.length ? (
+            <div
+              className="archive-table-scroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Point and hint price history"
+            >
+              <table className="archive-table">
+                <thead>
+                  <tr>
+                    <th>Changed (UTC)</th>
+                    <th>Price</th>
+                    <th>Before → After</th>
+                    <th>Applies to</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {current.rows.map((row) => (
+                    <tr key={archiveNumber(row.id)}>
+                      <td>
+                        <time dateTime={archiveText(row.changed_at)}>
+                          {archiveText(row.changed_at)}
+                        </time>
+                      </td>
+                      <th>
+                        {archivePriceTarget(
+                          row,
+                          challenges.get(row.challenge_id),
+                          hints.get(row.hint_id),
+                        )}
+                      </th>
+                      <td>
+                        {archiveNumber(row.before_value).toLocaleString()} →{" "}
+                        {archiveNumber(row.after_value).toLocaleString()} points
+                      </td>
+                      <td>{archivePriceScope(row)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p>No price changes.</p>
           )}
           <Pager
             page={current.page}
@@ -681,6 +776,10 @@ function ArchiveContents({ document }: { document: ArchiveDocument }) {
   );
   const people = useMemo(
     () => new Map(data.participants.map((row) => [row.id, row])),
+    [data],
+  );
+  const hints = useMemo(
+    () => new Map(data.hints.map((row) => [row.id, row])),
     [data],
   );
   const timeline = useMemo(
@@ -910,6 +1009,7 @@ function ArchiveContents({ document }: { document: ArchiveDocument }) {
                       (item) => String(item.team_id) === selectedTeam,
                     )}
                     title="Hint purchases"
+                    present={archiveHintPurchaseFields}
                   />
                   <Evidence
                     rows={archiveRecords(data.corrections).filter(
@@ -959,6 +1059,17 @@ function ArchiveContents({ document }: { document: ArchiveDocument }) {
                     )}
                     title="Authored hints and costs"
                   />
+                  {data.price_changes !== undefined && (
+                    <PriceChangeEvidence
+                      key={selectedChallenge}
+                      rows={archiveRecords(data.price_changes).filter(
+                        (item) =>
+                          String(item.challenge_id) === selectedChallenge,
+                      )}
+                      challenges={challenges}
+                      hints={hints}
+                    />
+                  )}
                   <Evidence
                     rows={archiveRecords(data.attachments).filter(
                       (item) => String(item.challenge_id) === selectedChallenge,
@@ -992,13 +1103,27 @@ function ArchiveContents({ document }: { document: ArchiveDocument }) {
                 Array.isArray(value) &&
                 !["teams", "challenges", "timeline"].includes(key),
             )
-            .map(([key, value]) => (
-              <Evidence
-                key={key}
-                title={key.replaceAll("_", " ")}
-                rows={archiveRecords(value)}
-              />
-            ))}
+            .map(([key, value]) =>
+              key === "price_changes" ? (
+                <PriceChangeEvidence
+                  key={key}
+                  rows={archiveRecords(value)}
+                  challenges={challenges}
+                  hints={hints}
+                />
+              ) : (
+                <Evidence
+                  key={key}
+                  title={key.replaceAll("_", " ")}
+                  rows={archiveRecords(value)}
+                  present={
+                    key === "hint_purchases"
+                      ? archiveHintPurchaseFields
+                      : undefined
+                  }
+                />
+              ),
+            )}
           <p className="meta">
             Results retain the server's published snapshot where one existed,
             including legacy scoring rules. Attempt credit and scoring-credit

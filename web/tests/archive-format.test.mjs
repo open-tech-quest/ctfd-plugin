@@ -11,6 +11,7 @@ import {
   parseEventArchive,
   timelineKey,
 } from "../src/archive-format.ts";
+import { archiveHintPurchaseFields, archivePriceScope, archivePriceTarget } from "../src/archive-pricing.ts";
 
 function fixture() {
   return {
@@ -377,4 +378,90 @@ test("archive Markdown cannot create imported links or load media, even from raw
   assert.match(html, /Diagram/);
   assert.doesNotMatch(html, /<(?:a|img|script|iframe)\b/i);
   assert.match(html, /&lt;img/);
+});
+
+function priceChange() {
+  return {id: 1, kind: "challenge", challenge_id: 1, hint_id: null,
+    before_value: 100, after_value: 200, existing_through_id: 17,
+    apply_existing: false, changed_at: "2026-11-10T12:01:00.123456Z"};
+}
+
+test("old reports remain readable while price cohorts, earned credit and adjusted hint costs round-trip without recomputing ranks", async () => {
+  const legacy = await parseEventArchive(JSON.stringify(sign(fixture())));
+  assert.equal(legacy.data.price_changes, undefined);
+  const source = fixture();
+  source.data.price_changes = [priceChange(), {...priceChange(), id: 2, kind: "hint", hint_id: 3,
+    before_value: 50, after_value: 0, existing_through_id: 2, apply_existing: true}];
+  source.data.scoring_credits = [{team_id: 1, challenge_id: 1, at: "2026-11-10T12:00:00Z", earned_points: 100}];
+  source.data.hint_purchases = [{id: 2, team_id: 1, challenge_id: 1, hint_id: 3,
+    cost: 50, effective_cost: 0, purchased_at: "2026-11-10T12:00:30Z"}];
+  source.data.timeline.push({id: "pricing.change:1", type: "pricing.change", at: priceChange().changed_at,
+    challenge_id: 1, details: {before_value: 100, after_value: 200, apply_existing: false}});
+  const parsed = await parseEventArchive(JSON.stringify(sign(source)));
+  assert.deepEqual(parsed.data.price_changes.map(row => ({...row})), source.data.price_changes);
+  assert.equal(parsed.data.scoring_credits[0].earned_points, 100);
+  assert.equal(parsed.data.hint_purchases[0].cost, 50);
+  assert.equal(parsed.data.hint_purchases[0].effective_cost, 0);
+  assert.equal(parsed.data.results.teams[0].points, -1);
+  assert.equal(parsed.data.results.teams[0].rank, 1);
+  assert.equal(filterArchiveTimeline(parsed.data.timeline, {team: "", room: "", type: "pricing.change"}).length, 1);
+});
+
+test("malformed pricing history is refused even with a valid checksum", async () => {
+  const invalidRows = [
+    {...priceChange(), id: 0}, {...priceChange(), id: -1}, {...priceChange(), id: 2147483648},
+    {...priceChange(), challenge_id: 0}, {...priceChange(), kind: "flag"},
+    {...priceChange(), hint_id: 3}, {...priceChange(), kind: "hint", hint_id: null},
+    {...priceChange(), kind: "hint", hint_id: 0}, {...priceChange(), kind: "hint", hint_id: 1.5},
+    {...priceChange(), before_value: -1}, {...priceChange(), after_value: 1.5},
+    {...priceChange(), after_value: 2147483648}, {...priceChange(), existing_through_id: -1},
+    {...priceChange(), apply_existing: "true"}, {...priceChange(), apply_existing: 1},
+    {...priceChange(), changed_at: "2026-11-10T12:00:00+00:00"},
+    {...priceChange(), changed_at: "2026-02-30T12:00:00Z"},
+    {...priceChange(), changed_at: "2026-11-10T12:00:00.1234567Z"},
+  ];
+  for (const row of invalidRows) {
+    const source = fixture(); source.data.price_changes = [row];
+    await assert.rejects(parseEventArchive(JSON.stringify(sign(source))), /archive/i);
+  }
+  const duplicate = fixture();duplicate.data.price_changes = [priceChange(),priceChange()];
+  await assert.rejects(parseEventArchive(JSON.stringify(sign(duplicate))), /duplicate price change/i);
+  const notAnArray = fixture();notAnArray.data.price_changes = {};
+  await assert.rejects(parseEventArchive(JSON.stringify(sign(notAnArray))), /price_changes collection/i);
+});
+
+test("price history accepts zero prices, empty cohorts and maximum supported integer values", async () => {
+  const source = fixture();source.data.price_changes = [{...priceChange(), before_value: 0,
+    after_value: 2147483647, existing_through_id: 0, apply_existing: true}];
+  const parsed = await parseEventArchive(JSON.stringify(sign(source)));
+  assert.equal(parsed.data.price_changes[0].after_value,2147483647);
+  assert.equal(parsed.data.price_changes[0].existing_through_id,0);
+});
+
+test("optional earned-credit and effective hint-price evidence rejects invalid amounts while retaining older evidence", async () => {
+  for (const amount of [-1, 0.5, 2147483648, null, "25"]) {
+    const hint = fixture();hint.data.hint_purchases = [{cost: 25, effective_cost: amount}];
+    await assert.rejects(parseEventArchive(JSON.stringify(sign(hint))), /effective hint deduction/i);
+    const credit = fixture();credit.data.scoring_credits = [{earned_points: amount}];
+    await assert.rejects(parseEventArchive(JSON.stringify(sign(credit))), /earned challenge points/i);
+  }
+  const invalidOriginal = fixture();invalidOriginal.data.hint_purchases = [{cost: -1, effective_cost: 25}];
+  await assert.rejects(parseEventArchive(JSON.stringify(sign(invalidOriginal))), /original hint purchase cost/i);
+  const old = fixture();old.data.hint_purchases = [{cost: 25}];old.data.scoring_credits = [{team_id:1,challenge_id:1}];
+  assert.equal((await parseEventArchive(JSON.stringify(sign(old)))).data.hint_purchases[0].effective_cost,undefined);
+});
+
+test("history presentation separates purchase evidence from effective deductions and labels each scope", () => {
+  const original = {id: 3, cost: 50, effective_cost: 80, hint_id: 4};
+  assert.deepEqual(archiveHintPurchaseFields(original), {id: 3, hint_id: 4,
+    original_purchase_cost: 50, current_effective_deduction: 80});
+  assert.equal(original.cost,50);
+  assert.deepEqual(archiveHintPurchaseFields({cost: 25}), {original_purchase_cost:25,current_effective_deduction:25});
+  assert.equal(archivePriceScope(priceChange()), "New solves only");
+  assert.equal(archivePriceScope({...priceChange(),apply_existing:true}),"Existing and new solves");
+  assert.equal(archivePriceScope({...priceChange(),kind:"hint"}),"New purchases only");
+  assert.equal(archivePriceScope({...priceChange(),kind:"hint",apply_existing:true}),"Existing and new purchases");
+  assert.equal(archivePriceTarget(priceChange(),{name:"Shell puzzle"}),"Shell puzzle points");
+  assert.equal(archivePriceTarget({...priceChange(),kind:"hint",hint_id:4},{name:"Shell puzzle"},{title:"Locate the file"}),"Shell puzzle · Locate the file cost");
+  assert.equal(archivePriceTarget({...priceChange(),kind:"hint",hint_id:4}),"Challenge 1 · Hint 4 cost");
 });

@@ -228,6 +228,15 @@ function integer(
   if (typeof value !== "number" || !Number.isSafeInteger(value))
     invalid(`The archive has an invalid ${label}.`);
 }
+function boundedInteger(
+  value: ArchiveValue | undefined,
+  label: string,
+  minimum = 0,
+) {
+  integer(value, label);
+  if ((value as number) < minimum || (value as number) > 2147483647)
+    invalid(`The archive has an invalid ${label}.`);
+}
 function validateDocument(
   value: ArchiveValue,
 ): asserts value is ArchiveValue & ArchiveDocument {
@@ -294,6 +303,40 @@ function validateDocument(
           timelineKey(row.ended_at) < timelineKey(row.started_at as string))
       )
         invalid("The archive room pause history is invalid.");
+    }
+  }
+  if (data.price_changes !== undefined) {
+    const ids = new Set<number>();
+    for (const row of validateRecordArray(data, "price_changes")) {
+      boundedInteger(row.id, "price change identifier", 1);
+      boundedInteger(row.challenge_id, "price change challenge identifier", 1);
+      boundedInteger(row.before_value, "previous price");
+      boundedInteger(row.after_value, "new price");
+      boundedInteger(row.existing_through_id, "price cohort boundary");
+      if (ids.has(row.id as number))
+        invalid("The archive contains duplicate price change identifiers.");
+      ids.add(row.id as number);
+      if (row.kind === "hint")
+        boundedInteger(row.hint_id, "repriced hint identifier", 1);
+      else if (row.kind !== "challenge" || row.hint_id !== null)
+        invalid("The archive price change target is invalid.");
+      if (
+        typeof row.apply_existing !== "boolean" ||
+        !utcArchiveTime(row.changed_at)
+      )
+        invalid("The archive price change history is invalid.");
+    }
+  }
+  for (const row of validateRecordArray(data, "hint_purchases")) {
+    if (row.effective_cost !== undefined) {
+      boundedInteger(row.cost, "original hint purchase cost");
+      boundedInteger(row.effective_cost, "effective hint deduction");
+    }
+  }
+  if (data.scoring_credits !== undefined) {
+    for (const row of validateRecordArray(data, "scoring_credits")) {
+      if (row.earned_points !== undefined)
+        boundedInteger(row.earned_points, "earned challenge points");
     }
   }
   for (const key of ["participants", "teams", "rooms", "challenges", "hints"]) {
