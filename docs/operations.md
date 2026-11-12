@@ -5,7 +5,7 @@ To explore this process with dummy accounts and a repeatable reset, use the
 
 ## Prepare
 
-1. Set up [hosting and backups](deployment.md). Test restoration with matching
+1. Set up [hosting](deployment.md) and [backups](backups.md). Test restoration with matching
    plugin code and configure SMTP if you need password reset/email verification.
 2. Ask staff to register accounts. In **Organize → Users**, grant **Challenge
    maintainer** to people who should author rooms without administering the event.

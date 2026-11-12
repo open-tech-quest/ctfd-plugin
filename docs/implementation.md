@@ -21,6 +21,7 @@ schemas into feature documents.
 | Staff room preview | [`preview.py`](../plugin/open_tech_quest/preview.py), [Preview guide](preview.md) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
 | Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
+| Backup UI/API and external recovery worker | [`backups.py`](../plugin/open_tech_quest/backups.py), [`backup_worker.py`](../plugin/open_tech_quest/backup_worker.py), [`backup_openshift.py`](../plugin/open_tech_quest/backup_openshift.py), [backup contract](backups.md) |
 | Browser API types and transport | [`types.ts`](../web/src/types.ts), [`api.ts`](../web/src/api.ts) |
 | Shared session/polling coordinator | [`quest-session.ts`](../web/src/quest-session.ts), [`polling.ts`](../web/src/polling.ts) |
 | Room paths and public display | [`challenge-path.tsx`](../web/src/challenge-path.tsx), [`standings.tsx`](../web/src/standings.tsx), [`stage.tsx`](../web/src/stage.tsx), [`stage-progress.ts`](../web/src/stage-progress.ts) |
@@ -64,6 +65,11 @@ not make a non-2xx response successful.
 CTFd's native access-token hook also authenticates Quest management routes when
 `Content-Type: application/json` is present, including GET requests. Tokens do not
 grant native administrator privileges to Maintainers. See [automation](automation.md).
+Backup & Restore is an explicit exception: administrator browser sessions and
+fresh worker-side authority checks are required; native access tokens are refused.
+Its operation/trust/recovery records live outside the restored database. The first
+request hook and post-event-lock fence refuse writes during recovery, independently
+of event or room pause. Never remove these guards to make a health probe pass.
 
 Automation version 1 keeps standard content in native records. Migration
 `0011_catalog` adds durable room-scoped source keys and file-kind ownership

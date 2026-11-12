@@ -1,0 +1,31 @@
+{
+  "listen": "127.0.0.1",
+  "port": 9087,
+  "profiles": [{
+    "id": "event",
+    "instance_id": "replace-with-a-stable-installation-uuid",
+    "instance_name": "Example event",
+    "state_root": "/private/quest-event",
+    "public_origin": "https://backups.example.test",
+    "allowed_origins": ["https://quest.example.test"],
+    "token_file": "/private/keys/event-api-token",
+    "signing_key_id": "event-key-1",
+    "signing_key_file": "/private/keys/event-signing-key",
+    "trusted_key_files": {},
+    "qualified_restores": [],
+    "adapter": {
+      "oc_command": ["oc", "--kubeconfig", "/private/access/event-kubeconfig"],
+      "server": "https://api.example.test:6443",
+      "namespace": "ctfd",
+      "route_host": "quest.example.test",
+      "pvc_uids": {"ctfd-data": "replace-uid", "database-data": "replace-uid", "cache-data": "replace-uid"},
+      "database_name": "ctfd",
+      "restic_host": "event",
+      "restic_tag": "quest-event",
+      "argo_application": "ctfd-event",
+      "argo_namespace": "openshift-gitops",
+      "restore_enabled": false,
+      "schedule": {"timer": "quest-event-backup.timer", "interval_seconds": 900}
+    }
+  }]
+}
