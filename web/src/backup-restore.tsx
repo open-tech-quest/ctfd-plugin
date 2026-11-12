@@ -53,10 +53,11 @@ export function BackupRestoreIntroduction() {
 export function RestoreReplacementNotice() {
   return (
     <Notice>
-      Restore replaces all current data, users, challenge answers, uploaded
-      files and instance configuration. A safety backup must complete before
-      replacement starts. The site will be temporarily unavailable; afterward,
-      sign in using an account and password from the restored backup.
+      Restore replaces all current data, challenge answers, uploaded files and
+      event settings. Accounts, roles, passwords and API tokens return to their
+      backup state. A safety backup must complete before replacement starts. The
+      site will be temporarily unavailable; afterward, sign in using an account
+      and password from the restored backup.
     </Notice>
   );
 }
@@ -188,6 +189,7 @@ export function BackupRestore() {
   } | null>(null);
   const [confirmation, setConfirmation] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
+  const reviewOrigin = useRef<HTMLButtonElement | null>(null);
   const data = resource.data;
   const active =
     !!progress?.pendingRestoreId ||
@@ -432,7 +434,10 @@ export function BackupRestore() {
                     type="button"
                     className="button secondary"
                     disabled={disabled || !backupRestoreSupported(snapshot)}
-                    onClick={() => void inspect(snapshot)}
+                    onClick={(event) => {
+                      reviewOrigin.current = event.currentTarget;
+                      void inspect(snapshot);
+                    }}
                   >
                     Review restore
                   </button>
@@ -488,6 +493,10 @@ export function BackupRestore() {
             active
           }
           onClose={() => setReview(null)}
+          focusFallback={() => {
+            const origin = reviewOrigin.current;
+            return origin?.isConnected && !origin.disabled ? origin : null;
+          }}
           onConfirm={async () => {
             if (!restoreConfirmationValid(review.data, confirmation, reason))
               throw new Error(

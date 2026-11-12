@@ -132,7 +132,7 @@ export function RestoreProgressScreen({
       <Notice>
         Keep this page open. The website and your current session can become
         unavailable while the worker replaces the database, uploaded files and
-        configuration. Status is read separately from the backup service.
+        event settings. Status is read separately from the backup service.
       </Notice>
       <BackupJobProgress state={state} />
       {job?.status === "succeeded" && (
