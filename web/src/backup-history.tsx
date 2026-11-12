@@ -169,14 +169,14 @@ function SnapshotRow({
             </p>
           )}
         </details>
-        <p className="backup-compatibility meta">
-          {snapshot.compatibility.checked === false &&
-          snapshot.origin !== "legacy"
-            ? "Compatibility is checked during restore review."
-            : backupRestoreSupported(snapshot)
+        {(snapshot.compatibility.checked !== false ||
+          snapshot.origin === "legacy") && (
+          <p className="backup-compatibility meta">
+            {backupRestoreSupported(snapshot)
               ? "Compatible with this instance"
               : `Operator-only restore: ${snapshot.compatibility.reason || "Unsupported source version or backup format."}`}
-        </p>
+          </p>
+        )}
       </div>
       <div className="actions">
         <a
