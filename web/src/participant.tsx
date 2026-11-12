@@ -21,6 +21,7 @@ import {
   type PlaceholderContext,
 } from "./placeholders";
 import { ChallengePath } from "./challenge-path";
+import { challengePoints, hintCostAdjustment } from "./score-presentation";
 import { roomHintReadable, roomIsPaused, roomPlayEnabled } from "./room-pause";
 export function EventNotice({ data }: { data: Bootstrap }) {
   const mode = useParticipantMode();
@@ -555,6 +556,7 @@ export function RoomPage({
               progressRevision={data.revisions.progress}
               contentRevision={data.revisions.content}
               usedHintCosts={room.progress.used_hint_costs}
+              usedHintOriginalCosts={room.progress.used_hint_original_costs}
               onHintPurchased={async () => {
                 await Promise.all([resource.refresh(), onRefresh()]);
               }}
@@ -587,6 +589,7 @@ function ChallengePanel({
   progressRevision,
   contentRevision,
   usedHintCosts = {},
+  usedHintOriginalCosts = {},
   placeholders,
 }: {
   step: Step;
@@ -598,6 +601,7 @@ function ChallengePanel({
   progressRevision: string;
   contentRevision: string;
   usedHintCosts: Record<number, number>;
+  usedHintOriginalCosts?: Record<number, number>;
   placeholders: PlaceholderContext;
   onHintPurchased: () => Promise<void>;
   onSolved: (message: string) => Promise<void>;
@@ -831,7 +835,8 @@ function ChallengePanel({
           </span>
           <h2>{challenge?.name || step.title}</h2>
           <span className="challenge-points">
-            {(challenge?.value ?? step.value).toLocaleString()} points
+            {challengePoints(step, challenge?.value).toLocaleString()} points
+            {step.state === "solved" ? " earned" : ""}
           </span>
         </div>
         {step.state === "solved" && (
@@ -990,6 +995,10 @@ function ChallengePanel({
                 typeof hint.content === "string";
               const used = usedCost !== undefined || (mode.preview && revealed);
               const hintCost = usedCost ?? hint.cost;
+              const costAdjustment = hintCostAdjustment(
+                usedCost,
+                usedHintOriginalCosts[hint.id],
+              );
               return (
                 <div
                   className={`hint${used ? " hint-used" : ""}`}
@@ -1004,13 +1013,18 @@ function ChallengePanel({
                       className="hint-cost"
                       id={`hint-cost-${step.id}-${hint.id}`}
                     >
-                      {hintCost === 0
-                        ? "Free"
-                        : used
-                          ? `${hintCost.toLocaleString()} points spent`
-                          : `${hint.cost.toLocaleString()} points`}
+                      {costAdjustment
+                        ? `${hintCost.toLocaleString()} points deducted`
+                        : hintCost === 0
+                          ? "Free"
+                          : used
+                            ? `${hintCost.toLocaleString()} points spent`
+                            : `${hint.cost.toLocaleString()} points`}
                     </span>
                   </div>
+                  {costAdjustment && (
+                    <p className="hint-cost-adjustment">{costAdjustment}</p>
+                  )}
                   {revealed ? (
                     <>
                       <p className="hint-status">

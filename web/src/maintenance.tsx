@@ -1,34 +1,19 @@
 import { useState } from "react";
 import { ConfirmDialog, Notice } from "./ui";
 
-export interface MaintenanceReview {
-  revision: string;
-  competitive_fields: string[];
-  requires_confirmation: boolean;
-  impact: {
-    counted_teams: number;
-    solve_records: number;
-    hint_purchase_teams: number;
-    hint_receipts: number;
-    completed_teams: number;
-    teams_with_score_changes?: number;
-    team_scores?: {
-      team_id: number;
-      before_points: number;
-      after_points: number;
-      before_room_points: number;
-      after_room_points: number;
-      before_solved: number;
-      after_solved: number;
-    }[];
-  };
-  warnings: string[];
-}
-export interface MaintenanceApproval {
-  revision: string;
-  reason: string;
-  confirm: true;
-}
+import {
+  canConfirmMaintenance,
+  maintenanceApproval,
+  maintenanceRisk,
+} from "./maintenance-risk";
+import type {
+  MaintenanceApproval,
+  MaintenanceReview,
+} from "./maintenance-risk";
+export type {
+  MaintenanceApproval,
+  MaintenanceReview,
+} from "./maintenance-risk";
 
 export function MaintenanceConfirmation({
   review,
@@ -46,20 +31,20 @@ export function MaintenanceConfirmation({
   stale?: boolean;
 }) {
   const [reason, setReason] = useState("");
+  const [acknowledgeNegative, setAcknowledgeNegative] = useState(false);
+  const risk = maintenanceRisk(review.impact);
   return (
     <ConfirmDialog
       label={label}
       description={description}
       disabled={
-        stale || reason.trim().length < 3 || reason.trim().length > 1000
+        !canConfirmMaintenance(review, reason, acknowledgeNegative, stale)
       }
       onClose={onClose}
       onConfirm={() =>
-        onConfirm({
-          revision: review.revision,
-          reason: reason.trim(),
-          confirm: true,
-        })
+        onConfirm(
+          maintenanceApproval(review, reason, acknowledgeNegative, stale),
+        )
       }
     >
       <p>
@@ -70,10 +55,26 @@ export function MaintenanceConfirmation({
         .
       </p>
       <p>
-        Live progress may change while you review; the change applies when
-        saved.
+        Counts describe this review. Live activity may change them; the server
+        recalculates the final impact when you apply the change.
       </p>
-      <dl className="hint-purchase-summary">
+      <dl className="hint-purchase-summary maintenance-score-summary">
+        <div>
+          <dt>Teams whose scores change</dt>
+          <dd>{risk.affectedTeams.toLocaleString()}</dd>
+        </div>
+        <div>
+          <dt>Existing solve records to reprice</dt>
+          <dd>
+            {(review.impact.repriced_solve_records ?? 0).toLocaleString()}
+          </dd>
+        </div>
+        <div>
+          <dt>Existing hint purchases to reprice</dt>
+          <dd>
+            {(review.impact.repriced_hint_receipts ?? 0).toLocaleString()}
+          </dd>
+        </div>
         <div>
           <dt>Teams with counted solves</dt>
           <dd>{review.impact.counted_teams.toLocaleString()}</dd>
@@ -95,6 +96,23 @@ export function MaintenanceConfirmation({
           <dd>{review.impact.completed_teams.toLocaleString()}</dd>
         </div>
       </dl>
+      {(risk.negativeOverall > 0 || risk.negativeRoom > 0) && (
+        <div className="maintenance-negative-summary" role="note">
+          <h3>Negative points after this change</h3>
+          <p>
+            <strong>{risk.negativeOverall.toLocaleString()}</strong> teams with
+            negative overall points
+            {" · "}
+            <strong>{risk.negativeRoom.toLocaleString()}</strong> teams with
+            negative room points.
+          </p>
+          <p>
+            Newly below zero: {risk.newlyNegativeOverall.toLocaleString()}{" "}
+            overall, {risk.newlyNegativeRoom.toLocaleString()} in this room.
+            These counts can include the same team.
+          </p>
+        </div>
+      )}
       {!!review.impact.team_scores?.length && (
         <details className="maintenance-impact">
           <summary>
@@ -121,14 +139,44 @@ export function MaintenanceConfirmation({
               <tbody>
                 {review.impact.team_scores.map((team) => (
                   <tr key={team.team_id}>
-                    <th>#{team.team_id}</th>
-                    <td>
+                    <th>
+                      {team.team_name
+                        ? `${team.team_name} (#${team.team_id})`
+                        : `#${team.team_id}`}
+                    </th>
+                    <td
+                      className={
+                        team.after_points < 0
+                          ? "maintenance-negative-points"
+                          : undefined
+                      }
+                    >
                       {team.before_points.toLocaleString()} →{" "}
                       {team.after_points.toLocaleString()}
+                      {team.after_points < 0 && (
+                        <small>
+                          {team.before_points >= 0
+                            ? "Newly below zero"
+                            : "Below zero"}
+                        </small>
+                      )}
                     </td>
-                    <td>
+                    <td
+                      className={
+                        team.after_room_points < 0
+                          ? "maintenance-negative-points"
+                          : undefined
+                      }
+                    >
                       {team.before_room_points.toLocaleString()} →{" "}
                       {team.after_room_points.toLocaleString()}
+                      {team.after_room_points < 0 && (
+                        <small>
+                          {team.before_room_points >= 0
+                            ? "Newly below zero"
+                            : "Below zero"}
+                        </small>
+                      )}
                     </td>
                     <td>
                       {team.before_solved} → {team.after_solved}
@@ -148,6 +196,19 @@ export function MaintenanceConfirmation({
           The saved content or event state changed during this review. Cancel
           and review the latest saved version before applying changes.
         </Notice>
+      )}
+      {risk.needsAcknowledgment && (
+        <label className="checkbox-field maintenance-negative-acknowledgment">
+          <input
+            type="checkbox"
+            checked={acknowledgeNegative}
+            onChange={(event) => setAcknowledgeNegative(event.target.checked)}
+          />
+          <span>
+            I understand this change puts teams below zero points in this room
+            or overall.
+          </span>
+        </label>
       )}
       <label className="field">
         <span>Reason for this change</span>

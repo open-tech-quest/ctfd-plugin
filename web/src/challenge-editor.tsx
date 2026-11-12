@@ -6,55 +6,21 @@ import { useResource } from "./hooks";
 import type {
   ChallengeWorkspace,
   EditableChallenge,
-  EditableFlag,
   QuestEvent,
   Room,
 } from "./types";
 import { ConfirmDialog, Empty, Markdown, Notice } from "./ui";
 import { DescriptionEditor } from "./description-editor";
 import {
+  challengeDraftOf as draftOf,
+  challengePayloadOf,
+  type ChallengeDraft as Draft,
+} from "./challenge-draft";
+import {
   MaintenanceConfirmation,
   type MaintenanceApproval,
   type MaintenanceReview,
 } from "./maintenance";
-interface Draft {
-  name: string;
-  value: number | "";
-  description: string;
-  connection_info: string;
-  state: EditableChallenge["state"];
-  flags: EditableFlag[];
-  hints: {
-    id?: number;
-    title: string;
-    content: string;
-    cost: number | "";
-    prerequisites: number[];
-  }[];
-}
-function draftOf(challenge?: EditableChallenge): Draft {
-  return {
-    name: challenge?.name || "",
-    value: challenge?.value ?? 100,
-    description: challenge?.description || "",
-    connection_info: challenge?.connection_info || "",
-    state: challenge?.state || "hidden",
-    flags: challenge?.flags.map((flag) => ({ ...flag })) || [
-      { content: "", case_insensitive: false },
-    ],
-    hints:
-      challenge?.hints.map((hint) => ({
-        ...hint,
-        prerequisites: [...hint.prerequisites],
-      })) || [],
-  };
-}
-function payloadOf(draft: Draft) {
-  return {
-    ...draft,
-    hints: draft.hints.map(({ prerequisites: _, ...hint }) => hint),
-  };
-}
 
 export function ChallengeEditor({
   room,
@@ -117,7 +83,7 @@ export function ChallengeEditor({
           id: challenge?.id,
           revision: challenge?.revision ?? workspace?.revision,
         },
-        payloadOf(draft),
+        challengePayloadOf(draft, challenge, eventStatus),
         approval,
       );
       setDirty(false);
@@ -212,7 +178,7 @@ export function ChallengeEditor({
                     id: challenge?.id,
                     revision: challenge?.revision ?? workspace.revision,
                   },
-                  payloadOf(draft),
+                  challengePayloadOf(draft, challenge, eventStatus),
                 )
               }
               onCancel={() => select(null)}
@@ -444,9 +410,9 @@ function ChallengeForm({
       {(eventStatus === "live" || eventStatus === "paused") && (
         <Notice>
           Content fixes can be saved during play. Changes to answers, points,
-          visibility or hint prices require an impact review and reason.
-          Existing solves remain recorded; point changes reprice their credit,
-          while previously purchased hints keep their original charges.
+          visibility or hint prices require an impact review and reason. Choose
+          whether price changes also adjust previous solves or purchases.
+          Existing records and original hint receipts remain preserved.
         </Notice>
       )}
       {saveError && <Notice tone="error">{saveError}</Notice>}
@@ -491,6 +457,29 @@ function ChallengeForm({
               Points count once per team. Paid hints reduce the team’s score.
             </small>
           </label>
+          {challenge &&
+            (eventStatus === "live" || eventStatus === "paused") && (
+              <div className="pricing-scope">
+                <label className="checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={draft.adjust_existing_solves}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        adjust_existing_solves: event.target.checked,
+                      })
+                    }
+                  />
+                  <span>Also adjust existing solves</span>
+                </label>
+                <p className="meta">
+                  {draft.adjust_existing_solves
+                    ? "Existing solves will use this point value too. Review any score changes before applying."
+                    : "Only new solves earn the new value. Earlier solves keep their existing credit."}
+                </p>
+              </div>
+            )}
           <DescriptionEditor
             label="Instructions (Markdown)"
             rows={10}
@@ -632,7 +621,7 @@ function ChallengeForm({
             overall points. The cost also reduces its score in this room. Set a
             cost of 0 for a free hint.
             {eventStatus === "live" || eventStatus === "paused"
-              ? " Price changes affect future purchases only; previous receipts keep their original cost. Purchased hints cannot be removed."
+              ? " Choose separately for each hint whether its price also adjusts existing purchases. Original receipts are preserved. Purchased hints cannot be removed."
               : ""}
           </p>
           {draft.hints.length ? (
@@ -705,6 +694,32 @@ function ChallengeForm({
                       </small>
                     </label>
                   </div>
+                  {challenge &&
+                    hint.id !== undefined &&
+                    challenge.hints.some((saved) => saved.id === hint.id) &&
+                    (eventStatus === "live" || eventStatus === "paused") && (
+                      <div className="pricing-scope">
+                        <label className="checkbox-field">
+                          <input
+                            type="checkbox"
+                            checked={hint.adjust_existing_purchases}
+                            onChange={(event) =>
+                              change({
+                                adjust_existing_purchases: event.target.checked,
+                              })
+                            }
+                          />
+                          <span>
+                            Also adjust existing purchases of hint {index + 1}
+                          </span>
+                        </label>
+                        <p className="meta">
+                          {hint.adjust_existing_purchases
+                            ? "This cost will also replace the current deduction for earlier purchases. Increasing it can reduce teams’ balances below zero; decreasing it returns points."
+                            : "Only new purchases use the new cost. Earlier purchases keep their current deduction."}
+                        </p>
+                      </div>
+                    )}
                   <label className="field">
                     <span>Hint {index + 1} text (Markdown)</span>
                     <textarea
@@ -755,7 +770,13 @@ function ChallengeForm({
                 ...draft,
                 hints: [
                   ...draft.hints,
-                  { title: "", content: "", cost: 25, prerequisites: [] },
+                  {
+                    title: "",
+                    content: "",
+                    cost: 25,
+                    prerequisites: [],
+                    adjust_existing_purchases: false,
+                  },
                 ],
               })
             }

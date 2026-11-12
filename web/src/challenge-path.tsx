@@ -8,6 +8,7 @@ import {
 import type { Step } from "./types";
 import { Arrow, Check } from "./ui";
 import { pageTarget, railBounds, revealTarget } from "./challenge-path-layout";
+import { challengePoints } from "./score-presentation";
 
 export function ChallengePath({
   steps,
@@ -173,7 +174,8 @@ export function ChallengePath({
                 </small>
                 <strong>{step.title}</strong>
                 <span className="step-points">
-                  {step.value.toLocaleString()} pts
+                  {challengePoints(step).toLocaleString()} pts
+                  {step.state === "solved" ? " earned" : ""}
                 </span>
               </span>
             </button>

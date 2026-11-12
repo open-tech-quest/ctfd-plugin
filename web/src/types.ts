@@ -27,6 +27,7 @@ export interface Step {
   id: number;
   title: string;
   value: number;
+  earned_points?: number | null;
   position: number;
   state: "locked" | "available" | "solved";
   solved_at: string | null;
@@ -39,6 +40,7 @@ export interface Score {
 export interface Progress extends Score {
   used_hint_ids: number[];
   used_hint_costs: Record<number, number>;
+  used_hint_original_costs?: Record<number, number>;
   available_points: number;
   credited_solved: number;
   score_elapsed_ms: number | null;
