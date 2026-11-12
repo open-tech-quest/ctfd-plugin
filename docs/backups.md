@@ -19,8 +19,10 @@ signing keys and a separate data copy outside the application cluster.
 
 Saved backups are grouped by UTC month and day. The newest day opens first;
 other dates load when opened, with 20 entries at a time and **Load more** for the
-rest. Compatibility is checked when you choose **Review restore**, before
-confirmation or replacement; browsing a backup does not qualify it for restore.
+rest. The current and backup Quest/CTFd schema versions are shown for comparison.
+A matching schema is only a preliminary check: images, database structure,
+credentials and storage must also be compatible. **Review restore** performs the
+full checks before confirmation or replacement; browsing does not qualify a backup.
 
 1. Check the target installation, automatic-backup health and snapshot time.
    **Create backup** uses the same capture engine and repository as the schedule.
