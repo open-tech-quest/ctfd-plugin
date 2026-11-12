@@ -6,6 +6,7 @@ export function useResource<T>(
   interval = 10000,
   transport: typeof request = request,
   periodic = true,
+  requestTimeoutMs = 15000,
 ) {
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState(""),
@@ -32,6 +33,7 @@ export function useResource<T>(
     const poller = createPoller<T>({
       interval,
       periodic,
+      requestTimeoutMs,
       active: () => !document.hidden && navigator.onLine !== false,
       load: (signal) => transport<T>(path, "GET", undefined, signal),
       accept: (result) => {
@@ -69,7 +71,7 @@ export function useResource<T>(
       window.removeEventListener("focus", activity);
       document.removeEventListener("visibilitychange", activity);
     };
-  }, [path, interval, transport, periodic]);
+  }, [path, interval, transport, periodic, requestTimeoutMs]);
   return { data, error, loading, refresh, setData, updatedAt };
 }
 export function usePath() {

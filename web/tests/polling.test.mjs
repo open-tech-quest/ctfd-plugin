@@ -6,7 +6,7 @@ async function flush() {
   for (let index = 0; index < 5; ++index) await Promise.resolve();
 }
 
-function fixture(interval = 10000, random = 0.5, periodic = true) {
+function fixture(interval = 10000, random = 0.5, periodic = true, requestTimeoutMs) {
   let now = 0;
   let active = true;
   let nextTimer = 0;
@@ -17,6 +17,7 @@ function fixture(interval = 10000, random = 0.5, periodic = true) {
   const poller = createPoller({
     interval,
     periodic,
+    requestTimeoutMs,
     random: () => random,
     now: () => now,
     active: () => active,
@@ -60,6 +61,40 @@ function fixture(interval = 10000, random = 0.5, periodic = true) {
     },
   };
 }
+
+test("remote backup reads can finish after the ordinary read deadline", async () => {
+  const f = fixture(60000, 0.5, true, 130000);
+  f.poller.start();
+  await f.advance(40000);
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.requests[0].signal.aborted, false);
+  assert.deepEqual(f.errors, []);
+  f.requests[0].resolve("remote inventory");
+  await flush();
+  assert.deepEqual(f.accepted, ["remote inventory"]);
+  await f.advance(19999);
+  assert.equal(f.requests.length, 1);
+  await f.advance(1);
+  assert.equal(f.requests.length, 2);
+  f.poller.stop();
+  assert.equal(f.requests[1].signal.aborted, true);
+  assert.equal(f.timers.size, 0);
+});
+
+test("a custom read deadline still releases a stranded request", async () => {
+  const f = fixture(60000, 0.5, true, 130000);
+  f.poller.start();
+  await f.advance(129999);
+  assert.equal(f.errors.length, 0);
+  await f.advance(1);
+  assert.equal(f.requests[0].signal.aborted, true);
+  assert.equal(f.errors.length, 1);
+  f.requests[0].resolve("late result");
+  await flush();
+  assert.deepEqual(f.accepted, []);
+  f.poller.stop();
+  assert.equal(f.timers.size, 0);
+});
 
 test("a slow server never accumulates periodic requests", async () => {
   const f = fixture(5000);

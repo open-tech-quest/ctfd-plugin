@@ -173,7 +173,14 @@ function ReasonField({
 }
 
 export function BackupRestore() {
-  const resource = useResource<BackupIndex>("/admin/backups", 15000);
+  // Remote control-plane inspection can outlast ordinary participant reads.
+  const resource = useResource<BackupIndex>(
+    "/admin/backups",
+    60000,
+    request,
+    true,
+    130000,
+  );
   const progress = useBackupProgress();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);

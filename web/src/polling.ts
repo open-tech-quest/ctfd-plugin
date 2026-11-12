@@ -1,6 +1,7 @@
 type PollingOptions<T> = {
   interval: number;
   periodic?: boolean;
+  requestTimeoutMs?: number;
   load: (signal: AbortSignal) => Promise<T>;
   accept: (value: T) => void;
   reject: (error: unknown) => void;
@@ -81,7 +82,7 @@ export function createPoller<T>(options: PollingOptions<T>) {
     requestTimer = setTimer(() => {
       requestTimer = null;
       pendingController.abort();
-    }, 15000);
+    }, options.requestTimeoutMs ?? 15000);
     void (async () => {
       try {
         const value = await Promise.race([

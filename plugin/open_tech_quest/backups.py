@@ -173,7 +173,7 @@ def index():
         return success({"available": False, "unavailable_reason": "The operator has not configured a backup worker for this installation.",
                         "worker_status_origin": None, "target": None, "schedule": None, "snapshots": [], "active_job": None})
     remote = Worker(proof)
-    value = remote.json("GET", "/backups")
+    value = remote.json("GET", "/backups", timeout=120)
     value["worker_status_origin"] = remote.status_origin
     return success(value)
 
@@ -195,7 +195,7 @@ def review(snapshot_id):
     csrf()
     if body() != {}:
         fail("Restore review takes an empty JSON object")
-    return success(worker().json("POST", "/backups/" + identifier(snapshot_id) + "/review", {}))
+    return success(worker().json("POST", "/backups/" + identifier(snapshot_id) + "/review", {}, timeout=120))
 
 
 @backups_api.route("/admin/backups/<snapshot_id>/restore", methods=["POST"])
