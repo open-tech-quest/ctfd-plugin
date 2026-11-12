@@ -167,6 +167,7 @@ export function BackupRestore() {
   const [confirmation, setConfirmation] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const reviewOrigin = useRef<HTMLButtonElement | null>(null);
+  const refreshButton = useRef<HTMLButtonElement>(null);
   const data = resource.data;
   const active =
     !!progress?.pendingRestoreId ||
@@ -284,6 +285,7 @@ export function BackupRestore() {
             type="button"
             className="button secondary"
             disabled={busy}
+            ref={refreshButton}
             onClick={() =>
               void resource
                 .refresh()
@@ -380,7 +382,11 @@ export function BackupRestore() {
           onClose={() => setReview(null)}
           focusFallback={() => {
             const origin = reviewOrigin.current;
-            return origin?.isConnected && !origin.disabled ? origin : null;
+            if (origin?.isConnected && !origin.disabled) return origin;
+            const fallback = refreshButton.current;
+            return fallback?.isConnected && !fallback.disabled
+              ? fallback
+              : null;
           }}
           onConfirm={async () => {
             if (!restoreConfirmationValid(review.data, confirmation, reason))
