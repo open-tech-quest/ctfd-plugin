@@ -29,14 +29,18 @@ class BackupOperator(unittest.TestCase):
         self.path = self.root / "worker.json"
         self.path.write_text(json.dumps({"profiles": [self.config]}))
         self.adapter = FakeAdapter(self.root)
+        self.adapter.repository = self.root / "operator-repository"
+        (self.adapter.repository / "repo").mkdir(parents=True)
         self.profile = worker.Profile(self.config, self.adapter)
 
-    def invoke(self, scheduled):
-        arguments = ["backup_operator.py", "--config", str(self.path), "--profile", "fixture", "backup"]
+    def invoke(self, scheduled, action="backup"):
+        arguments = ["backup_operator.py", "--config", str(self.path), "--profile", "fixture", action]
         if scheduled:
             arguments.append("--scheduled")
-        with patch("sys.argv", arguments), patch.object(operator, "OpenShiftAdapter", return_value=self.adapter), contextlib.redirect_stdout(io.StringIO()):
+        output = io.StringIO()
+        with patch("sys.argv", arguments), patch.object(operator, "OpenShiftAdapter", return_value=self.adapter), contextlib.redirect_stdout(output):
             operator.main()
+        return json.loads(output.getvalue())
 
     def test_busy_schedule_records_failed_attempt_without_touching_active_operation(self):
         sentinel = self.profile.root / "recovery.json"
@@ -56,6 +60,12 @@ class BackupOperator(unittest.TestCase):
         # A later manual success must not hide this refused timer attempt.
         self.invoke(False)
         self.assertEqual(self.profile.index(ACTOR)["schedule"]["last_job"]["id"], failed["id"])
+        # Production publication clears the generic marker on any success;
+        # operator status must still report the actual timer failure.
+        (self.profile.root / "backup-failure.json").unlink()
+        status = self.invoke(False, "status")
+        self.assertTrue(status["backup_failed"])
+        self.assertEqual(status["schedule"]["last_job"]["id"], failed["id"])
 
     def test_busy_manual_cli_does_not_claim_a_scheduled_attempt(self):
         with (self.profile.root / "operation.lock").open("a") as lock:

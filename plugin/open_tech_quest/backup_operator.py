@@ -208,6 +208,15 @@ def main():
         else:
             result = {"schedule": adapter.schedule(), "backup_failed": (profile.root / "backup-failure.json").exists(),
                       "drill_failed": (profile.root / "drill-failure.json").exists()}
+            scheduled = sorted((json.loads(path.read_text()) for path in (profile.root / "jobs").glob("*.json")),
+                               key=lambda job: job["created_at"], reverse=True)
+            scheduled = [job for job in scheduled if job.get("scheduled")]
+            latest = scheduled[0] if scheduled else None
+            result["schedule"]["last_job"] = profile.public_job(latest) if latest else None
+            result["backup_failed"] = result["backup_failed"] or bool(latest and latest["status"] == "failed")
+            successful = next((job for job in scheduled if job["status"] == "succeeded"), None)
+            if successful:
+                result["schedule"]["last_success_at"] = successful["updated_at"]
             success = profile.root / "latest-success.json"
             result["last_success"] = json.loads(success.read_text()) if success.exists() else None
             if result["last_success"]:
