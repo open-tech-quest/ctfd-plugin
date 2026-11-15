@@ -3,6 +3,7 @@ import { dateTime } from "./api";
 import { useParticipantSession } from "./participant-session";
 import type { Viewer } from "./types";
 import { Check, Confirm, Notice } from "./ui";
+import { TeamNumber } from "./team-number";
 
 export function ParticipantOnboarding({ viewer }: { viewer: Viewer }) {
   if (!viewer.authenticated || viewer.role !== "participant") return null;
@@ -143,6 +144,7 @@ function PersonalOnboarding({ viewer }: { viewer: Viewer }) {
                       : "Your final group"}
               </span>
               <h3>{team.name}</h3>
+              <TeamNumber number={team.id} />
             </div>
             <span className="meta">
               {team.members.filter((member) => member.ready_at).length} of{" "}

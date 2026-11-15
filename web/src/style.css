@@ -606,6 +606,24 @@ svg {
   color: var(--muted);
   margin-bottom: 24px;
 }
+.team-number {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.team-number strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.own-team-heading .team-number {
+  margin-top: 8px;
+}
+.team-summary .team-number {
+  margin-bottom: 16px;
+}
 .summary-value {
   font-size: 40px;
   margin-bottom: 16px;

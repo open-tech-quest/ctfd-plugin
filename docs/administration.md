@@ -220,8 +220,10 @@ Welcome, {{user.name}}! You are playing with {{team.name}}.
 Your team currently has {{team.points}} points.
 ```
 
-`team.number` is an existing database ID, not a separate event sequence. IDs can
-have gaps; provision labs using the actual team IDs. Use this token in hostnames.
+`team.number` is an existing database ID, not a separate event sequence. Participants
+see it as **Team number** in their dashboard team panels and room views, including
+after a rename. Generated names such as **Team 3** are separate from this number.
+IDs can have gaps; provision labs using the actual team IDs. Use this token in hostnames.
 Display names are inserted literally in text and encoded in URL paths/query
 values; they cannot supply a hostname or URL protocol.
 

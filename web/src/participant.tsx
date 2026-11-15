@@ -13,6 +13,7 @@ import {
 } from "./ui";
 import { RoomArt, RoomLogo, roomThemeStyle } from "./room-art";
 import { ParticipantOnboarding } from "./onboarding";
+import { TeamNumber } from "./team-number";
 import { useParticipantMode } from "./participant-mode";
 import { purchaseQuotedHint } from "./hint-purchase";
 import { hintProgression, redeemedHintIds } from "./hint-progression";
@@ -115,6 +116,13 @@ export function Lobby({ data }: { data: Bootstrap }) {
             {data.viewer.team_name ? "Your team" : "How it works"}
           </span>
           <h2>{data.viewer.team_name || "Own account. Shared progress."}</h2>
+          <TeamNumber
+            number={
+              participantPlaceholderContext(data.viewer, null, mode.preview)[
+                "team.number"
+              ]
+            }
+          />
           <p>
             {data.viewer.team_name
               ? "Teammates can work in different rooms at the same time. Every solve moves your team forward."
@@ -426,6 +434,9 @@ export function RoomPage({
               </span>
             </>
             <strong>{data.viewer.team_name || "Shared team progress"}</strong>
+            {(mode.preview || data.viewer.role === "participant") && (
+              <TeamNumber number={bodyPlaceholders["team.number"]} />
+            )}
             <span>
               {room.progress.credited_solved} of {room.progress.total} solved
             </span>
