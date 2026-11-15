@@ -6,7 +6,11 @@ event process instead.
 
 Use this walkthrough to explore the plugin or test a feature through registration,
 staffing, attendance, team formation, play and results. Reserve a separate test
-instance: its sample passwords and flags are deliberately **`test`**.
+instance. The disposable example below uses sample passwords and flags **`test`**.
+To rehearse authored content, first [restore a compatible backup](backups.md) into
+the separate instance, then add test accounts without replacing its rooms,
+answers or settings. Keep that setup and its automation scope in the operator
+runbook; restoring a backup does not prepare a new bot fixture automatically.
 
 The organizer's **Demo content** is a preview and must be removed before event
 start. The browser fixture in `tests/` supplies preassigned teams/progress. This
@@ -119,25 +123,41 @@ still need a separate [load test](sizing.md).
 
 ## Agent-assisted triggers
 
-An operator runbook can persist two separate instructions:
+An operator runbook can persist three explicit instructions:
 
 - **“Check in the rehearsal bots”**: only while draft attendance is open, confirm
   presence for eligible sample users 10 and higher. Never touch 01–09 or advance
   allocation, naming, finalization or event start.
-- **“Create the mid-event rehearsal snapshot”**: only during live, unpublished
-  play, fill untouched bot-only teams with full clears, partial paths and unopened
-  rooms. Skip any team with a reserved/non-bot member or existing activity, because
-  progress is shared by the whole team.
+- **“Emulate an early event”**: during live, unpublished play, give bot-only
+  teams a small head start: at most one opened room and two solved challenges,
+  no room clears, and many untouched paths. A ten-minute history window is a
+  useful default so manual participants can catch up.
+- **“Emulate an advanced event”**: create several room clears alongside partial,
+  empty and untouched paths, with varied points and completion times. A
+  ninety-minute window suits a fresh closing/results rehearsal. Choose this
+  directly or append to unchanged early-stage bot history. Preserve original
+  starts/attempts; skip mixed teams and teams with any intervening manual activity.
 
-Inspect the current run and preview the scope before either action. For synthetic
+Inspect the current run and preview the scope before each action. For synthetic
 progress, use current challenge order/points and clearly mark generated native
 history in an audit record. Keep dates chronological, within elapsed event time
-and outside pauses; preserve manual progress. Allow one atomic, repeat-safe
-snapshot per run and retain a backup. For a newly started disposable rehearsal
+and outside pauses; preserve manual progress. Each stage should be atomic and
+repeat-safe, with a backup and durable record of generated IDs/row fingerprints.
+Do not rewind advanced progress to early. For a newly started disposable rehearsal
 with no competition activity anywhere, an operator may backdate the Quest and
-native CTFd start together to provide a realistic 45-minute window. Preview this
+native CTFd start together to provide the requested history window. Preview this
 change, audit it with the fixture and commit it atomically. Existing activity must
-prevent backdating; use elapsed history, wait or choose a shorter window instead.
+prevent backdating. When advancing an early run, fit available time after its
+preserved history, or wait/request a smaller window. Do not shift manual dates,
+move the clock again or create future submissions to make the event look older.
+
+After advanced progress, review **Organize → Awards** before closing and
+publishing manually. Room order is solved count, net room points, then active
+time; overall order is net points, then active time. Paid hints reduce both room
+and overall points. Use a reserved/manual team to buy hints through the real
+confirmation flow, check ties and compare the reviewed winners with the fixed
+published results. Live participant/projector views deliberately show less
+competitive detail than the organizer's award view.
 
 Synthetic history populates standings; it does not test browser traffic or native
 submission grading. Use the reserved accounts for those manual flows. Keep these
