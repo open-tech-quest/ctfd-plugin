@@ -2720,6 +2720,24 @@ fieldset {
 }
 
 /* Personal check-in and organizer attendance use the same calm roster language. */
+.team-roster {
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+  margin-bottom: 32px;
+  scroll-margin-top: 24px;
+}
+.team-roster summary {
+  width: fit-content;
+  max-width: 100%;
+  cursor: pointer;
+  font-weight: 500;
+}
+.team-roster .teammate-list {
+  margin-top: 12px;
+}
+.team-roster .teammate-list li:last-child {
+  border-bottom: 0;
+}
 .onboarding-panel {
   background: #fff;
   border: 1px solid var(--line);

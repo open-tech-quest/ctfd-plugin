@@ -79,6 +79,12 @@ start. Late admission is the dedicated exception to frozen membership.
 
 ## Privacy and native routes
 
+The dashboard shows attendance and naming controls during draft preparation.
+Once play starts, assigned participants see a collapsed **Team members** list
+without readiness badges or setup messages. Unassigned late arrivals retain
+check-in and placement guidance during live/paused play. Closed/published events
+keep the member list for assigned teams and hide unfinished onboarding.
+
 Before roster release, participant team data is withheld. Afterwards, users see
 only their own team's names/readiness, never teammate email. Native self-service
 team create/join/invite/rename and native administrator writes cannot bypass

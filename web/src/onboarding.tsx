@@ -1,15 +1,27 @@
 import { useState } from "react";
 import { dateTime } from "./api";
 import { useParticipantSession } from "./participant-session";
-import type { Viewer } from "./types";
+import type { Phase, Viewer } from "./types";
 import { Check, Confirm, Notice } from "./ui";
 import { TeamNumber } from "./team-number";
 
-export function ParticipantOnboarding({ viewer }: { viewer: Viewer }) {
+export function ParticipantOnboarding({
+  viewer,
+  phase,
+}: {
+  viewer: Viewer;
+  phase: Phase;
+}) {
   if (!viewer.authenticated || viewer.role !== "participant") return null;
-  return <PersonalOnboarding key={viewer.id} viewer={viewer} />;
+  return <PersonalOnboarding key={viewer.id} viewer={viewer} phase={phase} />;
 }
-function PersonalOnboarding({ viewer }: { viewer: Viewer }) {
+function PersonalOnboarding({
+  viewer,
+  phase,
+}: {
+  viewer: Viewer;
+  phase: Phase;
+}) {
   const session = useParticipantSession();
   const [name, setName] = useState("");
   if (!session) return null;
@@ -21,10 +33,36 @@ function PersonalOnboarding({ viewer }: { viewer: Viewer }) {
       </Notice>
     ) : (
       <div className="onboarding-loading" role="status">
-        Checking your team and attendance…
+        {phase === "draft"
+          ? "Checking your team and attendance…"
+          : "Loading your team…"}
       </div>
     );
   const team = state.roster_released ? state.team : null;
+  if (phase !== "draft" && team)
+    return (
+      <>
+        {error && (
+          <Notice tone="error" retry={() => void refresh()}>
+            {error}
+          </Notice>
+        )}
+        <details className="team-roster" id="your-team">
+          <summary>Team members ({team.members.length})</summary>
+          <ul className="teammate-list">
+            {team.members.map((member) => (
+              <li key={member.id}>
+                <span>
+                  {member.name}
+                  {member.id === viewer.id && <small> You</small>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </>
+    );
+  if (phase === "closed" || phase === "published") return null;
   return (
     <section
       className="onboarding-panel"
@@ -45,7 +83,7 @@ function PersonalOnboarding({ viewer }: { viewer: Viewer }) {
                 : "Your account is ready. Organizers open attendance check-in separately from registration and team preparation."}
           </p>
           <p className="meta">
-            {state.allow_team_naming
+            {phase === "draft" && state.allow_team_naming
               ? "Checking in and choosing a team name never start a competition clock"
               : "Checking in never starts a competition clock"}
           </p>

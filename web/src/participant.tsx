@@ -143,7 +143,9 @@ export function Lobby({ data }: { data: Bootstrap }) {
           )}
         </div>
       </section>
-      {!mode.preview && <ParticipantOnboarding viewer={data.viewer} />}
+      {!mode.preview && (
+        <ParticipantOnboarding viewer={data.viewer} phase={data.event.status} />
+      )}
       <EventNotice data={data} />
       {!!data.rooms.length && (
         <div className="section-heading">
