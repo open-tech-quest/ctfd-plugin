@@ -2738,6 +2738,12 @@ fieldset {
 .team-roster .teammate-list li:last-child {
   border-bottom: 0;
 }
+.team-roster .teammate-list li > span:only-child {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow-wrap: anywhere;
+  font-size: inherit;
+}
 .onboarding-panel {
   background: #fff;
   border: 1px solid var(--line);
