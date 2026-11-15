@@ -21,8 +21,9 @@ Saved backups are grouped by UTC month and day. The newest day opens first;
 other dates load when opened, with 20 entries at a time and **Load more** for the
 rest. The current and backup Quest/CTFd schema versions are shown for comparison.
 A matching schema is only a preliminary check: images, database structure,
-credentials and storage must also be compatible. **Review restore** performs the
-full checks before confirmation or replacement; browsing does not qualify a backup.
+database settings and data services must also be compatible. **Review restore**
+performs the full checks before confirmation or replacement; browsing does not
+qualify a backup.
 
 1. Check the target installation, automatic-backup health and snapshot time.
    **Create backup** uses the same capture engine and repository as the schedule.
@@ -30,8 +31,9 @@ full checks before confirmation or replacement; browsing does not qualify a back
    a worker key trusted by this installation. Uploading stores/verifies it; it
    does not restore anything. Event reports and arbitrary ZIP/SQL files are refused.
 3. **Review restore** compares account/team/challenge/solve counts and shows
-   the producer versions, target and consequences. An incompatible snapshot stays
-   downloadable for operator inspection with a specific refusal reason.
+   the source installation, destination URL, producer versions and consequences.
+   A compatible backup can come from another installation. An incompatible
+   snapshot stays downloadable for operator inspection with a specific refusal reason.
 4. Supply a reason, acknowledge full replacement and the safety backup, and type
    the displayed target name. The review expires after ten minutes and is bound to
    the current installation, software, schema, round and administrator authority.
@@ -44,6 +46,11 @@ the selected snapshot disappear. Old passwords, roles and native tokens return;
 review any later credential revocations. Recorded timestamps remain original,
 and the real-world clock keeps advancing. Restoring a live event resumes its saved
 phase with elapsed wall time, not a replay clock.
+
+Restoration keeps the destination's URL, runtime credentials, Kubernetes resources,
+storage and backup-worker identity. The backup's infrastructure configuration is
+recovery reference material, not something the browser reapplies. A replacement
+installation does not need the original installation ID or database passwords.
 
 The worker stops traffic and writers, takes a separate safety backup, replaces
 SQL and uploads together, verifies bytes/data, clears dedicated Redis sessions,
@@ -58,19 +65,30 @@ check the durable job journal before starting another operation.
 
 | Backup/target | Automatic restore |
 |---|---|
-| Same exact CTFd/plugin image and schema, same installation and runtime configuration | Supported after this installation's recovery drill |
+| Same exact CTFd/plugin image and complete schema, compatible database/cache settings | Supported on the original or another qualified installation |
 | Different plugin image, unchanged schema | Only an explicitly tested exact source→target qualification configured by the operator |
-| Different Quest or native schema, database/cache image, credentials, database settings or storage identity | Operator recovery/qualification required |
+| Different installation ID, URL, runtime passwords or PVC identities | Supported; the destination keeps its own hosting configuration and storage |
+| Different Quest or native schema, table structure, database/cache image or database settings | Operator recovery/qualification required |
 | Older unsigned Restic capture | Inspection/extraction only; never silently promoted to an automatic restore |
 | Unknown signature/key, altered bytes or unsupported backup format | Refused before importing SQL |
 
 The backup container format is `open-tech-quest/backup`, version **1**. Exact
 producer versions, native/Quest revisions and image digest travel in the signed
 manifest. Matching schema labels alone do not prove compatibility: the complete
-table structure, database character settings, data-service pins and runtime
-credentials must match too. Future schema changes must keep old formats readable
+table structure, database name, character set, collation and data-service pins
+must match too. Database hostnames and passwords may differ.
+Destination deployment, credentials and storage must stay unchanged between
+review and replacement. Future schema changes must keep old formats readable
 or explicitly document an operator migration. Never add a version range to the
 qualification list without testing the real recovery path.
+
+For disaster recovery, provision a compatible instance and its backup worker,
+restore the trusted signing key from private recovery storage, then upload the
+original `.otqbackup` file and use the same review/restore workflow. Another
+installation's backup is not automatically trusted: its original signing key must
+already be in the destination profile's `trusted_key_files`. Keep signing keys
+outside both the database and the backup file; a key supplied inside an uploaded
+file cannot establish trust.
 
 Scoped live pricing adds `quest_0013` price history. Earlier `quest_0012` captures
 remain readable for operator recovery, but cannot automatically replace the new
@@ -94,7 +112,10 @@ guide; it is not a deployable infrastructure package.
 
 Each profile pins an API server, application Route, installation ID and PVC UIDs.
 Give each installation a separate high-entropy API token and Restic repository;
-retain old signing keys when rotating. The profile token selects its fixed target:
+retain old signing keys when rotating. Set `trusted_key_files` to the private
+recovery keys of installations whose backups this profile may restore. These
+keys establish backup authenticity, not a remote deployment target. The profile
+token selects its fixed target:
 neither the browser nor a restored database supplies a kubeconfig or target.
 Use TLS at the worker ingress, restrict the listener to the trusted network and
 allow only each application's exact origin for read-only operation status.

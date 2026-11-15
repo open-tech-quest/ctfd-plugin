@@ -169,6 +169,8 @@ A backup represents its capture time. Different content or software in the live
 instance is expected; choose the recovery scope before replacing anything.
 **Organize → Backup & Restore** supports a reviewed full replacement when the
 operator has configured the external worker and qualified the exact source/target.
+Compatible signed backups can also restore into a replacement installation through
+the same workflow, keeping the destination's URL, credentials and storage.
 Granular recovery and incompatible backups remain operator procedures. See
 [backup setup, compatibility and recovery](backups.md). **Organize → Archives**
 exports event reports, which cannot restore the database.
@@ -180,8 +182,8 @@ exports event reports, which cannot restore the database.
 | An unused challenge was deleted | Recreate eligible content through supported authoring/catalog tooling. Do not force old IDs into current tables; recreating content does not reconstruct lost history. |
 | An attachment is missing | Recover verified bytes only after checking that the current file record, ownership and intended asset match. Preserve newer files at reused paths. |
 | A release is broken but event data is healthy | Qualify a compatible image rollback against the current schema/data. Changing the image does not roll back a migration. |
-| Database corruption, accidental reset or lost deployment | Test a complete snapshot in isolation, then explicitly restore/cut over the whole database, uploads and configuration together. Everything after that recovery point is lost. |
-| Backup images/schema or target identity differ | Restore first with the snapshot's recorded images in isolation, qualify the intended upgrade/target, and reconcile deployment pins before cutover. Never merge old SQL into a newer live database. |
+| Database corruption, accidental reset or lost deployment | Provision a compatible instance with the original backup signing key trusted, then review and restore the complete database and uploads in Organizer. Everything after that recovery point is lost; destination hosting settings stay intact. |
+| Backup images/schema or database settings differ | Restore first with the snapshot's recorded images in isolation, qualify the intended upgrade/target, and reconcile deployment pins before cutover. Never merge old SQL into a newer live database. |
 
 Content recovery is an ordinary reviewed edit, not an automatic backup merge.
 Compare the selected fields with the current challenge and ownership, rather
@@ -191,7 +193,7 @@ flags and file bytes require a real backup or their maintained source; the
 [event JSON archive](archives.md) intentionally cannot restore them.
 
 A full restore requires a fresh safety backup of the current target, verified
-snapshot checksums, matching database/upload/configuration material and stopped
+snapshot checksums, compatible database/upload material and stopped
 writers/traffic. Clear dedicated cache/session state, require fresh login and
 verify data, files and application behavior before reopening. A rollback also
 restores the snapshot's accounts, roles and credential state; review later

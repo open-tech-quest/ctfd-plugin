@@ -208,8 +208,6 @@ class Profile:
     def compatibility(self, manifest, current):
         if manifest.get("legacy"):
             return {"supported": False, "reason": "This legacy backup needs operator verification before restoration"}
-        if manifest["instance"]["id"] != current["target"]["id"]:
-            return {"supported": False, "reason": "This backup belongs to another installation; operator recovery is required"}
         target = current["target"]["current"]
         sources = [target]
         for item in self.config.get("qualified_restores", []):
@@ -244,7 +242,7 @@ class Profile:
             compatible = {"supported": False, "reason": "The backup signing key requires operator recovery", "checked": True}
         return {"id": manifest["snapshot_id"], "created_at": manifest["created_at"],
                 "origin": record["origin"], "bytes": record["bytes"], "sha256": record["sha256"],
-                "source": manifest["source"], "counts": manifest["counts"],
+                "instance": manifest["instance"], "source": manifest["source"], "counts": manifest["counts"],
                 "compatibility": compatible}
 
     def _catalog(self):
@@ -351,6 +349,14 @@ class Profile:
         snapshot = self.snapshot(record, current)
         if not snapshot["compatibility"]["supported"]:
             raise WorkerError(snapshot["compatibility"]["reason"])
+        cross_installation = record["manifest"]["instance"]["id"] != current["target"]["id"]
+        warnings = ["All current CTFd and Quest data and uploaded files will be replaced, including accounts, passwords, flags, teams and progress.",
+                    "Activity after this backup will be lost. A separate safety backup is created before replacement.",
+                    "Everyone must sign in using an account and password from the backup. Recorded timestamps are preserved; the real-world clock is not rewound.",
+                    "The destination keeps its own URL, runtime credentials, storage and backup-worker identity. Saved event and CTFd settings are restored from the backup."]
+        if cross_installation:
+            warnings.insert(0, "This backup is from another installation: " + record["manifest"]["instance"]["name"]
+                            + ". It will replace the event on " + current["target"]["name"] + ".")
         expires = datetime.now(timezone.utc) + timedelta(minutes=10)
         payload = {"snapshot_id": identifier, "manifest": contract.fingerprint(record["manifest"]),
                    "generation": current["generation"], "actor": actor_fingerprint(actor),
@@ -359,10 +365,9 @@ class Profile:
         token = encoded + "." + hmac.new(self.key, ("review:" + encoded).encode(), hashlib.sha256).hexdigest()
         return {"review_token": token, "expires_at": expires.isoformat().replace("+00:00", "Z"),
                 "confirmation_text": current["target"]["name"], "target": current["target"], "snapshot": snapshot,
+                "cross_installation": cross_installation,
                 "comparison": {"current_counts": current["counts"], "snapshot_counts": snapshot["counts"]},
-                "warnings": ["All current CTFd and Quest data and uploaded files will be replaced, including accounts, passwords, flags, teams and progress.",
-                             "Activity after this backup will be lost. A separate safety backup is created before replacement.",
-                             "Everyone must sign in using an account and password from the backup. Recorded timestamps are preserved; the real-world clock is not rewound."],
+                "warnings": warnings,
                 "safety_backup_required": True, "full_replace": True}
 
     def _check_review(self, identifier, actor, body, current):

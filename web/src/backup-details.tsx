@@ -1,5 +1,43 @@
-import type { BackupVersions } from "./backup-types";
+import type { BackupVersions, RestoreReview } from "./backup-types";
 import { backupVersionLabel } from "./backup-presentation";
+
+export function RestoreInstallationDetails({
+  review,
+}: {
+  review: Pick<RestoreReview, "target" | "snapshot">;
+}) {
+  const source = review.snapshot.instance;
+  return (
+    <dl className="backup-version-details" aria-label="Restore installations">
+      <div>
+        <dt>Backup source</dt>
+        <dd>
+          {source ? (
+            <>
+              <strong>{source.name}</strong>
+              <br />
+              <code>{source.id}</code>
+            </>
+          ) : (
+            "Not recorded"
+          )}
+        </dd>
+      </div>
+      <div>
+        <dt>Restore destination</dt>
+        <dd>
+          <strong>{review.target.name}</strong>
+          <br />
+          <code>{review.target.id}</code>
+        </dd>
+      </div>
+      <div>
+        <dt>Destination URL</dt>
+        <dd>{review.target.origin}</dd>
+      </div>
+    </dl>
+  );
+}
 
 export function VersionDetails({ version }: { version: BackupVersions }) {
   return (

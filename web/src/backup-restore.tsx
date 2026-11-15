@@ -14,7 +14,7 @@ import {
   uploadBackup,
 } from "./backup-transport";
 import { backupJobActive } from "./backup-progress";
-import { VersionDetails } from "./backup-details";
+import { RestoreInstallationDetails, VersionDetails } from "./backup-details";
 import { BackupHistory, BackupSchedule } from "./backup-history";
 import {
   backupRestoreSupported,
@@ -36,9 +36,9 @@ export function BackupRestoreIntroduction() {
       <div>
         <h2>Backup &amp; Restore</h2>
         <p>
-          Save and recover this instance, including accounts, challenges and
-          uploaded files. Downloaded backups contain private data and answers;
-          keep them secure.
+          Save and recover an event, including accounts, challenges and uploaded
+          files, on this or another compatible instance. Downloaded backups
+          contain private data and answers; keep them secure.
         </p>
       </div>
     </div>
@@ -71,6 +71,7 @@ function RestoreComparison({ review }: { review: RestoreReview }) {
         Restore the backup from {dateTime(review.snapshot.created_at)} to{" "}
         <strong>{review.target.name}</strong>.
       </p>
+      <RestoreInstallationDetails review={review} />
       <div
         className="backup-comparison"
         role="region"

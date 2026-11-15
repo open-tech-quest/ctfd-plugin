@@ -230,8 +230,9 @@ class OpenShiftAdapter:
     def configuration_reason(self, manifest, current):
         if not self.options.get("restore_enabled", False):
             return "Automatic restore has not been enabled by this installation's operator"
-        if manifest.get("configuration") != current["configuration"]:
-            return "Runtime credentials/configuration differ; operator recovery is required"
+        # Application data is portable; restore uses the destination's existing
+        # database/session credentials. Those credentials still bind the review
+        # generation, so changing the target after confirmation invalidates it.
         if manifest.get("schema_fingerprint") != current["schema_fingerprint"]:
             return "The complete database structure differs; operator qualification is required"
         if manifest.get("data_images") != current["data_images"]:
@@ -496,7 +497,7 @@ class OpenShiftAdapter:
                     with archive.open(name) as source, (private / name).open("xb") as target:
                         shutil.copyfileobj(source, target)
             extract_uploads(private / "uploads.tar.gz", private / "uploads", self.config.get("max_backup_bytes", contract.DEFAULT_MAX_BYTES))
-            if manifest["instance"]["id"] != self.config["instance_id"] or manifest.get("legacy"):
+            if manifest.get("legacy"):
                 return  # Authenticated operator material, never an automatic importer.
             current = self.current()
             sources = [current["target"]["current"]] + [item["source"] for item in self.config.get("qualified_restores", []) if item.get("target") == current["target"]["current"]]

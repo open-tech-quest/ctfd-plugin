@@ -32,6 +32,8 @@ class FakeAdapter:
         self.store = root / "repository"
         self.store.mkdir(parents=True)
         self.instance = instance
+        self.name, self.origin = "Synthetic event", "https://event.example.test"
+        self.runtime_configuration = {"database_credential": "synthetic-destination-credential"}
         self.source = {"ctfd_version": "3.8.9", "plugin_version": "synthetic-version",
                        "schema_revision": "quest_test", "ctfd_schema_revision": "native-test", "image_digest": "sha256:" + "c" * 64}
         self.state = {"accounts": [{"id": 4, "password_hash": "synthetic-old-hash"}], "progress": [1], "uploads": "old uploaded data"}
@@ -43,7 +45,7 @@ class FakeAdapter:
         return self.authorized and actor == ACTOR
 
     def current(self):
-        return {"target": {"id": self.instance, "name": "Synthetic event", "origin": "https://event.example.test", "current": copy.deepcopy(self.source)},
+        return {"target": {"id": self.instance, "name": self.name, "origin": self.origin, "current": copy.deepcopy(self.source)},
                 "generation": self.generation, "counts": {"users": len(self.state["accounts"]), "teams": 1, "challenges": 2, "solves": len(self.state["progress"])}}
 
     def configuration_reason(self, manifest, current):
@@ -62,7 +64,7 @@ class FakeAdapter:
         (directory / "database.sql").write_bytes(contract.canonical(self.state))
         (directory / "uploads.tar.gz").write_text(self.state["uploads"])
         (directory / "infrastructure.json").write_bytes(contract.canonical({"source": self.source, "fixture": True}))
-        return {"source": copy.deepcopy(self.source), "instance": {"id": self.instance, "name": "Synthetic event"}, "counts": self.current()["counts"]}
+        return {"source": copy.deepcopy(self.source), "instance": {"id": self.instance, "name": self.name}, "counts": self.current()["counts"]}
 
     def publish(self, temporary, manifest, signature):
         storage = self.store / manifest["snapshot_id"]
@@ -136,6 +138,117 @@ class BackupWorker(unittest.TestCase):
         reviewed = self.profile.review(snapshot, ACTOR)
         return {"operation_id": str(uuid.uuid4()), "review_token": reviewed["review_token"], "confirmation_text": reviewed["confirmation_text"],
                 "confirm": True, "reason": "Synthetic full recovery"}
+
+    def foreign_backup(self, trusted=True):
+        source_adapter = FakeAdapter(self.root / "source", instance="source-installation")
+        source_adapter.name, source_adapter.origin = "Synthetic source", "https://source.example.test"
+        source_adapter.runtime_configuration = {"database_credential": "different-source-credential"}
+        source_adapter.state = {"accounts": [{"id": 7, "password_hash": "source-password-hash"}],
+                                "progress": [7, 8], "uploads": "source uploaded bytes"}
+        key = self.root / "source-signing.key"
+        key.write_bytes(b"separate-synthetic-source-signing-key" * 2)
+        source_config = dict(self.config, state_root=str(self.root / "source-journal"),
+                             instance_id=source_adapter.instance, signing_key_file=str(key),
+                             signing_key_id="source-key")
+        source = worker.Profile(source_config, source_adapter)
+        operation = source.enqueue("backup", ACTOR, {"operation_id": str(uuid.uuid4()),
+                                   "reason": "Source recovery point"}, synchronous=True)
+        self.assertEqual(operation["job"]["status"], "succeeded")
+        snapshot = source.job(operation["job"]["id"])["snapshot_id"]
+        record = source.snapshot_record(snapshot)
+        with source.materialize(record) as (bundle, _):
+            path = self.root / "foreign-upload.otqbackup"
+            path.write_bytes(bundle.read_bytes())
+        if trusted:
+            self.config["trusted_key_files"] = {"source-key": str(key)}
+            self.profile = worker.Profile(self.config, self.adapter)
+        return source, source_adapter, record, path
+
+    def test_cross_installation_signed_upload_review_and_queued_restore_preserve_target(self):
+        source, source_adapter, record, path = self.foreign_backup()
+        source_state = copy.deepcopy(source_adapter.state)
+        target_state = copy.deepcopy(self.adapter.state)
+        target_configuration = copy.deepcopy(self.adapter.runtime_configuration)
+        target_identity = self.adapter.current()["target"]
+        original_signature = record["manifest"]
+        uploaded = self.profile.enqueue("upload", ACTOR, {"operation_id": str(uuid.uuid4()),
+                                        "reason": "Import recovery point from source"},
+                                        upload_path=path, synchronous=True)
+        self.assertEqual(uploaded["job"]["status"], "succeeded")
+        snapshot = self.profile.job(uploaded["job"]["id"])["snapshot_id"]
+        self.assertEqual(self.profile.snapshot_record(snapshot)["manifest"], original_signature)
+        self.assertEqual(self.adapter.state, target_state)
+        reviewed = self.profile.review(snapshot, ACTOR)
+        self.assertTrue(reviewed["cross_installation"])
+        self.assertEqual(reviewed["snapshot"]["instance"], record["manifest"]["instance"])
+        self.assertEqual(reviewed["target"], target_identity)
+        self.assertEqual(reviewed["confirmation_text"], target_identity["name"])
+        warnings = " ".join(reviewed["warnings"])
+        self.assertIn(source_adapter.name, warnings)
+        self.assertIn(self.adapter.name, warnings)
+        self.assertIn("credential", warnings.lower())
+        body = {"operation_id": str(uuid.uuid4()), "review_token": reviewed["review_token"],
+                "confirmation_text": reviewed["confirmation_text"], "confirm": True,
+                "reason": "Restore source recovery point on replacement installation"}
+        pending = []
+        class DeferredThread:
+            def __init__(self, target, args, **kwargs):
+                pending.append((target, args))
+            def start(self):
+                pass
+        self.adapter.events.clear()
+        with patch.object(worker.threading, "Thread", DeferredThread):
+            operation = self.profile.enqueue("restore", ACTOR, body, snapshot)
+        self.assertEqual(operation["job"]["status"], "queued")
+        execute, arguments = pending.pop()
+        execute(*arguments)
+        job = self.profile.job(operation["job"]["id"])
+        self.assertEqual(job["status"], "succeeded")
+        self.assertEqual(self.adapter.state, source_state)
+        self.assertEqual(source_adapter.state, source_state)
+        self.assertEqual(self.adapter.runtime_configuration, target_configuration)
+        self.assertEqual(self.adapter.current()["target"], target_identity)
+        self.assertTrue(self.adapter.sessions_cleared)
+        self.assertFalse(self.adapter.closed)
+        self.assertEqual(self.adapter.events, ["validate", "fence_and_stop", "capture", "restore", "verify", "reopen"])
+        safety = self.profile.snapshot_record(job["safety_snapshot_id"])
+        self.assertEqual(safety["manifest"]["instance"]["id"], target_identity["id"])
+        with self.profile.materialize(safety) as (_, components):
+            self.assertEqual(json.loads(components["database.sql"].read_bytes()), target_state)
+
+    def test_foreign_installation_does_not_make_untrusted_backup_importable(self):
+        _, _, _, path = self.foreign_backup(trusted=False)
+        original = copy.deepcopy(self.adapter.state)
+        operation = self.profile.enqueue("upload", ACTOR, {"operation_id": str(uuid.uuid4()),
+                                         "reason": "Attempt untrusted recovery"},
+                                         upload_path=path, synchronous=True)
+        self.assertEqual(operation["job"]["status"], "failed")
+        self.assertIn("trusted", operation["job"]["message"])
+        self.assertEqual(self.adapter.state, original)
+        self.assertEqual(self.adapter.events, [])
+        self.assertEqual(list((self.profile.root / "snapshots").glob("*.json")), [])
+
+    def test_foreign_installation_keeps_image_schema_and_target_review_guards(self):
+        _, _, record, path = self.foreign_backup()
+        operation = self.profile.enqueue("upload", ACTOR, {"operation_id": str(uuid.uuid4()),
+                                         "reason": "Import source recovery"},
+                                         upload_path=path, synchronous=True)
+        self.assertEqual(operation["job"]["status"], "succeeded")
+        snapshot = record["manifest"]["snapshot_id"]
+        saved = copy.deepcopy(self.adapter.source)
+        for field, changed in (("image_digest", "sha256:" + "f" * 64),
+                               ("schema_revision", "other-schema"),
+                               ("ctfd_schema_revision", "other-native-schema")):
+            with self.subTest(field=field):
+                self.adapter.source[field] = changed
+                with self.assertRaises(worker.WorkerError):
+                    self.profile.review(snapshot, ACTOR)
+                self.adapter.source = copy.deepcopy(saved)
+        body = self.restore_body(snapshot)
+        self.adapter.generation = "new-destination-runtime-credentials"
+        with self.assertRaises(worker.WorkerError):
+            self.profile.enqueue("restore", ACTOR, body, snapshot, synchronous=True)
+        self.assertNotIn("fence_and_stop", self.adapter.events)
 
     def test_full_replacement_has_durable_safety_snapshot_before_any_replace(self):
         original = copy.deepcopy(self.adapter.state)

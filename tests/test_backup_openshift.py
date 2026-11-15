@@ -104,6 +104,109 @@ class BackupOpenShift(unittest.TestCase):
         self.fixture = ProviderFixture(self.root)
         self.adapter = self.fixture.adapter
 
+    def portable_fixture(self):
+        temporary = self.root / "temporary"
+        temporary.mkdir(exist_ok=True)
+        uploads = self.root / "portable-uploads"
+        (uploads / "challenge").mkdir(parents=True)
+        (uploads / "challenge/guide.txt").write_text("Synthetic challenge attachment")
+        archive = self.root / "uploads.tar.gz"
+        provider.pack_uploads(uploads, archive)
+        sql = self.root / "database.sql"
+        sql.write_text("-- Synthetic SQL; isolated database importer is mocked\n")
+        image = "docker.io/library/mariadb@sha256:" + "d" * 64
+        infrastructure = self.root / "infrastructure.json"
+        infrastructure.write_text(json.dumps({"deployment/database": {"spec": {"template": {
+            "spec": {"containers": [{"image": image}]}}}}}))
+        current = {"target": {"id": "fixture", "current": {
+            "ctfd_version": "3.8.9", "plugin_version": "synthetic-version",
+            "schema_revision": "quest_test", "ctfd_schema_revision": "native-test",
+            "image_digest": "sha256:" + "c" * 64}},
+            "configuration": "destination-runtime-credentials", "schema_fingerprint": "complete-table-fingerprint",
+            "data_images": {"database": image, "cache": "redis@sha256:" + "e" * 64},
+            "database_parameters": {"name": "ctfd", "charset": "utf8mb4", "collation": "utf8mb4_unicode_ci"}}
+        inspected = {"counts": {"users": 7, "teams": 0, "challenges": 4, "solves": 0,
+                                "active_administrators": 1},
+                     "schema_revision": "quest_test", "ctfd_schema_revision": "native-test",
+                     "files": ["challenge/guide.txt"]}
+        manifest = {"format": provider.contract.FORMAT, "schema_version": 1,
+                    "snapshot_id": "a" * 32, "created_at": "2026-11-15T18:15:00.000000Z",
+                    "source": copy.deepcopy(current["target"]["current"]),
+                    "instance": {"id": "foreign-source", "name": "Synthetic source"},
+                    "counts": inspected["counts"], "configuration": "different-source-runtime-credentials",
+                    **{key: copy.deepcopy(current[key]) for key in
+                       ("schema_fingerprint", "data_images", "database_parameters")}}
+        bundle = self.root / "portable.otqbackup"
+        manifest = provider.contract.build_bundle(bundle, manifest, {
+            "database.sql": sql, "uploads.tar.gz": archive, "infrastructure.json": infrastructure},
+            "synthetic-key", b"synthetic-signing-key-never-used-in-deployment" * 2)
+        return current, inspected, manifest, bundle
+
+    def test_portable_data_compatibility_preserves_target_credentials_but_rejects_real_mismatches(self):
+        current, _, manifest, _ = self.portable_fixture()
+        self.assertIsNone(self.adapter.configuration_reason(manifest, current))
+        self.assertNotEqual(manifest["configuration"], current["configuration"])
+        self.assertNotEqual(manifest["instance"]["id"], current["target"]["id"])
+        mutations = [
+            ("schema_fingerprint", "different-complete-structure", "structure"),
+            ("data_images", dict(current["data_images"], database="different-database-image"), "image"),
+            ("data_images", dict(current["data_images"], cache="different-cache-image"), "image"),
+            ("database_parameters", dict(current["database_parameters"], charset="latin1"), "character"),
+            ("database_parameters", dict(current["database_parameters"], collation="utf8mb4_bin"), "character"),
+            ("database_parameters", dict(current["database_parameters"], name="other_database"), "identity"),
+        ]
+        for field, changed, message in mutations:
+            with self.subTest(field=field, changed=changed):
+                candidate = copy.deepcopy(manifest)
+                candidate[field] = changed
+                self.assertIn(message, self.adapter.configuration_reason(candidate, current))
+        no_admin = copy.deepcopy(manifest)
+        no_admin["counts"]["active_administrators"] = 0
+        self.assertIn("administrator", self.adapter.configuration_reason(no_admin, current))
+        self.adapter.options["restore_enabled"] = False
+        self.assertIn("not been enabled", self.adapter.configuration_reason(manifest, current))
+
+    def test_foreign_compatible_upload_gets_actual_sql_and_referenced_file_validation(self):
+        current, inspected, manifest, bundle = self.portable_fixture()
+        self.adapter.current = Mock(return_value=current)
+        self.adapter.inspect_sql = Mock(return_value=inspected)
+        self.adapter.validate_uploaded_bundle(bundle, manifest)
+        self.adapter.inspect_sql.assert_called_once()
+        inspected_path, image = self.adapter.inspect_sql.call_args.args
+        self.assertEqual(Path(inspected_path).name, "database.sql")
+        self.assertEqual(image, current["data_images"]["database"])
+        self.assertEqual(list((self.root / "temporary").iterdir()), [])
+        self.adapter.oc.assert_not_called()
+
+    def test_foreign_compatible_upload_refuses_counts_revisions_and_missing_attachments(self):
+        current, inspected, manifest, bundle = self.portable_fixture()
+        self.adapter.current = Mock(return_value=current)
+        invalid = [
+            (dict(inspected, counts=dict(inspected["counts"], users=99)), "counts"),
+            (dict(inspected, schema_revision="other-schema"), "revisions"),
+            (dict(inspected, ctfd_schema_revision="other-native-schema"), "revisions"),
+            (dict(inspected, files=["challenge/missing.txt"]), "missing"),
+            (dict(inspected, files=["../outside.txt"]), "invalid"),
+        ]
+        for value, message in invalid:
+            with self.subTest(value=value):
+                self.adapter.inspect_sql = Mock(return_value=value)
+                with self.assertRaisesRegex(provider.WorkerError, message):
+                    self.adapter.validate_uploaded_bundle(bundle, manifest)
+                self.adapter.inspect_sql.assert_called_once()
+                self.assertEqual(list((self.root / "temporary").iterdir()), [])
+        self.adapter.oc.assert_not_called()
+
+    def test_foreign_unknown_producer_is_stored_opaque_without_executing_sql(self):
+        current, _, manifest, bundle = self.portable_fixture()
+        self.adapter.current = Mock(return_value=current)
+        self.adapter.inspect_sql = Mock()
+        manifest = copy.deepcopy(manifest)
+        manifest["source"]["image_digest"] = "sha256:" + "f" * 64
+        self.adapter.validate_uploaded_bundle(bundle, manifest)
+        self.adapter.inspect_sql.assert_not_called()
+        self.adapter.oc.assert_not_called()
+
     def test_nested_upload_archive_is_deterministic_and_roundtrips_all_bytes(self):
         uploads = self.root / "uploads"
         (uploads / "nested/empty").mkdir(parents=True)

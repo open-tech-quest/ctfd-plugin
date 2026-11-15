@@ -19,6 +19,7 @@ export interface BackupSnapshot {
   bytes: number;
   sha256: string;
   source: BackupVersions;
+  instance?: { id: string; name: string };
   counts: BackupCounts;
   compatibility: {
     supported: boolean;
@@ -67,6 +68,7 @@ export interface RestoreReview {
   confirmation_text: string;
   target: BackupTarget;
   snapshot: BackupSnapshot;
+  cross_installation?: boolean;
   comparison: {
     current_counts: BackupCounts;
     snapshot_counts: BackupCounts;
