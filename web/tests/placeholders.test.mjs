@@ -355,11 +355,16 @@ test("sanitized SVG anchors use href despite their lowercase tagName", () => {
   }
 });
 
-test("a preferred display name preserves login-based placeholders and guest privacy", () => {
- const preferred={...viewer,display_name:"Alice Example"};
- assert.equal(participantPlaceholderContext(preferred,0)["user.name"],"Alice");
- assert.equal(resolvePlaceholderText("lab-{{user.name}}",participantPlaceholderContext(preferred,0)),"lab-Alice");
- assert.equal(preferred.name,"Alice");
- assert.equal(participantPlaceholderContext({...preferred,authenticated:false},0)["user.name"],null);
- assert.equal(participantPlaceholderContext({...preferred,display_name:""},0)["user.name"],"Alice");
+test("user.name prefers display name without changing login or guest privacy", () => {
+  const preferred = { ...viewer, display_name: "Alice Example" };
+  const values = participantPlaceholderContext(preferred, 0);
+  assert.equal(values["user.name"], "Alice Example");
+  assert.equal(resolvePlaceholderText("Welcome, {{user.name}}!", values), "Welcome, Alice Example!");
+  assert.equal(resolvePlaceholderURL("https://lab.example/{{user.name}}?name={{user.name}}", values, base).url,
+    "https://lab.example/Alice%20Example?name=Alice%20Example");
+  assert.equal(preferred.name, "Alice");
+  assert.equal(participantPlaceholderContext({ ...preferred, authenticated: false }, 0)["user.name"], null);
+  for (const display_name of [undefined, null, ""]) {
+    assert.equal(participantPlaceholderContext({ ...preferred, display_name }, 0)["user.name"], "Alice");
+  }
 });

@@ -209,7 +209,7 @@ text cursor. The saved Markdown stays a template; Quest fills it for each viewer
 |---|---|
 | `{{team.number}}` | Native CTFd team ID; stable across renames, independent of the display name |
 | `{{team.name}}` | Current team display name |
-| `{{user.name}}` | Logged-in user's username (login name), independent of the optional display name |
+| `{{user.name}}` | Logged-in user's display name, falling back to their username if unset |
 | `{{team.points}}` | Overall net points across all rooms, after paid hints |
 
 ```md

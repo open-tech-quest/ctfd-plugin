@@ -210,7 +210,8 @@ readable neutral surfaces, visible keyboard focus and restrained motion respecti
 
 Room introductions and challenge instructions can use the fixed placeholders
 `team.number`, `team.name`, `user.name` and `team.points`. Team number means the
-native team ID, and points mean the current overall net score. Resolve only the
+native team ID, `user.name` prefers the display name with username fallback, and
+points mean the current overall net score. Resolve only the
 viewer's released team context, retain raw templates in storage/shared caches,
 and treat substituted names as data. Staff editor/browsing views use explicit
 sample identities; journey points come from local progress.

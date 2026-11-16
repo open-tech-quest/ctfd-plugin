@@ -80,8 +80,8 @@ A pause in one room stops only that room's clock. Standings label their separate
 award measurement as time to the last counted solve.
 
 Signup and **Account** include an optional native CTFd **Display name** field.
-The Quest header uses it; blank or missing values use the username. Editing it
-keeps the login username and `{{user.name}}` placeholders unchanged. Native public
+The Quest header and `{{user.name}}` descriptions use it; blank or missing values
+use the username. Editing it keeps the login username unchanged. Native public
 profiles do not expose this field by default.
 
 ## Late arrivals
