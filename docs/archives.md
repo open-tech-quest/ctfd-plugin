@@ -41,6 +41,9 @@ attendance, team naming, native submissions and recovery solves, starts, hint
 purchases/unlocks/awards, ratings, round notifications, pauses, corrections,
 exclusions and current-round audit history are cleared. Account-specific notes
 and field values belonging to removed accounts are removed too.
+Newly formed teams use native team IDs starting at **1** again in either mode;
+saved archives retain their original team IDs. Existing teams are never renumbered
+by an upgrade or ordinary roster editing.
 
 Before deletion, the complete report is saved in the same transaction. A failure
 rolls back the archive insertion and reset together. Existing server archives

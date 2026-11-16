@@ -124,7 +124,7 @@ def reset_preview(e, source=None, mode='new_round', actor_id=None):
                           'Saved event archives'] + (
                               ['Rooms, challenge order, flags, hints and challenge uploads'] if mode == 'new_round' else []),
             'removed': ['Every other account, including other administrators and maintainers',
-                        'Teams, memberships, names, notes and custom field values',
+                        'Teams, memberships, names, notes and custom field values; new team numbers start at 1',
                         'Attendance and all competition attempts, solves and room starts',
                         'Hint purchases, unlocks, awards, ratings and round notifications',
                         'Pauses, corrections, exclusions and current-round audit entries',

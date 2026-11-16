@@ -50,6 +50,10 @@ and attendance generation. Apply recomputes under lock and rejects a stale revie
 atomically. The optimizer never accepts edited client groups.
 
 Generated `Team 1`, `Team 2`, … names are unique and locked by default.
+Native team IDs start at 1 when no teams remain, including after either deliberate
+round reset. Creation continues after the highest current ID under the event
+lock; existing teams and archived IDs are never renumbered. Display names remain
+independent of these numbers.
 `allow_team_naming` defaults false; when enabled, any ready member of a released
 team can confirm one unique final name. Claims serialize. Enabling after apply
 opens only generated, unclaimed names; chosen or administrator-corrected names

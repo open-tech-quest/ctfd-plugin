@@ -65,6 +65,18 @@ def generated_name():
     return f"Team {number}"
 
 
+def new_team(**values):
+    """Allocate native IDs within this round; caller holds the event write lock.
+
+    DELETE does not rewind MariaDB's AUTO_INCREMENT. Explicit IDs let an empty
+    new round start at 1 without implicit-commit DDL in the atomic reset. Every
+    organizer creation path uses this allocator; native team creation is blocked.
+    Caller adds/flushes each team before allocating the next in this transaction.
+    """
+    last = Teams.query.order_by(Teams.id.desc()).first()
+    return Teams(id=last.id + 1 if last else 1, **values)
+
+
 def generated_identity(team_id):
     row = QuestTeamName.query.get(team_id)
     if row is None:

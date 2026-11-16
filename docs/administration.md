@@ -223,7 +223,9 @@ Your team currently has {{team.points}} points.
 `team.number` is an existing database ID, not a separate event sequence. Participants
 see it as **Team number** in their dashboard team panels and room views, including
 after a rename. Generated names such as **Team 3** are separate from this number.
-IDs can have gaps; provision labs using the actual team IDs. Use this token in hostnames.
+After either deliberate round reset, new teams start at 1 again. Existing teams
+keep their IDs; gaps can still exist in imported events, so provision labs using
+the actual team IDs. Use this token in hostnames.
 Display names are inserted literally in text and encoded in URL paths/query
 values; they cannot supply a hostname or URL protocol.
 

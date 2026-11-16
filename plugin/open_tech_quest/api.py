@@ -620,7 +620,7 @@ def allocate():
         fail("Eligible participants changed. Preview a complete allocation again.", 409)
     users_by_id = {u.id: u for u in users}
     for name, members in validated:
-        team = Teams(name=name, captain_id=members[0])
+        team = onboarding.new_team(name=name, captain_id=members[0])
         db.session.add(team)
         db.session.flush()
         onboarding.generated_identity(team.id)
@@ -890,7 +890,7 @@ def onboarding_action():
         users = Users.query.filter(Users.id.in_(ids)).all()
         if len(users) != len(ids) or any(not onboarding.eligible(u) or u.team_id or QuestReadiness.query.get(u.id) is None for u in users):
             fail("Late arrival teams require ready eligible unassigned participants", 409)
-        team = Teams(name=onboarding.generated_name(), captain_id=ids[0])
+        team = onboarding.new_team(name=onboarding.generated_name(), captain_id=ids[0])
         db.session.add(team)
         db.session.flush()
         onboarding.generated_identity(team.id)
@@ -922,7 +922,7 @@ def optimize_onboarding():
         fail("Attendance, memberships or settings changed. Preview the current plan before applying it.", 409)
     assignments, group_members = {}, {}
     for group in plan["groups"]:
-        team = Teams.query.get(group["team_id"]) if group["team_id"] else Teams(name=group["name"])
+        team = Teams.query.get(group["team_id"]) if group["team_id"] else onboarding.new_team(name=group["name"])
         if group["team_id"] is None:
             db.session.add(team)
             db.session.flush()
@@ -975,7 +975,7 @@ def admit_late_arrivals():
     created = "new_team_name" in data
     if created:
         name = unique_name(data["new_team_name"])
-        team = Teams(name=name, captain_id=ids[0])
+        team = onboarding.new_team(name=name, captain_id=ids[0])
     else:
         team = Teams.query.get(integer(data["team_id"], "Team ID"))
         if team is None:
