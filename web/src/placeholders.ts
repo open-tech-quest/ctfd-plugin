@@ -22,9 +22,9 @@ export const BODY_PLACEHOLDERS = [
   },
   {
     key: "user.name",
-    label: "User display name",
+    label: "User name",
     token: "{{user.name}}",
-    help: "The signed-in viewer’s name.",
+    help: "The signed-in viewer’s login username.",
   },
   {
     key: "team.points",
@@ -43,10 +43,7 @@ export const EXAMPLE_PLACEHOLDER_CONTEXT: PlaceholderContext = {
 };
 
 export function participantPlaceholderContext(
-  viewer: Pick<
-    Viewer,
-    "authenticated" | "name" | "display_name" | "team_id" | "team_name"
-  >,
+  viewer: Pick<Viewer, "authenticated" | "name" | "team_id" | "team_name">,
   points: number | null,
   preview = false,
 ): PlaceholderContext {
@@ -58,9 +55,7 @@ export function participantPlaceholderContext(
   return {
     "team.number": assigned ? viewer.team_id : null,
     "team.name": assigned ? viewer.team_name : null,
-    "user.name": viewer.authenticated
-      ? viewer.display_name || viewer.name
-      : null,
+    "user.name": viewer.authenticated ? viewer.name : null,
     "team.points":
       assigned && points !== null && Number.isFinite(points) ? points : null,
   };

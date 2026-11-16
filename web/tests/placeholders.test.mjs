@@ -355,9 +355,10 @@ test("sanitized SVG anchors use href despite their lowercase tagName", () => {
   }
 });
 
-test("preferred display name fills user.name without changing login or guest privacy", () => {
+test("a preferred display name preserves login-based placeholders and guest privacy", () => {
  const preferred={...viewer,display_name:"Alice Example"};
- assert.equal(participantPlaceholderContext(preferred,0)["user.name"],"Alice Example");
+ assert.equal(participantPlaceholderContext(preferred,0)["user.name"],"Alice");
+ assert.equal(resolvePlaceholderText("lab-{{user.name}}",participantPlaceholderContext(preferred,0)),"lab-Alice");
  assert.equal(preferred.name,"Alice");
  assert.equal(participantPlaceholderContext({...preferred,authenticated:false},0)["user.name"],null);
  assert.equal(participantPlaceholderContext({...preferred,display_name:""},0)["user.name"],"Alice");
