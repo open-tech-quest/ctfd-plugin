@@ -10,6 +10,7 @@ import { RegistrationControls } from "./registration";
 import { AttendanceWindowControls } from "./attendance-window";
 import { RoomManagement } from "./room-management";
 import { Users } from "./users";
+import { TeamLocations } from "./team-locations";
 import type { Viewer } from "./types";
 import type {
   AdminState,
@@ -170,12 +171,15 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
         ) : tab === "Rooms" ? (
           <RoomManagement viewer={viewer} />
         ) : tab === "Teams" ? (
-          <Attendance
-            data={data}
-            busy={busy}
-            mutate={mutate}
-            onRefresh={resource.refresh}
-          />
+          <>
+            <TeamLocations onChanged={resource.refresh} />
+            <Attendance
+              data={data}
+              busy={busy}
+              mutate={mutate}
+              onRefresh={resource.refresh}
+            />
+          </>
         ) : tab === "Users" ? (
           <Users onChanged={resource.refresh} />
         ) : tab === "Awards" ? (

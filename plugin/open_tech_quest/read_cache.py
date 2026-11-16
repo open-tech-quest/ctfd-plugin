@@ -23,6 +23,7 @@ _CONTENT = {"quest_rooms", "quest_steps", "challenges", "flags", "hints", "files
             "solutions", "tags", "challenge_tags", "topics", "challenge_topics",
             "quest_challenge_sources", "quest_assets"}
 _ROSTER = {"users", "teams", "quest_maintainers", "quest_onboarding", "quest_readiness", "quest_team_names"}
+_ROSTER.update({'quest_venue_rooms', 'quest_team_locations'})
 _HISTORY = {"submissions", "solves", "quest_recovery_solves", "quest_starts", "quest_corrections", "awards", "unlocks", "quest_hint_purchases", "quest_price_changes"}
 _ACTIVITY = {"submissions", "solves", "quest_recovery_solves", "awards", "unlocks", "ratings"}
 

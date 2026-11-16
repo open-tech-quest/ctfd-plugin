@@ -261,7 +261,16 @@ export function ParticipantPreview({
     ? {
         ...staffData,
         rooms: state.rooms.map((room) => previewRoomView(room, score!)),
-        viewer: { ...staffData.viewer, team_name: "Example team" },
+        viewer: {
+          ...staffData.viewer,
+          team_name: "Example team",
+          team_location: {
+            venue_room_id: 0,
+            room_name: "Example venue",
+            table_number: 1,
+            label: "Example venue · Table 1",
+          },
+        },
         revisions: {
           ...staffData.revisions,
           progress: JSON.stringify(

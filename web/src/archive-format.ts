@@ -286,6 +286,57 @@ function validateDocument(
     "timeline",
   ])
     validateRecordArray(data, key);
+  if (data.venue_rooms !== undefined || data.team_locations !== undefined) {
+    const rooms = new Map<number, ArchiveRecord>();
+    for (const row of validateRecordArray(data, "venue_rooms")) {
+      boundedInteger(row.id, "venue room identifier", 1);
+      boundedInteger(row.position, "venue room position");
+      boundedInteger(row.table_count, "venue table count", 1);
+      if (
+        rooms.has(row.id as number) ||
+        typeof row.name !== "string" ||
+        !row.name.trim() ||
+        row.name.length > 128 ||
+        (row.table_count as number) > 500 ||
+        !Array.isArray(row.unavailable_tables)
+      )
+        invalid("The archive venue layout is invalid.");
+      const unavailable = row.unavailable_tables as ArchiveValue[];
+      if (
+        unavailable.some(
+          (n) =>
+            typeof n !== "number" ||
+            !Number.isInteger(n) ||
+            n < 1 ||
+            n > (row.table_count as number),
+        ) ||
+        new Set(unavailable).size !== unavailable.length
+      )
+        invalid("The archive unavailable tables are invalid.");
+      rooms.set(row.id as number, row);
+    }
+    const teams = new Set<number>(),
+      tables = new Set<string>();
+    for (const row of validateRecordArray(data, "team_locations")) {
+      boundedInteger(row.team_id, "located team identifier", 1);
+      boundedInteger(row.venue_room_id, "assigned venue room identifier", 1);
+      boundedInteger(row.table_number, "assigned table number", 1);
+      const room = rooms.get(row.venue_room_id as number),
+        table = `${row.venue_room_id}:${row.table_number}`;
+      if (
+        !room ||
+        (row.table_number as number) > (room.table_count as number) ||
+        (room.unavailable_tables as ArchiveValue[]).includes(
+          row.table_number!,
+        ) ||
+        teams.has(row.team_id as number) ||
+        tables.has(table)
+      )
+        invalid("The archive team locations conflict with its venue layout.");
+      teams.add(row.team_id as number);
+      tables.add(table);
+    }
+  }
   if (data.room_pauses !== undefined) {
     const ids = new Set<number>();
     for (const row of validateRecordArray(data, "room_pauses")) {

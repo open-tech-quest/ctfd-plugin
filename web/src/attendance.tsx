@@ -885,6 +885,7 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
       <summary>
         <span className="attendance-team-name">
           {team.name}
+          <small>{team.location?.label || "Location not assigned yet"}</small>
           <small>
             {team.excluded
               ? "Excluded from awards"

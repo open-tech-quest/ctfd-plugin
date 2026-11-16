@@ -186,3 +186,10 @@ provisioning or cutover time. Full failure recovery remains an operator procedur
 inspect the external job/recovery journal and safety snapshot, qualify the target,
 complete/repair the replacement while fenced, and remove the marker only after
 verification. Never simply resume Argo and clear the marker after a failed restore.
+
+Venue locations use schema **`quest_0014`**, adding physical venue-room and team-
+assignment tables. The upgrade from `quest_0013` is additive and keeps existing
+accounts, content and progress; no locations are generated. Full captures include
+both tables. Older-schema backups require operator recovery into their matching
+software/schema followed by the normal upgrade, or a separately tested migration;
+the automatic full-replacement UI must not treat matching CTFd alone as compatible.

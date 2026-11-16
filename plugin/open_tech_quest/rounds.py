@@ -17,6 +17,7 @@ from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrecti
                      QuestDemoBatch, QuestDemoChallenge, QuestRoom, QuestStep,
                      QuestReadiness, QuestStart, QuestTeamName)
 from .recovery_models import QuestRecoverySolve
+from .location_models import QuestTeamLocation, QuestVenueRoom
 from .service import iso, now
 
 ARCHIVE_ACTION = 'event.archive'
@@ -53,6 +54,7 @@ def save_archive(e, source, actor_id, kind='snapshot'):
 # not silently become supported just because they share SQLAlchemy metadata.
 KNOWN_TABLES = set("awards brackets challenge_topics challenges comments config dynamic_challenge field_entries fields files flags hints notifications pages ratings solutions solves submissions tags teams tokens topics tracking unlocks users quest_events quest_rooms quest_steps quest_starts quest_pauses quest_exclusions quest_corrections quest_audit quest_demo_batches quest_demo_challenges quest_onboarding quest_readiness quest_team_names quest_maintainers quest_read_versions quest_hint_purchases quest_recovery_solves".split())
 KNOWN_TABLES.update({"quest_assets", "quest_challenge_sources", "quest_room_pauses", "quest_price_changes"})
+KNOWN_TABLES.update({'quest_team_locations', 'quest_venue_rooms'})
 
 
 def unsupported_dependents(mode):
@@ -63,7 +65,7 @@ def unsupported_dependents(mode):
                'quest_hint_purchases', 'quest_price_changes', 'quest_recovery_solves', 'ratings',
                'comments', 'field_entries', 'notifications', 'tokens', 'tracking', 'quest_audit'}
     if mode == 'defaults':
-        parents.update({'challenges', 'dynamic_challenge', 'flags', 'hints', 'solutions',
+        parents.update({'quest_venue_rooms', 'challenges', 'dynamic_challenge', 'flags', 'hints', 'solutions',
                         'files', 'tags', 'challenge_topics', 'quest_rooms', 'quest_steps',
                         'quest_demo_batches', 'quest_demo_challenges'})
     references = {name: {fk['referred_table'] for fk in inspector.get_foreign_keys(name)}
@@ -104,6 +106,7 @@ def reset_preview(e, source=None, mode='new_round', actor_id=None):
     reason = reset_reason(e, mode)
     counts = {name: model.query.count() for name, model in (
         ('teams', Teams), ('accounts', Users), ('challenges', Challenges), ('rooms', QuestRoom),
+        ('team_locations', QuestTeamLocation), ('venue_rooms', QuestVenueRoom),
         ('submissions', Submissions), ('solves', Solves), ('room_starts', QuestStart),
         ('hint_purchases', QuestHintPurchase), ('unlocks', Unlocks), ('awards', Awards),
         ('price_changes', QuestPriceChange),
@@ -122,9 +125,10 @@ def reset_preview(e, source=None, mode='new_round', actor_id=None):
                           'Event name, clock policies, team capacity and naming preference',
                           'Native hosting settings, pages and non-challenge assets',
                           'Saved event archives'] + (
+                              ['Venue rooms, table counts and unavailable tables'] if mode == 'new_round' else []) + (
                               ['Rooms, challenge order, flags, hints and challenge uploads'] if mode == 'new_round' else []),
             'removed': ['Every other account, including other administrators and maintainers',
-                        'Teams, memberships, names, notes and custom field values; new team numbers start at 1',
+                        'Teams, locations, memberships, names, notes and custom field values; new team numbers start at 1',
                         'Attendance and all competition attempts, solves and room starts',
                         'Hint purchases, unlocks, awards, ratings and round notifications',
                         'Pauses, corrections, exclusions and current-round audit entries',
@@ -158,6 +162,7 @@ def reset_round(e, data, actor_id):
     archive_id = row.id
     user_ids = [uid for (uid,) in db.session.query(Users.id)]
     team_ids = [tid for (tid,) in db.session.query(Teams.id)]
+    db.session.execute(QuestTeamLocation.__table__.delete())
     for model in (QuestPriceChange, QuestHintPurchase, QuestRecoverySolve):
         db.session.execute(model.__table__.delete())
     db.session.execute(Solves.__table__.delete())
@@ -186,6 +191,7 @@ def reset_round(e, data, actor_id):
     QuestMaintainer.query.delete(synchronize_session=False)
     Users.query.filter(Users.id != actor_id).delete(synchronize_session=False)
     if mode == 'defaults':
+        db.session.execute(QuestVenueRoom.__table__.delete())
         from .defaults import default_rooms
         from CTFd.plugins.dynamic_challenges import DynamicChallenge
         # Foreign keys are explicit so behavior is identical with SQLite's

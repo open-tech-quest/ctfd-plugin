@@ -126,8 +126,9 @@ derives effective earned points/deductions, including recovery and reinstated
 contributions. The journal invalidates shared history/progress reads; combining
 native/recovery contributions keeps the existing bounded SQL statement budget.
 Round reset archives and clears the journal. Reports retain cutovers, original and
-effective costs and credited points. Backup compatibility now requires `quest_0013`;
-older schema captures require operator recovery, not automatic UI replacement.
+effective costs and credited points. Price cohorts introduced schema `quest_0013`; current backup compatibility also
+includes the venue migration described below. Older schema captures require
+operator recovery, not automatic UI replacement.
 Progressive reveal uses native
 hint IDs/unlocks, without new persistence. Native
 hint reads and purchases enforce earlier redemptions; challenge-detail responses
@@ -206,3 +207,14 @@ operators pin an image version/digest in their infrastructure repository.
 Commit finished units and review risky paths independently. Keep production
 verification read-only; user/flag/roster mutations belong in isolated fixtures.
 Never commit real flags, participant exports, session state or credentials.
+
+Physical team locations live in `location_models.py` / `locations.py`, with
+additive migration `0014_locations`. One native team has at most one assignment;
+a database unique constraint prevents sharing a venue-room/table pair. All writes
+serialize on the event lock and check fresh admin authority and revision. Preview
+includes existing assignments, active teams, layout and round epoch; applying
+recomputes rather than trusting client-supplied placements. Table swaps delete/
+flush/reinsert within one transaction to avoid transient uniqueness conflicts.
+Locations belong to teams, not user profile fields. The existing roster generation
+invalidates participant reads on room/assignment changes, and the existing heartbeat
+supplies location alongside Team number. No extra participant polling is added.

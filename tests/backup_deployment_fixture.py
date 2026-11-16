@@ -152,11 +152,14 @@ from CTFd import create_app
 from CTFd.models import Users,Teams,Challenges,Flags,Hints,Solves,Fails,HintUnlocks,Awards,ChallengeFiles,db
 from CTFd.utils import set_config
 from CTFd.plugins.open_tech_quest.models import QuestMaintainer,QuestEvent,QuestRoom,QuestStart,QuestHintPurchase,QuestOnboarding
+from CTFd.plugins.open_tech_quest.location_models import QuestVenueRoom,QuestTeamLocation
 from CTFd.plugins.open_tech_quest.room_topology import set_challenge_order
 data=json.load(sys.stdin);app=create_app()
 with app.app_context():
  for key,value in [('setup',True),('ctf_name','Disposable restore fixture'),('user_mode','teams'),('verify_emails',False),('challenge_visibility','public'),('account_visibility','public')]:set_config(key,value)
  team=Teams(id=1,name='Original team');db.session.add(team);db.session.flush()
+ venue=QuestVenueRoom(name='Original venue',position=0,table_count=12,unavailable_tables=[3]);db.session.add(venue);db.session.flush()
+ db.session.add(QuestTeamLocation(team_id=1,venue_room_id=venue.id,table_number=7))
  db.session.add_all([Users(id=1,name='fixture-admin',email='admin@example.test',type='admin',password=data['admin'],verified=True),Users(id=2,name='fixture-maintainer',email='maintainer@example.test',password=data['participant'],verified=True),Users(id=3,name='fixture-player',email='player@example.test',password=data['participant'],team_id=1,verified=True)])
  db.session.flush();db.session.add(QuestMaintainer(user_id=2,previous_hidden=False))
  for cid in (1,2):

@@ -192,8 +192,9 @@ def participant(user, e):
                     and state.allow_team_naming and e.status == "draft")
     roster = None
     if team:
+        from .locations import location
         readiness = {r.user_id: r for r in QuestReadiness.query.filter(QuestReadiness.user_id.in_([u.id for u in team.members])).all()}
-        roster = {"id": team.id, "name": team.name, "name_locked": not can_name,
+        roster = {"id": team.id, "name": team.name, "name_locked": not can_name, "location": location(team.id),
                   "members": [{"id": u.id, "name": u.name, "ready_at": iso(readiness[u.id].ready_at) if u.id in readiness else None} for u in sorted(team.members, key=lambda u: u.id)]}
     return {"phase": state.phase, "team_size": state.team_size, "allow_team_naming": bool(state.allow_team_naming),
             "require_attendance": required,

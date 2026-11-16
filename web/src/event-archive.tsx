@@ -987,6 +987,12 @@ function ArchiveContents({ document }: { document: ArchiveDocument }) {
               return (
                 <article className="archive-detail">
                   <h3>{archiveText(row.name)}</h3>
+                  {isRecord(row.location) && (
+                    <p>
+                      Location at export:{" "}
+                      <strong>{archiveText(row.location.label)}</strong>
+                    </p>
+                  )}
                   <p>
                     {result
                       ? `${result.total} solved${results.scoring_version === 2 ? ` · ${result.points} net points` : ""} · ${rankingDuration(result.overall_elapsed_ms)} active time`

@@ -100,6 +100,12 @@ def _audit_detail(action, raw):
         result["enabled"] = raw["enabled"]
     if action == "standings.configure":
         result.update(_flat(raw, {"room_comparison", "overall_comparison"}))
+    if action.startswith('locations.'):
+        result.update(_flat(raw, {'team_id', 'other_team_id', 'venue_room_id', 'table_number', 'strategy', 'room_count', 'reassign_existing'}))
+        if isinstance(raw.get('team_ids'), list):
+            result['team_ids'] = [tid for tid in raw['team_ids'] if type(tid) is int]
+        if isinstance(raw.get('previous'), dict):
+            result['previous'] = _flat(raw['previous'], {'venue_room_id', 'table_number'})
     for key in _LISTS:
         if isinstance(raw.get(key), list):
             result[key] = [item for item in raw[key] if type(item) is int or (key == "fields" and isinstance(item, str))]
@@ -167,6 +173,9 @@ def collect_event(e):
     scoring_credits/attempt.credited describe the current source projection.
     Excluding an entire team from prizes does not erase its solve evidence.
     """
+    from .location_models import QuestVenueRoom, QuestTeamLocation
+    from .locations import location_map
+    team_locations = location_map()
     users = db.session.query(Users.id, Users.name, Users.team_id, Users.type, Users.hidden,
                              Users.banned, Users.verified, Users.created).order_by(Users.id).all()
     grants = {row.user_id: row for row in QuestMaintainer.query.all()}
@@ -230,13 +239,15 @@ def collect_event(e):
                           "role": "administrator" if user.type == "admin" else "maintainer" if user.id in grants else "participant",
                           "maintainer_granted_at": timestamp(grants[user.id].granted_at) if user.id in grants else None}
                          for user in users],
-        "teams": [{**_row(team, "id name captain_id hidden banned created"),
+        "teams": [{**_row(team, "id name captain_id hidden banned created"), "location": team_locations.get(team.id),
                    "members": sorted(user.id for user in users if user.team_id == team.id)}
                   for team in db.session.query(Teams.id, Teams.name, Teams.captain_id, Teams.hidden,
                                                Teams.banned, Teams.created).order_by(Teams.id).all()],
         "onboarding": {**_row(state, "phase team_size applied_at finalized_at grandfathered attendance_open attendance_generation attendance_opened_at attendance_closed_at allow_team_naming"),
                        "require_attendance": onboarding.require_attendance()} if state else None,
         "registration": registration.status(),
+        "venue_rooms": [_row(row, 'id name position table_count unavailable_tables') for row in QuestVenueRoom.query.order_by(QuestVenueRoom.position, QuestVenueRoom.id)],
+        "team_locations": [_row(row, 'team_id venue_room_id table_number') for row in QuestTeamLocation.query.order_by(QuestTeamLocation.team_id)],
         "standings_visibility": standings_access.settings(),
         "readiness": [_row(row, "user_id ready_at late") for row in QuestReadiness.query.order_by(QuestReadiness.user_id).all()],
         "naming": [_row(row, "team_id claimed_by claimed_at name_locked auto_named") for row in QuestTeamName.query.order_by(QuestTeamName.team_id).all()],

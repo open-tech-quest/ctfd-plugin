@@ -12,7 +12,14 @@ export interface QuestEvent {
   results_published: boolean;
 }
 export type UserRole = "guest" | "participant" | "maintainer" | "administrator";
+export interface TeamLocation {
+  venue_room_id: number;
+  room_name: string;
+  table_number: number;
+  label: string;
+}
 export interface Viewer {
+  team_location?: TeamLocation | null;
   role: UserRole;
   can_manage_rooms: boolean;
   can_manage_users: boolean;
@@ -162,6 +169,7 @@ export interface Projector {
   };
 }
 export interface Team {
+  location?: TeamLocation | null;
   hidden: boolean;
   banned: boolean;
   id: number;
@@ -254,6 +262,7 @@ export interface Onboarding {
   late: boolean;
   roster_released: boolean;
   team: {
+    location?: TeamLocation | null;
     id: number;
     name: string;
     name_locked: boolean;

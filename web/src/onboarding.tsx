@@ -177,7 +177,7 @@ function PersonalOnboarding({
                   : "Your team"}
               </span>
               <h3>{team.name}</h3>
-              <TeamNumber number={team.id} />
+              <TeamNumber number={team.id} location={team.location} />
             </div>
             {attendanceRequired && (
               <span className="meta">

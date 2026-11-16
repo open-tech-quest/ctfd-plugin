@@ -158,8 +158,10 @@ def viewer():
     show = administrator or released()
     team = Teams.query.get(user.team_id) if user.team_id and show else None
     from .display_names import name as display_name
+    from .locations import location
     return {"authenticated": True, "id": user.id, "name": user.name, "display_name": display_name(user),
-            "team_id": user.team_id if show else None, "team_name": team.name if team else None, "admin": administrator,
+            "team_id": user.team_id if show else None, "team_name": team.name if team else None,
+            "team_location": location(team.id) if team else None, "admin": administrator,
             "role": roles.role(user), "can_manage_rooms": roles.can_manage_rooms(user),
             "can_manage_users": bool(administrator and not user.banned)}
 
@@ -337,9 +339,11 @@ def projector_view():
     return success(projector.serialize(event().projector, now()))
 
 
-def team_data(team, readiness=None, name_locks=None):
+def team_data(team, readiness=None, name_locks=None, team_locations=None):
+    from .locations import location
     readiness = readiness if readiness is not None else {row.user_id: row for row in QuestReadiness.query.filter(QuestReadiness.user_id.in_([u.id for u in team.members])).all()}
     return {"id": team.id, "name": team.name, "user_ids": [u.id for u in team.members],
+            "location": team_locations.get(team.id) if team_locations is not None else location(team.id),
             "hidden": bool(team.hidden), "banned": bool(team.banned),
             "excluded": QuestExclusion.query.get(team.id) is not None,
             "name_locked": team.id in name_locks if name_locks is not None else onboarding.is_locked(team.id),
@@ -349,13 +353,15 @@ def team_data(team, readiness=None, name_locks=None):
 @api.route("/admin/state")
 @admin
 def admin_state():
+    from .locations import location_map
+    team_locations = location_map()
     mapped = {s.challenge_id: s.room_id for s in QuestStep.query.all()}
     room_slugs = {r.id: r.slug for r in QuestRoom.query.all()}
     readiness = {row.user_id: row for row in QuestReadiness.query.all()}
     name_locks = {row.team_id for row in QuestTeamName.query.filter_by(name_locked=True).all()}
     return success({"event": event_data(), "rooms": current_rooms(),
                     "available_challenges": [{"id": c.id, "name": c.name, "state": c.state, "room_slug": room_slugs.get(mapped.get(c.id))} for c in Challenges.query.order_by(Challenges.id).all()],
-                    "teams": [team_data(t, readiness, name_locks) for t in Teams.query.order_by(Teams.id).all()],
+                    "teams": [team_data(t, readiness, name_locks, team_locations) for t in Teams.query.order_by(Teams.id).all()],
                     "participants": [{"id": u.id, "name": u.name, "email": u.email, "team_id": u.team_id,
                                       "ready_at": iso(readiness[u.id].ready_at) if u.id in readiness else None,
                                       "late": bool(u.id in readiness and readiness[u.id].late),

@@ -157,3 +157,48 @@ Registration-only allocation requires signup closed. It has a separate
 Initial legacy-event migration preserves existing active rosters/clocks and locks
 their names. The naming migration preserves already-applied optional-name flows;
 startup never renumbers teams, reshuffles users or resets attendance policy.
+
+## Venue rooms and team locations
+
+**Organize → Teams → Manage locations** configures physical venue rooms, separate
+from the challenge rooms. Enter each venue name and table count; tables run from
+1 within each room. Mark unavailable tables by number and order the rooms for
+fill-first distribution. One table holds one whole team. Table numbers are
+independent of the native team numbers used in description placeholders.
+
+The venue layout remains editable throughout Draft, including after roster
+finalization. Before removing an occupied room/table, reducing capacity below an
+assigned table or marking it unavailable, move or clear the affected assignments.
+Room renames update the displayed location without moving anyone.
+
+Assign a room/table manually or preview automatic distribution. **Spread across
+rooms** balances team counts within room capacity; **Fill rooms in order** fills
+the first room before the next. By default, both preserve existing assignments and fill only
+unassigned, occupied, eligible participant teams. Applying checks the current
+review again, rejects a table shortage and never double-books. Occupied tables
+require an explicit swap between two assigned teams. Repeated previews are stable;
+repeating a default distribution makes no moves unless new teams need locations.
+
+For a different Draft seating plan, explicitly select **Reassign existing
+locations**. Its preview includes current/manual placements and their proposed
+destinations; applying replaces active participant-team assignments atomically.
+Other occupied tables remain reserved. The default continues to fill only
+unassigned teams. Confirmation is bound to the current layout, teams, strategy,
+scope and round; changing any requires another preview. Full redistribution is
+Draft-only, including after roster finalization. Individual moves and placement
+of new teams remain available during play.
+
+Only administrators can write locations, through manual assignment or reviewed
+distribution. Participants see their own saved team location wherever Team number
+appears: the dashboard, pre-event team details and room view. Assignment follows
+roster release; other teams' locations are not exposed. An unassigned team sees
+**Location: Not assigned yet**. Renaming/moving participants does not move a team's
+table; a participant moved to another team sees that destination team's location.
+Location writes refresh through the existing sync heartbeat, without new polling.
+
+Assignments can also be changed in Live or Paused, without altering memberships,
+points or clocks. Closed/Published are read-only. Location assignment is separate
+from formation/finalization and never silently distributes or reshuffles teams.
+Starting another round clears assignments and retains the venue layout; Restore
+defaults clears both. JSON reports retain the original layout/locations, while
+full backups restore their database state.

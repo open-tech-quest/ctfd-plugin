@@ -175,3 +175,9 @@ readiness/names. Both directions and unassignment are exercised, with late
 admission respecting the configured policy. MariaDB tests serialize moves and
 name saves against Start and concurrent destination claims. Disposable UI checks
 exercise the same forms at desktop and mobile sizes.
+
+Venue-location checks cover administrator-only writes, CSRF, own-team visibility,
+roster-release privacy, stable spread/fill plans, insufficient capacity, unavailable
+tables, stale reviews, concurrent assignment, atomic swaps, repeated Draft edits,
+live logistics changes, roster moves/renaming and archive/reset preservation.
+The full replacement fixture also restores a populated venue/table assignment.

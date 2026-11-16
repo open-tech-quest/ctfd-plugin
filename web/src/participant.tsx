@@ -134,17 +134,19 @@ export function Lobby({
           </span>
           <h2>{data.viewer.team_name || "Own account. Shared progress."}</h2>
           <TeamNumber
+            location={data.viewer.team_location}
             number={
               participantPlaceholderContext(data.viewer, null, mode.preview)[
                 "team.number"
               ]
             }
           />
-          <p>
-            {data.viewer.team_name
-              ? "Teammates can work in different rooms at the same time. Every solve moves your team forward."
-              : "Everyone signs in on their own device. Your team shares room starts, challenge progress and results."}
-          </p>
+          {!data.viewer.team_name && (
+            <p>
+              Everyone signs in on their own device. Your team shares room
+              starts, challenge progress and results.
+            </p>
+          )}
           {data.viewer.team_name && (
             <>
               <div className="summary-value">
@@ -163,6 +165,13 @@ export function Lobby({
             receivedAt={mode.preview ? null : receivedAt}
             event={shownEvent}
           />
+          {data.viewer.team_name && (
+            <p className="team-work-note">
+              Work together at your assigned table. In the app, teammates can
+              tackle different challenge rooms at the same time. Points and
+              progress are shared.
+            </p>
+          )}
         </div>
       </section>
       {!mode.preview && (
@@ -495,7 +504,10 @@ export function RoomPage({
             </>
             <strong>{data.viewer.team_name || "Shared team progress"}</strong>
             {(mode.preview || data.viewer.role === "participant") && (
-              <TeamNumber number={bodyPlaceholders["team.number"]} />
+              <TeamNumber
+                number={bodyPlaceholders["team.number"]}
+                location={data.viewer.team_location}
+              />
             )}
             <span>
               {room.progress.credited_solved} of {room.progress.total} solved

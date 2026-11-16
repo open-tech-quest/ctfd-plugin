@@ -4635,3 +4635,246 @@ body:has(.participant-attendance-bar) {
 .backup-current-schemas {
   overflow-wrap: anywhere;
 }
+
+.team-identity {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 14px;
+}
+.team-identity .team-number {
+  margin: 0;
+}
+.team-location {
+  overflow-wrap: anywhere;
+}
+.team-location strong {
+  color: var(--ink);
+}
+.venue-workspace {
+  margin-bottom: 28px;
+}
+.venue-heading,
+.venue-section-heading,
+.venue-strategy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.venue-heading h2 {
+  margin: 0 0 8px;
+}
+.venue-heading p {
+  color: var(--muted);
+  margin: 0;
+  max-width: 64ch;
+}
+#venue-workspace {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+.venue-section-heading h3 {
+  margin: 0;
+}
+.venue-room-row {
+  display: grid;
+  grid-template-columns:
+    minmax(180px, 2fr) minmax(80px, 0.65fr) minmax(120px, 1fr)
+    auto;
+  gap: 16px;
+  align-items: end;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+.venue-room-row label,
+.venue-strategy label {
+  margin: 0;
+}
+.venue-room-row .actions {
+  margin: 0;
+}
+.venue-room-row input,
+.venue-strategy select {
+  width: 100%;
+}
+.venue-distribution {
+  border-block: 1px solid var(--line);
+  padding-block: 16px 24px;
+  margin-block: 28px;
+}
+.venue-strategy {
+  justify-content: start;
+  align-items: end;
+}
+.venue-strategy label {
+  min-width: min(100%, 280px);
+}
+.venue-room-summary {
+  list-style: none;
+  margin: 16px 0;
+  padding: 0;
+}
+.venue-room-summary li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.venue-room-summary strong {
+  overflow-wrap: anywhere;
+}
+.venue-room-summary span {
+  color: var(--muted);
+}
+.venue-assignments th small {
+  display: block;
+  font-weight: normal;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.venue-assignments td {
+  overflow-wrap: anywhere;
+}
+.venue-plan {
+  border-left: 3px solid var(--cyan);
+  padding-left: 20px;
+  margin-top: 20px;
+}
+.venue-plan table {
+  margin-bottom: 20px;
+}
+@media (max-width: 1000px) {
+  .venue-room-row {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+  .venue-room-row .actions {
+    justify-content: end;
+  }
+}
+@media (max-width: 560px) {
+  .venue-heading {
+    align-items: start;
+  }
+  .venue-room-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .venue-room-row .actions {
+    justify-content: start;
+  }
+  .venue-plan {
+    padding-left: 12px;
+  }
+  .venue-strategy {
+    align-items: stretch;
+  }
+  .venue-strategy label {
+    width: 100%;
+  }
+  .venue-assignments th,
+  .venue-assignments td {
+    padding-inline: 8px;
+  }
+}
+.venue-workspace .table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.venue-workspace table {
+  width: 100%;
+}
+.venue-swap {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+}
+.venue-swap input {
+  width: auto;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.venue-workspace table {
+  border-collapse: collapse;
+  text-align: left;
+}
+.venue-workspace th,
+.venue-workspace td {
+  text-align: left;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.venue-workspace thead th {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+.venue-assignments td:last-child {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
+.venue-plan .table-scroll {
+  max-height: 360px;
+  overflow: auto;
+  margin-bottom: 16px;
+}
+.venue-plan thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+.venue-team-search {
+  display: block;
+  max-width: 440px;
+  margin-block: 20px;
+}
+.venue-team-search input {
+  width: 100%;
+}
+@media (max-width: 560px) {
+  .venue-workspace th,
+  .venue-workspace td {
+    padding: 12px 8px;
+  }
+}
+.team-summary > .team-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 16px 0 20px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+.team-summary > .team-identity .team-number {
+  font-size: inherit;
+}
+.team-summary > .team-identity strong {
+  font-weight: 600;
+}
+.team-summary > .team-identity + p {
+  margin-top: 0;
+}
+.own-team-heading .team-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+.team-summary .team-work-note {
+  margin: 24px 0 0;
+  font-size: 14px;
+  line-height: 1.65;
+  max-width: 64ch;
+}

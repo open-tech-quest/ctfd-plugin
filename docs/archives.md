@@ -90,3 +90,8 @@ backups when rollback is required. An operator's full baseline restore also
 removes server archives created after that baseline: download them first. See
 [recovery choices when live differs](deployment.md#recover-a-changed-event) and
 [rehearsal reset](rehearsal.md#reset-and-repeat).
+
+New reports also include optional `venue_rooms` and `team_locations` collections,
+and each team retains its display location at export. Older reports without these
+fields remain readable. Another round preserves venue inventory and clears its
+assignments; Restore defaults removes both after archiving them.

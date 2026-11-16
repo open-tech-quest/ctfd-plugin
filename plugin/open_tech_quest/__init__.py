@@ -8,6 +8,7 @@ from CTFd.plugins.migrations import upgrade
 from CTFd.utils import get_config, set_config
 from .models import QuestEvent, QuestRoom
 from .recovery_models import QuestRecoverySolve
+from .location_models import QuestVenueRoom, QuestTeamLocation
 
 
 def load(app):
@@ -49,6 +50,8 @@ def load(app):
 
     app.register_blueprint(shell)
     app.register_blueprint(api, url_prefix="/api/v1/quest")
+    from .locations import locations_api
+    app.register_blueprint(locations_api, url_prefix="/api/v1/quest")
     from .backups import backups_api
     app.register_blueprint(backups_api, url_prefix="/api/v1/quest")
     from .authoring import authoring_api

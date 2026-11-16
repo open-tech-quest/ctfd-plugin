@@ -465,3 +465,31 @@ test("history presentation separates purchase evidence from effective deductions
   assert.equal(archivePriceTarget({...priceChange(),kind:"hint",hint_id:4},{name:"Shell puzzle"},{title:"Locate the file"}),"Shell puzzle · Locate the file cost");
   assert.equal(archivePriceTarget({...priceChange(),kind:"hint",hint_id:4}),"Challenge 1 · Hint 4 cost");
 });
+
+test("venue locations remain optional and new reports preserve the recorded team table", async () => {
+  const legacy = await parseEventArchive(JSON.stringify(sign(fixture())));
+  assert.equal(legacy.data.venue_rooms, undefined);
+  const current = fixture();
+  current.data.venue_rooms = [{id: 7, name: "Synthetic auditorium", position: 0, table_count: 10, unavailable_tables: [3]}];
+  current.data.team_locations = [{team_id: 1, venue_room_id: 7, table_number: 2}];
+  current.data.teams[0].location = {venue_room_id: 7, room_name: "Synthetic auditorium", table_number: 2, label: "Synthetic auditorium · Table 2"};
+  const parsed = await parseEventArchive(JSON.stringify(sign(current)));
+  assert.deepEqual(parsed.data.team_locations.map(row => [row.team_id, row.venue_room_id, row.table_number]), [[1, 7, 2]]);
+  assert.equal(parsed.data.teams[0].location.label, "Synthetic auditorium · Table 2");
+  current.data.venue_rooms = []; current.data.team_locations = []; delete current.data.teams[0].location;
+  assert.deepEqual((await parseEventArchive(JSON.stringify(sign(current)))).data.team_locations, []);
+});
+
+test("archive venue validation rejects missing rooms, unavailable tables and duplicate assignments", async () => {
+  for (const assignments of [
+    [{team_id: 1, venue_room_id: 99, table_number: 2}],
+    [{team_id: 1, venue_room_id: 7, table_number: 3}],
+    [{team_id: 1, venue_room_id: 7, table_number: 2}, {team_id: 1, venue_room_id: 7, table_number: 4}],
+    [{team_id: 1, venue_room_id: 7, table_number: 2}, {team_id: 2, venue_room_id: 7, table_number: 2}],
+  ]) {
+    const current = fixture();
+    current.data.venue_rooms = [{id: 7, name: "Synthetic auditorium", position: 0, table_count: 10, unavailable_tables: [3]}];
+    current.data.team_locations = assignments;
+    await assert.rejects(parseEventArchive(JSON.stringify(sign(current))), /venue|location|table/i);
+  }
+});
