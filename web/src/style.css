@@ -1032,14 +1032,13 @@ svg {
   scrollbar-color: #aaaab3 #ececf0;
   list-style: none;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 8px;
 }
 .step-path > li {
-  flex: 0 0 auto;
-  width: max-content;
-  min-width: min(160px, 100%);
-  max-width: min(288px, 100%);
+  display: flex;
+  flex: 0 0 min(288px, 100%);
+  min-width: 0;
   border-top: 3px solid #d4d4dc;
   background: #ececf0;
 }
@@ -1052,7 +1051,7 @@ svg {
   background: none;
   padding: 14px 16px;
   width: 100%;
-  height: 100%;
+  height: auto;
   min-height: 80px;
   opacity: 1;
 }
@@ -1075,11 +1074,14 @@ svg {
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+  flex: 1;
+  align-self: stretch;
 }
 .step-label > small {
   font-size: 12px;
 }
 .step-points {
+  margin-top: auto;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
