@@ -94,7 +94,15 @@ export interface RoomPause {
 export interface RegistrationState {
   enabled: boolean;
 }
+export interface ComparisonVisibility {
+  room_comparison: boolean;
+  overall_comparison: boolean;
+}
+export interface StandingsAccess extends ComparisonVisibility {
+  projector: boolean;
+}
 export interface QuestSync {
+  standings_access?: StandingsAccess;
   csrfNonce: string | null;
   registration: RegistrationState;
   event: QuestEvent;
@@ -126,6 +134,7 @@ export interface StandingTeam extends Partial<Score> {
   room_progress: RoomProgress[];
 }
 export interface Standings {
+  access?: StandingsAccess;
   scoring_version?: number;
   event: QuestEvent;
   event_clock?: CompetitionClock;
@@ -172,6 +181,7 @@ export interface Participant {
   banned: boolean;
 }
 export interface AdminState {
+  standings_visibility: ComparisonVisibility;
   registration: RegistrationState;
   onboarding: AttendanceState;
   demo: DemoContentState;

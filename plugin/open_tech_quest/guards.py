@@ -7,7 +7,7 @@ from CTFd.utils.user import is_admin
 from CTFd.utils.security.signing import unserialize, BadSignature, BadTimeSignature, SignatureExpired
 from .models import QuestStep, QuestStart, QuestAudit
 from .service import event, now, participant_steps, released, solve_map
-from . import onboarding, registration, lifecycle
+from . import onboarding, registration, lifecycle, standings_access
 from .lifecycle import current_user as get_current_user
 
 
@@ -168,10 +168,10 @@ def install_guards(app):
                     if target_hint and QuestStep.query.filter_by(challenge_id=target_hint.challenge_id).first():
                         return denied("Use organizer preview to read event hints without a purchase")
             if write and (path.startswith("/api/v1/configs") or path.startswith("/admin/plugins/")):
-                controlled = {"user_mode", "start", "end", "paused", registration.KEY}
+                controlled = {"user_mode", "start", "end", "paused", registration.KEY, standings_access.KEY}
                 names = [path.rsplit("/", 1)[-1], *data.keys(), data.get("key")]
                 if controlled_config_write(names, controlled):
-                    return denied("Manage team mode, event clocks and public registration through Open Tech Quest organizer controls", 409)
+                    return denied("Manage team mode, event clocks, registration and standings visibility through Open Tech Quest organizer controls", 409)
             if match and write:
                 mapped = QuestStep.query.filter_by(challenge_id=int(match[1])).first()
                 if mapped:

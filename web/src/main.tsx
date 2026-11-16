@@ -47,7 +47,10 @@ function App() {
       onChanged={bootstrap.refresh}
     >
       {stage ? (
-        <Stage viewer={bootstrap.live?.viewer} />
+        <Stage
+          viewer={bootstrap.live?.viewer}
+          access={bootstrap.live?.standings_access}
+        />
       ) : (
         <>
           <a className="skip-link" href="#main">
@@ -187,6 +190,7 @@ function App() {
                 ) : path === "/quest/standings" ? (
                   <StandingsPage
                     viewer={data.viewer}
+                    access={data.standings_access}
                     eventClock={data.event_clock}
                     receivedAt={bootstrap.roomsReceivedAt}
                     event={data.event}

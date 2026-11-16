@@ -17,7 +17,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          SolutionFiles, Solutions, Submissions, Tags, TeamComments,
                          TeamFieldEntries, TeamFields, Teams, Topics, Unlocks,
                          UserComments, UserFieldEntries, UserFields, Users, db)
-from . import read_cache, registration
+from . import read_cache, registration, standings_access
 from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestDemoBatch, QuestDemoChallenge, QuestExclusion,
                      QuestHintPurchase, QuestPriceChange, QuestMaintainer, QuestOnboarding,
                      QuestPause, QuestRoomPause, QuestReadiness, QuestRoom, QuestStart,
@@ -68,7 +68,7 @@ def _audit_detail(action, raw):
         return {}
     known = (action.startswith("event.") or action.startswith("demo.") or
              action.startswith("onboarding.") or action in {
-                 "attendance.configure", "registration.configure", "room.create", "room.delete",
+                 "attendance.configure", "registration.configure", "standings.configure", "room.create", "room.delete",
                  "room.configure", "room.pause", "room.resume", "team.configure", "teams.allocate", "projector.configure",
                  "ranking.correct", "user.access", "user.delete", "user.role", "hint.purchase",
                  "challenge.create", "challenge.update", "challenge.delete", "challenge.recover", "challenge.clear", "asset.upload", "asset.delete"})
@@ -98,6 +98,8 @@ def _audit_detail(action, raw):
         result["maintenance"] = selected
     if action in ("attendance.configure", "registration.configure") and type(raw.get("enabled")) is bool:
         result["enabled"] = raw["enabled"]
+    if action == "standings.configure":
+        result.update(_flat(raw, {"room_comparison", "overall_comparison"}))
     for key in _LISTS:
         if isinstance(raw.get(key), list):
             result[key] = [item for item in raw[key] if type(item) is int or (key == "fields" and isinstance(item, str))]
@@ -234,6 +236,7 @@ def collect_event(e):
                                                Teams.banned, Teams.created).order_by(Teams.id).all()],
         "onboarding": _row(state, "phase team_size applied_at finalized_at grandfathered attendance_open attendance_generation attendance_opened_at attendance_closed_at allow_team_naming") if state else None,
         "registration": registration.status(),
+        "standings_visibility": standings_access.settings(),
         "readiness": [_row(row, "user_id ready_at late") for row in QuestReadiness.query.order_by(QuestReadiness.user_id).all()],
         "naming": [_row(row, "team_id claimed_by claimed_at name_locked auto_named") for row in QuestTeamName.query.order_by(QuestTeamName.team_id).all()],
         "rooms": rooms,

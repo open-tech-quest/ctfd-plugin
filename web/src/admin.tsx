@@ -17,6 +17,7 @@ import type {
   DemoContentState,
   QuestEvent,
   RegistrationState,
+  ComparisonVisibility,
 } from "./types";
 import { Arrow, Confirm, Empty, Markdown, Notice } from "./ui";
 const tabs = [
@@ -161,6 +162,7 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
             demo={data.demo}
             onboarding={data.onboarding}
             registration={data.registration}
+            standingsVisibility={data.standings_visibility}
             busy={busy}
             mutate={mutate}
             execute={execute}
@@ -218,6 +220,7 @@ function EventControls({
   demo,
   onboarding,
   registration,
+  standingsVisibility,
   busy,
   mutate,
   execute,
@@ -226,6 +229,7 @@ function EventControls({
   demo: DemoContentState;
   onboarding: AttendanceState;
   registration: RegistrationState;
+  standingsVisibility: ComparisonVisibility;
   busy: boolean;
   mutate: Mutation;
   execute: Execute;
@@ -394,6 +398,42 @@ function EventControls({
           )
         }
       />
+      <section className="admin-panel">
+        <div className="section-heading">
+          <h2>Participant standings</h2>
+        </div>
+        <p className="section-copy">
+          Teams always see their own progress. Choose which comparisons they can
+          open. Administrators always have access to both.
+        </p>
+        {(
+          [
+            ["room_comparison", "Allow room comparisons"],
+            ["overall_comparison", "Allow overall standings"],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={standingsVisibility[key]}
+              disabled={busy}
+              onChange={(e) =>
+                execute(
+                  "/admin/standings/visibility",
+                  "PATCH",
+                  { [key]: e.target.checked },
+                  "Standings visibility updated",
+                )
+              }
+            />
+            {label}
+          </label>
+        ))}
+        <p className="section-copy">
+          When either comparison is disabled, only administrators can open the
+          projector. Keep the event’s projector signed in as an administrator.
+        </p>
+      </section>
       <DemoControls
         state={demo}
         busy={busy}

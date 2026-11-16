@@ -225,6 +225,9 @@ Progress & standings opens on an assigned participant’s own points, hint costs
 room progress, without ranks. Room and overall comparisons remain available by
 choice and highlight the viewer’s team. Other teams’ hint-cost breakdowns are not
 emphasized in the interface; public aggregate scores and award rules stay transparent.
+Organizers can independently disable room comparisons and overall standings while
+keeping own-team progress available. Administrators always retain both views. If
+either comparison is disabled, projector access is administrator-only too.
 Unassigned participants see a release/assignment message, not another team’s data.
 
 The projector defaults to a room-award overview: leading three ranks including

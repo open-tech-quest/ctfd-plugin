@@ -22,6 +22,7 @@ schemas into feature documents.
 | Price cohorts and reviewed scope | [`pricing.py`](../plugin/open_tech_quest/pricing.py), migration `0013_pricing` |
 | Staff room preview | [`preview.py`](../plugin/open_tech_quest/preview.py), [Preview guide](preview.md) |
 | Shared read inputs and revisions | [`read_cache.py`](../plugin/open_tech_quest/read_cache.py) |
+| Comparison visibility and scoped standings | [`standings_access.py`](../plugin/open_tech_quest/standings_access.py), [`standings-access.ts`](../web/src/standings-access.ts) |
 | Event archives and deliberate round cleanup | [`archive.py`](../plugin/open_tech_quest/archive.py), [`rounds.py`](../plugin/open_tech_quest/rounds.py), [`defaults.py`](../plugin/open_tech_quest/defaults.py) |
 | Backup UI/API and external recovery worker | [`backups.py`](../plugin/open_tech_quest/backups.py), [`backup_worker.py`](../plugin/open_tech_quest/backup_worker.py), [`backup_openshift.py`](../plugin/open_tech_quest/backup_openshift.py), [backup contract](backups.md) |
 | Browser API types and transport | [`types.ts`](../web/src/types.ts), [`api.ts`](../web/src/api.ts) |
@@ -164,8 +165,14 @@ adaptive long-chain marks. Projector settings live in the existing event JSON;
 `projector.py` normalizes old settings without rewriting them. Rotation uses a
 server anchor and durable pause timestamp, while frontend `projector-rotation.ts`
 resolves views and fair room/tie paging without extra HTTP polling. The existing
-shared session supplies viewer identity for personal progress; comparisons use the
-same public standings projection, not a new ranking or access policy.
+shared session supplies viewer identity and current comparison access. The same
+standings projection supplies every view; `/standings?view=team|room|overall|projector`
+checks current native-config policy and filters a copy for the allowed scope.
+Personal progress contains only the viewer's team, without ranks. Disabled views
+return 403; legacy requests cannot bypass restrictions. Either disabled comparison
+makes projector data administrator-only. Controls serialize on the event lock and
+do not rewrite published snapshots. Native full backups and event reports retain
+the settings; intentional round cleanup keeps them.
 The bundled Dockerfile passes `PLUGIN_VERSION` to Vite and the runtime archive producer; direct
 frontend builds can set `VITE_PLUGIN_VERSION`. Unset versions show **Development
 build** in the footer.

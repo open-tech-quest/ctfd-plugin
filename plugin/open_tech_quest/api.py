@@ -21,7 +21,7 @@ from .models import (QuestEvent, QuestRoom, QuestStep, QuestStart, QuestPause, Q
 from .service import (event, event_data, now, iso, parse_time, released,
                       room_data, room_steps, participant_steps, standings, Projection, projection)
 
-from . import demo, onboarding, registration, roles, lifecycle, projector, rounds, archive
+from . import demo, onboarding, registration, roles, lifecycle, projector, rounds, archive, standings_access
 from .models import QuestMaintainer
 from .lifecycle import current_user as get_current_user
 
@@ -213,6 +213,7 @@ def sync_data(e=None, user=None):
     if user is not None and onboarding.eligible(user):
         participant = participant_data(user, e)
     return {"event": event_data(e), "viewer": viewer(),
+            "standings_access": standings_access.access(user),
             "registration": registration.status(), "csrfNonce": session.get("nonce"),
             "onboarding": participant, "revisions": revisions}
 
@@ -315,11 +316,24 @@ def room_pause_action(slug):
 
 @api.route("/standings")
 def standings_view():
-    return success(standings(public=True))
+    user = get_current_user()
+    permissions = standings_access.access(user)
+    scope = request.args.get("view")
+    if scope is None:
+        scope = "projector" if permissions["projector"] else "team"
+    if scope not in ("team", "room", "overall", "projector"):
+        fail("Choose team, room, overall or projector standings")
+    required = {"room": "room_comparison", "overall": "overall_comparison", "projector": "projector"}.get(scope)
+    if required and not permissions[required]:
+        fail("The projector is available only to administrators while comparisons are restricted." if scope == "projector" else
+             "This comparison is currently disabled by the organizers. Your own progress remains available.", 403)
+    return success(standings_access.present(standings(public=True), scope, user, permissions))
 
 
 @api.route("/projector")
 def projector_view():
+    if not standings_access.access(get_current_user())["projector"]:
+        fail("The projector is available only to administrators while comparisons are restricted.", 403)
     return success(projector.serialize(event().projector, now()))
 
 
@@ -347,7 +361,22 @@ def admin_state():
                                       "late": bool(u.id in readiness and readiness[u.id].late),
                                       "banned": bool(u.banned)} for u in Users.query.filter_by(type="user").order_by(Users.id).all() if not roles.is_maintainer(u)],
                     "audit": [{"id": a.id, "actor_id": a.actor_id, "action": a.action, "detail": a.detail, "created_at": iso(a.created_at)} for a in QuestAudit.query.filter(QuestAudit.action != rounds.ARCHIVE_ACTION).order_by(QuestAudit.id.desc()).limit(200).all()],
-                    "standings": standings(), "projector": projector.serialize(event().projector, now()), "demo": demo.status(event()), "onboarding": onboarding.summary(event()), "registration": registration.status()})
+                    "standings": standings(), "standings_visibility": standings_access.settings(),
+                    "projector": projector.serialize(event().projector, now()), "demo": demo.status(event()), "onboarding": onboarding.summary(event()), "registration": registration.status()})
+
+
+@api.route("/admin/standings/visibility", methods=["PATCH"])
+@admin
+def configure_standings_visibility():
+    event(lock=True)
+    data = body()
+    if not data or set(data) - set(standings_access.DEFAULTS):
+        fail("Set room_comparison or overall_comparison using true or false")
+    updated = {**standings_access.settings(), **{key: boolean(value, key) for key, value in data.items()}}
+    native_config(standings_access.KEY, json.dumps(updated, sort_keys=True))
+    audit("standings.configure", updated)
+    db.session.commit()
+    return success(updated)
 
 
 @api.route("/admin/event", methods=["PATCH"])

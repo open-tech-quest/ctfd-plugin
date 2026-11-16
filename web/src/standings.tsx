@@ -12,7 +12,9 @@ import type {
   Viewer,
   CompetitionClock,
   QuestEvent,
+  StandingsAccess,
 } from "./types";
+import { comparisonAccess, standingsView } from "./standings-access";
 import { EventClock } from "./competition-clock";
 import { Empty, Link, Notice } from "./ui";
 import { StandingTable } from "./standing-table";
@@ -25,6 +27,7 @@ type StandingsProps = {
   eventClock?: CompetitionClock;
   receivedAt?: number | null;
   event?: QuestEvent;
+  access?: StandingsAccess;
 };
 export function StandingsPage({ viewer, ...clockProps }: StandingsProps) {
   // Participant identity is supplied by the existing shared session, not a new poller.
@@ -41,18 +44,27 @@ function ParticipantStandings({
   eventClock,
   receivedAt = null,
   event,
+  access: configuredAccess,
 }: StandingsProps) {
-  const state = useResource<Standings>("/standings", 10000);
   const participant = viewer.role === "participant";
   const requested = new URLSearchParams(location.search).get("view");
-  const [view, setView] = useState<"team" | "room" | "overall">(
-    requested === "overall" ? "overall" : participant ? "team" : "room",
+  const [selection, setView] = useState<string | null>(requested);
+  const access = comparisonAccess(viewer, configuredAccess);
+  const view = standingsView(selection, participant, access);
+  const state = useResource<Standings>(
+    `/standings?view=${view ?? "team"}`,
+    10000,
   );
   const [roomId, setRoomId] = useState<number | null>(null);
   if (!state.data)
     return state.error ? (
       <Notice tone="error" retry={() => void state.refresh()}>
         {state.error}
+        {participant && (
+          <button className="text-button" onClick={() => setView("team")}>
+            View your progress
+          </button>
+        )}
       </Notice>
     ) : (
       <p role="status">Loading progress…</p>
@@ -70,12 +82,14 @@ function ParticipantStandings({
           <p className="lede">
             {data.event.results_published
               ? "Final results, published by the organizers."
-              : "Follow your progress. Compare a room or explore the overall standings when you want."}
+              : "Follow the quest’s progress and results."}
           </p>
         </div>
-        <Link className="button secondary" href="/quest/stage">
-          Open projector
-        </Link>
+        {access.projector && (
+          <Link className="button secondary" href="/quest/stage">
+            Open projector
+          </Link>
+        )}
       </div>
       <EventClock
         clock={eventClock ?? data.event_clock}
@@ -98,43 +112,61 @@ function ParticipantStandings({
                 : "Provisional results"}
         </p>
       )}
-      <nav
-        className="room-tabs progress-views"
-        aria-label="Progress and comparison"
-      >
-        {participant && (
-          <button
-            className={view === "team" ? "active" : ""}
-            aria-pressed={view === "team"}
-            onClick={() => setView("team")}
-          >
-            Your team
-          </button>
-        )}
-        <button
-          className={view === "room" ? "active" : ""}
-          aria-pressed={view === "room"}
-          onClick={() => setView("room")}
+      {Number(participant) +
+        Number(access.room_comparison) +
+        Number(access.overall_comparison) >
+        1 && (
+        <nav
+          className="room-tabs progress-views"
+          aria-label="Progress and comparison"
         >
-          Compare a room
-        </button>
-        <button
-          className={view === "overall" ? "active" : ""}
-          aria-pressed={view === "overall"}
-          onClick={() => setView("overall")}
-        >
-          Overall standings
-        </button>
-      </nav>
-      {view === "team" ? (
+          {participant && (
+            <button
+              className={view === "team" ? "active" : ""}
+              aria-pressed={view === "team"}
+              onClick={() => setView("team")}
+            >
+              Your team
+            </button>
+          )}
+          {access.room_comparison && (
+            <button
+              className={view === "room" ? "active" : ""}
+              aria-pressed={view === "room"}
+              onClick={() => setView("room")}
+            >
+              Compare a room
+            </button>
+          )}
+          {access.overall_comparison && (
+            <button
+              className={view === "overall" ? "active" : ""}
+              aria-pressed={view === "overall"}
+              onClick={() => setView("overall")}
+            >
+              Overall standings
+            </button>
+          )}
+        </nav>
+      )}
+      {view === null ? (
+        <Empty title="Comparisons are currently hidden">
+          The organizers have made team comparisons available only to
+          administrators.
+        </Empty>
+      ) : view === "team" ? (
         own ? (
           <YourTeam
             data={data}
             team={own}
-            compare={(id) => {
-              setRoomId(id);
-              setView("room");
-            }}
+            compare={
+              access.room_comparison
+                ? (id) => {
+                    setRoomId(id);
+                    setView("room");
+                  }
+                : undefined
+            }
           />
         ) : (
           <Empty title="Your team’s progress will appear here">
@@ -213,7 +245,7 @@ function YourTeam({
 }: {
   data: Standings;
   team: StandingTeam;
-  compare: (id: number) => void;
+  compare?: (id: number) => void;
 }) {
   const points = data.scoring_version === 2;
   const completed = team.room_progress.filter(
@@ -301,12 +333,14 @@ function YourTeam({
                 <Link href={`/quest/rooms/${encodeURIComponent(room.slug)}`}>
                   Open room
                 </Link>
-                <button
-                  className="text-button"
-                  onClick={() => compare(room.id)}
-                >
-                  Compare this room
-                </button>
+                {compare && (
+                  <button
+                    className="text-button"
+                    onClick={() => compare(room.id)}
+                  >
+                    Compare this room
+                  </button>
+                )}
               </div>
             </article>
           );

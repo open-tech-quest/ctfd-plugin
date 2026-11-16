@@ -43,6 +43,12 @@ for team number/name, participant name and overall team points.
 A blank Hero image URL uses the bundled scene;
 custom assets must follow the [branding/provenance rules](../branding/README.md).
 
+**Organize → Event → Participant standings** independently enables room comparisons
+and overall standings. Both start enabled; teams always retain their own progress.
+Administrators retain every view. If either comparison is disabled, the projector
+and its data require an administrator login. Controls apply in any phase, including
+published results, without changing awards. Settings remain across round cleanup.
+
 ## Registration, attendance and final teams
 
 **Registration creates accounts; attendance confirms presence; Start opens play.**

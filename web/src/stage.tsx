@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { request } from "./api";
 import { useResource } from "./hooks";
-import type { Projector, StandingTeam, Standings, Viewer } from "./types";
+import type {
+  Projector,
+  StandingTeam,
+  Standings,
+  Viewer,
+  StandingsAccess,
+} from "./types";
+import { comparisonAccess } from "./standings-access";
 import { Link, Notice } from "./ui";
 import { orderedTeams } from "./standings-presentation";
 import {
@@ -14,15 +21,36 @@ import { StandingTable } from "./standing-table";
 import { Awards } from "./awards";
 import { useProjectorClock } from "./use-projector-clock";
 import { EventClock } from "./competition-clock";
-export function Stage({ viewer }: { viewer?: Viewer }) {
-  const result = useResource<Standings>("/standings", 8000),
-    config = useResource<Projector>("/projector", 8000);
+export function Stage({
+  viewer,
+  access,
+}: {
+  viewer?: Viewer;
+  access?: StandingsAccess;
+}) {
+  const allowed = comparisonAccess(viewer, access).projector;
+  const result = useResource<Standings>(
+      allowed ? "/standings?view=projector" : null,
+      8000,
+    ),
+    config = useResource<Projector>(allowed ? "/projector" : null, 8000);
   const now = useProjectorClock(config.data?.server_now ?? result.data?.as_of);
   const [error, setError] = useState("");
   const [manualPause, setManualPause] = useState<number | null>(null);
   const [manualOffset, setManualOffset] = useState(0);
   const [busy, setBusy] = useState(false);
   const data = result.data;
+  if (!allowed)
+    return (
+      <div className="stage">
+        <h1>Projector access is restricted</h1>
+        <p>
+          The projector is available only to administrators while comparisons
+          are restricted.
+        </p>
+        <Link href="/quest/standings">Back to your progress</Link>
+      </div>
+    );
   if (!data)
     return (
       <div className="stage">
