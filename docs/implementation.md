@@ -14,6 +14,7 @@ schemas into feature documents.
 | Projection, timing and rankings | [`service.py`](../plugin/open_tech_quest/service.py), [`ranking.py`](../plugin/open_tech_quest/ranking.py) |
 | Room pause state and revision fencing | [`room_pauses.py`](../plugin/open_tech_quest/room_pauses.py) |
 | Registration, attendance and grouping | [`registration.py`](../plugin/open_tech_quest/registration.py), [`onboarding.py`](../plugin/open_tech_quest/onboarding.py), [`onboarding_math.py`](../plugin/open_tech_quest/onboarding_math.py) |
+| Native optional display-name field | [`display_names.py`](../plugin/open_tech_quest/display_names.py) |
 | Roles, account safety and recovery | [`roles.py`](../plugin/open_tech_quest/roles.py), [`lifecycle.py`](../plugin/open_tech_quest/lifecycle.py), [`recovery.py`](../plugin/open_tech_quest/recovery.py) |
 | Native access and room topology | [`guards.py`](../plugin/open_tech_quest/guards.py), [`room_topology.py`](../plugin/open_tech_quest/room_topology.py), [`authoring.py`](../plugin/open_tech_quest/authoring.py) |
 | Owned native assets and automation contract | [`assets.py`](../plugin/open_tech_quest/assets.py), [automation guide](automation.md) |

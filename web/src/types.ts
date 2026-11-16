@@ -19,6 +19,7 @@ export interface Viewer {
   authenticated: boolean;
   id: number | null;
   name: string | null;
+  display_name?: string | null;
   team_id: number | null;
   team_name: string | null;
   admin: boolean;
@@ -51,7 +52,16 @@ export interface Progress extends Score {
   milestone_elapsed_ms: number | null;
   status: "not_started" | "active" | "complete";
 }
+export interface CompetitionClock {
+  elapsed_ms: number | null;
+  state: "not_started" | "running" | "paused" | "complete" | "ended";
+  sampled_at: string;
+  remaining_ms: number | null;
+  finished_at: string | null;
+  delay_ms?: number;
+}
 export interface Room {
+  clock?: CompetitionClock;
   pause?: RoomPause;
   revision?: string;
   can_delete?: boolean;
@@ -94,6 +104,7 @@ export interface QuestSync {
 }
 export interface Bootstrap extends QuestSync {
   rooms: Room[];
+  event_clock?: CompetitionClock;
 }
 export interface RoomProgress extends Partial<Score> {
   pause?: RoomPause;
@@ -117,6 +128,7 @@ export interface StandingTeam extends Partial<Score> {
 export interface Standings {
   scoring_version?: number;
   event: QuestEvent;
+  event_clock?: CompetitionClock;
   rooms: (Pick<Room, "id" | "slug" | "name"> & {
     pause?: RoomPause;
     total: number;

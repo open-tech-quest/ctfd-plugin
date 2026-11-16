@@ -748,6 +748,43 @@ svg {
   color: var(--muted);
   margin-bottom: 12px;
 }
+.room-card-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+}
+.room-card-status strong {
+  color: var(--ink);
+  white-space: nowrap;
+}
+.event-clock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-block: 20px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.event-clock strong {
+  color: var(--ink);
+  font-size: 24px;
+  white-space: nowrap;
+}
+.stage > .event-clock {
+  justify-content: flex-end;
+  margin-block: 0 16px;
+  font-size: 18px;
+}
+.stage > .event-clock strong {
+  font-size: 32px;
+}
+.account-nav > .account-name {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .room-card-points {
   display: flex;
   flex-wrap: wrap;
@@ -2182,8 +2219,14 @@ fieldset {
   .masthead nav {
     gap: 20px;
   }
-  .account-nav > span {
-    display: none;
+  .account-nav {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .account-nav > .account-name {
+    display: block;
+    max-width: min(140px, 30vw);
   }
   .lobby-intro {
     gap: 48px;
@@ -2265,12 +2308,12 @@ fieldset {
     min-height: 120px;
   }
   .brand {
-    width: 180px;
+    width: min(180px, 45vw);
   }
   .account-nav {
     margin-left: auto;
     font-size: 13px;
-    gap: 12px;
+    gap: 4px;
   }
   .masthead nav {
     order: 3;

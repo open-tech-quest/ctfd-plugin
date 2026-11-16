@@ -6,23 +6,42 @@ import {
   rankingOrder,
 } from "./standings-presentation";
 import { useResource } from "./hooks";
-import type { StandingTeam, Standings, Viewer } from "./types";
+import type {
+  StandingTeam,
+  Standings,
+  Viewer,
+  CompetitionClock,
+  QuestEvent,
+} from "./types";
+import { EventClock } from "./competition-clock";
 import { Empty, Link, Notice } from "./ui";
 import { StandingTable } from "./standing-table";
 import { AwardRules } from "./award-rules";
 import { RoomLeaders } from "./room-leaders";
 
 type StandingRoom = Standings["rooms"][number];
-export function StandingsPage({ viewer }: { viewer: Viewer }) {
+type StandingsProps = {
+  viewer: Viewer;
+  eventClock?: CompetitionClock;
+  receivedAt?: number | null;
+  event?: QuestEvent;
+};
+export function StandingsPage({ viewer, ...clockProps }: StandingsProps) {
   // Participant identity is supplied by the existing shared session, not a new poller.
   return (
     <ParticipantStandings
       key={`${viewer.role}-${viewer.id}-${viewer.team_id}`}
       viewer={viewer}
+      {...clockProps}
     />
   );
 }
-function ParticipantStandings({ viewer }: { viewer: Viewer }) {
+function ParticipantStandings({
+  viewer,
+  eventClock,
+  receivedAt = null,
+  event,
+}: StandingsProps) {
   const state = useResource<Standings>("/standings", 10000);
   const participant = viewer.role === "participant";
   const requested = new URLSearchParams(location.search).get("view");
@@ -58,6 +77,11 @@ function ParticipantStandings({ viewer }: { viewer: Viewer }) {
           Open projector
         </Link>
       </div>
+      <EventClock
+        clock={eventClock ?? data.event_clock}
+        receivedAt={eventClock ? receivedAt : state.receivedAt}
+        event={event ?? data.event}
+      />
       {state.error && (
         <Notice tone="error" retry={() => void state.refresh()}>
           Showing saved progress. {state.error}

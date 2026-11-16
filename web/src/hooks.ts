@@ -11,7 +11,8 @@ export function useResource<T>(
   const [data, setData] = useState<T | null>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
-    [updatedAt, setUpdatedAt] = useState<number | null>(null);
+    [updatedAt, setUpdatedAt] = useState<number | null>(null),
+    [receivedAt, setReceivedAt] = useState<number | null>(null);
   const currentPath = useRef(path);
   currentPath.current = path;
   const resource = useRef<{
@@ -40,6 +41,7 @@ export function useResource<T>(
         if (currentPath.current !== path) return;
         setData(result);
         setUpdatedAt(Date.now());
+        setReceivedAt(performance.now());
         setError("");
         setLoading(false);
       },
@@ -72,7 +74,7 @@ export function useResource<T>(
       document.removeEventListener("visibilitychange", activity);
     };
   }, [path, interval, transport, periodic, requestTimeoutMs]);
-  return { data, error, loading, refresh, setData, updatedAt };
+  return { data, error, loading, refresh, setData, updatedAt, receivedAt };
 }
 export function usePath() {
   const [path, setPath] = useState(location.pathname);

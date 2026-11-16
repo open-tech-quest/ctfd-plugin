@@ -34,6 +34,8 @@ def load(app):
     initialize(QuestEvent.query.get(1))
     from .room_topology import initialize_visibility
     initialize_visibility()
+    from .display_names import initialize as initialize_display_names
+    initialize_display_names()
     from .read_cache import install
     install(app)
     from .api import api, viewer

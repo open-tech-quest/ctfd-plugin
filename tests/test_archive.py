@@ -198,6 +198,7 @@ class ArchiveIntegration(unittest.TestCase):
         changed = deepcopy(first)
         changed["results"]["as_of"] = "2040-01-01T00:00:00Z"
         changed["results"]["event"]["server_now"] = "2040-01-01T00:00:00Z"
+        changed["results"]["event_clock"] = {"elapsed_ms": 123456, "sampled_at": "2040-01-01T00:00:00Z"}
         self.assertEqual(source_fingerprint(changed), fingerprint)
         with self.app.app_context():
             document = make_document(first)

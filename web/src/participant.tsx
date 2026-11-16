@@ -24,6 +24,8 @@ import {
 import { ChallengePath } from "./challenge-path";
 import { challengePoints, hintCostAdjustment } from "./score-presentation";
 import { roomHintReadable, roomIsPaused, roomPlayEnabled } from "./room-pause";
+import { CompetitionClock, EventClock } from "./competition-clock";
+import { previewClock } from "./competition-time";
 export function EventNotice({ data }: { data: Bootstrap }) {
   const mode = useParticipantMode();
   if (mode.preview || mode.inspect) return null;
@@ -86,10 +88,22 @@ export function EventNotice({ data }: { data: Bootstrap }) {
     </>
   );
 }
-export function Lobby({ data }: { data: Bootstrap }) {
+export function Lobby({
+  data,
+  receivedAt = null,
+}: {
+  data: Bootstrap;
+  receivedAt?: number | null;
+}) {
   const mode = useParticipantMode();
   const solved = data.rooms.reduce((a, r) => a + r.progress.credited_solved, 0),
     total = data.rooms.reduce((a, r) => a + r.progress.total, 0);
+  const eventClock = mode.preview
+    ? previewClock(total > 0 && solved === total)
+    : data.event_clock;
+  const shownEvent = mode.preview
+    ? { ...data.event, status: "live" as const }
+    : data.event;
   return (
     <>
       <section className="lobby-intro">
@@ -141,6 +155,11 @@ export function Lobby({ data }: { data: Bootstrap }) {
               <ProgressLine solved={solved} total={total} />
             </>
           )}
+          <EventClock
+            clock={eventClock}
+            receivedAt={mode.preview ? null : receivedAt}
+            event={shownEvent}
+          />
         </div>
       </section>
       {!mode.preview && (
@@ -191,12 +210,46 @@ export function Lobby({ data }: { data: Bootstrap }) {
                     ? `${room.progress.credited_solved} of ${room.progress.total} solved`
                     : "Challenges being prepared"}
                 </span>
-                <span>
+                <span className="room-card-status">
                   {room.progress.status === "complete"
                     ? "Complete"
                     : room.progress.status === "active"
                       ? "In progress"
                       : "Not started"}
+                  {room.progress.status !== "not_started" && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <strong
+                        className="numeric"
+                        title={
+                          room.progress.status === "complete"
+                            ? "Completion time"
+                            : "Room time"
+                        }
+                      >
+                        {mode.preview ? (
+                          <CompetitionClock
+                            clock={previewClock(
+                              room.progress.status === "complete",
+                            )}
+                            receivedAt={null}
+                          />
+                        ) : room.clock ? (
+                          <CompetitionClock
+                            clock={room.clock}
+                            receivedAt={receivedAt}
+                            event={data.event}
+                          />
+                        ) : (
+                          duration(
+                            room.progress.status === "complete"
+                              ? room.progress.milestone_elapsed_ms
+                              : room.progress.elapsed_ms,
+                          )
+                        )}
+                      </strong>
+                    </>
+                  )}
                 </span>
               </div>
               <div className="room-card-points">
@@ -259,10 +312,12 @@ export function RoomPage({
   slug,
   data,
   onRefresh,
+  receivedAt = null,
 }: {
   slug: string;
   data: Bootstrap;
   onRefresh: () => Promise<void>;
+  receivedAt?: number | null;
 }) {
   const mode = useParticipantMode();
   const resource = useResource<Room>(
@@ -444,22 +499,52 @@ export function RoomPage({
             </span>
             {started && (
               <span>
-                Room time{" "}
+                {room.progress.status === "complete"
+                  ? "Completion time"
+                  : "Room time"}{" "}
                 <b className="numeric">
-                  <RoomClock
-                    elapsed={room.progress.elapsed_ms}
-                    receivedAt={resource.updatedAt}
-                    active={
-                      !mode.preview &&
-                      !mode.inspect &&
-                      room.progress.status === "active" &&
-                      playEnabled
-                    }
-                  />
+                  {mode.preview || preview ? (
+                    <CompetitionClock
+                      clock={previewClock(room.progress.status === "complete")}
+                      receivedAt={null}
+                    />
+                  ) : room.clock ? (
+                    <CompetitionClock
+                      clock={room.clock}
+                      receivedAt={resource.receivedAt}
+                      event={data.event}
+                    />
+                  ) : (
+                    duration(
+                      room.progress.status === "complete"
+                        ? room.progress.milestone_elapsed_ms
+                        : room.progress.elapsed_ms,
+                    )
+                  )}
                 </b>
               </span>
             )}
           </div>
+          <EventClock
+            clock={
+              mode.preview || preview
+                ? previewClock(
+                    data.rooms.some((r) => r.progress.total > 0) &&
+                      data.rooms.every(
+                        (r) =>
+                          r.progress.total === 0 ||
+                          r.progress.status === "complete",
+                      ),
+                  )
+                : data.event_clock
+            }
+            receivedAt={mode.preview || preview ? null : receivedAt}
+            event={
+              mode.preview || preview
+                ? { ...data.event, status: "live" }
+                : data.event
+            }
+          />
         </div>
         <RoomArt room={room} />
       </section>
@@ -1102,27 +1187,4 @@ function ChallengePanel({
       )}
     </section>
   );
-}
-
-function RoomClock({
-  elapsed,
-  receivedAt,
-  active,
-}: {
-  elapsed: number | null;
-  receivedAt: number | null;
-  active: boolean;
-}) {
-  const [display, setDisplay] = useState(elapsed);
-  useEffect(() => {
-    setDisplay(elapsed);
-    if (!active || elapsed === null) return;
-    const anchor = performance.now();
-    const tick = window.setInterval(
-      () => setDisplay(elapsed + performance.now() - anchor),
-      1000,
-    );
-    return () => clearInterval(tick);
-  }, [elapsed, receivedAt, active]);
-  return <>{duration(display)}</>;
 }

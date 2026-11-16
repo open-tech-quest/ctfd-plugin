@@ -104,7 +104,16 @@ function App() {
               <div className="account-nav">
                 {data?.viewer.authenticated ? (
                   <>
-                    <span>{data.viewer.team_name || data.viewer.name}</span>
+                    <span
+                      className="account-name"
+                      title={
+                        data.viewer.display_name ||
+                        data.viewer.name ||
+                        undefined
+                      }
+                    >
+                      {data.viewer.display_name || data.viewer.name}
+                    </span>
                     <a href="/settings">Account</a>
                   </>
                 ) : (
@@ -154,7 +163,7 @@ function App() {
                   staff ? (
                     <StaffHome data={data} />
                   ) : (
-                    <Lobby data={data} />
+                    <Lobby data={data} receivedAt={bootstrap.roomsReceivedAt} />
                   )
                 ) : path.startsWith("/quest/rooms/") ? (
                   data.viewer.can_manage_rooms ? (
@@ -171,11 +180,17 @@ function App() {
                         path.slice("/quest/rooms/".length).replace(/\/$/, ""),
                       )}
                       data={data}
+                      receivedAt={bootstrap.roomsReceivedAt}
                       onRefresh={bootstrap.refresh}
                     />
                   )
                 ) : path === "/quest/standings" ? (
-                  <StandingsPage viewer={data.viewer} />
+                  <StandingsPage
+                    viewer={data.viewer}
+                    eventClock={data.event_clock}
+                    receivedAt={bootstrap.roomsReceivedAt}
+                    event={data.event}
+                  />
                 ) : path === "/quest/admin" ? (
                   data.viewer.can_manage_rooms ? (
                     <Admin

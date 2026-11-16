@@ -51,6 +51,18 @@ Naming defaults to fixed generated names; member naming is optional. See the
 
 ## Progress, timing and awards
 
+Dashboard room cards and room views share the server's active room clock. In-progress
+clocks advance locally; completed rooms show their fixed, corrected completion time.
+Global and room pauses are excluded once, including overlaps. Event time runs from
+event start, excludes global pauses, and stops at cutoff/close. For a team that clears
+every non-hidden mapped challenge, it freezes at that team's last qualifying solve.
+The public projector's event clock continues until the event ends. Empty room sets
+are not complete clears. Staff preview clocks stay at zero.
+
+Live clocks are separate from standings' **active time to last solve**, which stays
+fixed between solves and uses the configured award origin. Displaying event time
+does not change rankings, timing origins, corrections or published results.
+
 | Ranking | Order, from first to last |
 |---|---|
 | Room | Eligible challenges solved in the room, descending; room net points, descending; active time to the last counted room solve, ascending |

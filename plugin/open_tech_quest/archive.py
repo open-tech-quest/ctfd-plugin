@@ -285,6 +285,7 @@ def source_fingerprint(data):
     source = deepcopy(data)
     results = source.get("results", {})
     results.pop("as_of", None)
+    results.pop("event_clock", None)
     results.get("event", {}).pop("server_now", None)
     return hashlib.sha256(canonical_json(source).encode("utf-8")).hexdigest()
 

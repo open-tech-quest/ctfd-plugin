@@ -27,6 +27,7 @@ export interface QuestSessionState {
   loading: boolean;
   error: string;
   syncError: string;
+  roomsReceivedAt: number | null;
 }
 
 type SessionOptions = {
@@ -47,6 +48,8 @@ export function createQuestSession(options: SessionOptions) {
   let live: QuestSync | null = null;
   let cached: Bootstrap | null = null;
   let candidate: Bootstrap | null = null;
+  let cachedAt: number | null = null;
+  let candidateAt: number | null = null;
   let identityGeneration = 0;
   let initialized = false;
   let loading = true;
@@ -68,6 +71,7 @@ export function createQuestSession(options: SessionOptions) {
       loading,
       error: syncError || contentError,
       syncError,
+      roomsReceivedAt: live && cached ? cachedAt : null,
     });
   }
   function installCandidate() {
@@ -77,7 +81,9 @@ export function createQuestSession(options: SessionOptions) {
       contentIdentity(candidate) === contentIdentity(live)
     ) {
       cached = candidate;
+      cachedAt = candidateAt;
       candidate = null;
+      candidateAt = null;
       ++contentVersion;
       contentError = "";
       contentFailures = 0;
@@ -112,6 +118,7 @@ export function createQuestSession(options: SessionOptions) {
     if (status !== 401 && status !== 403 && status !== 404) return false;
     ++identityGeneration;
     cached = candidate = null;
+    cachedAt = candidateAt = null;
     live = null;
     initialized = true;
     return true;
@@ -128,6 +135,7 @@ export function createQuestSession(options: SessionOptions) {
       ) {
         ++identityGeneration;
         cached = null;
+        cachedAt = null;
         contentError = "";
         contentFailures = 0;
         retryAt = 0;
@@ -165,6 +173,7 @@ export function createQuestSession(options: SessionOptions) {
         initialized = true;
       }
       candidate = value;
+      candidateAt = now();
       loading = false;
       contentError = "";
       installCandidate();

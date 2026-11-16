@@ -479,3 +479,17 @@ test("stopping aborts both lanes, settles callers and ignores late results", asy
   await flush();
   assert.equal(f.published.length, before);
 });
+
+test("cached room clock receipt survives heartbeats and preserves candidate arrival time", async () => {
+ const f=fixture();await f.start();assert.equal(f.state.roomsReceivedAt,0);
+ await f.advance(5000);f.heartbeats[0].resolve(sync());await flush();
+ assert.equal(f.state.roomsReceivedAt,0);
+ const navigation=f.session.navigation();f.heartbeats[1].resolve(sync());await flush();
+ await f.advance(500);
+ const newer=sync({revisions:{content:"new-clock",roster:"1",progress:"2"}});
+ f.full[1].resolve(bootstrap(newer));await flush();
+ const confirmation=f.heartbeats.at(-1);
+ await f.advance(3000);confirmation.resolve(newer);await flush();await navigation;
+ assert.equal(f.state.roomsReceivedAt,5500);
+ f.session.stop();
+});

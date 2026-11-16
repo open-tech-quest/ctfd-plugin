@@ -157,7 +157,8 @@ def viewer():
     administrator = user.type == "admin"
     show = administrator or released()
     team = Teams.query.get(user.team_id) if user.team_id and show else None
-    return {"authenticated": True, "id": user.id, "name": user.name,
+    from .display_names import name as display_name
+    return {"authenticated": True, "id": user.id, "name": user.name, "display_name": display_name(user),
             "team_id": user.team_id if show else None, "team_name": team.name if team else None, "admin": administrator,
             "role": roles.role(user), "can_manage_rooms": roles.can_manage_rooms(user),
             "can_manage_users": bool(administrator and not user.banned)}
@@ -179,6 +180,8 @@ def bootstrap():
         fail("Attendance check-in is open. Refresh this page once to load the attendance confirmation.", 409)
     data = sync_data(e, user)
     data["rooms"] = current_rooms(e)
+    clock_team = data["viewer"]["team_id"] if data["viewer"]["role"] == "participant" else None
+    data["event_clock"] = projection(e, team_id=((user.team_id if user else None) or 0)).event_clock(clock_team)
     response = success(data)
     response.headers["Cache-Control"] = "private, no-store"
     return response

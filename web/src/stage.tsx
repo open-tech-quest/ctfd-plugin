@@ -13,6 +13,7 @@ import { RoomOverview } from "./room-leaders";
 import { StandingTable } from "./standing-table";
 import { Awards } from "./awards";
 import { useProjectorClock } from "./use-projector-clock";
+import { EventClock } from "./competition-clock";
 export function Stage({ viewer }: { viewer?: Viewer }) {
   const result = useResource<Standings>("/standings", 8000),
     config = useResource<Projector>("/projector", 8000);
@@ -102,6 +103,11 @@ export function Stage({ viewer }: { viewer?: Viewer }) {
           </span>
         </div>
       </header>
+      <EventClock
+        clock={data.event_clock}
+        receivedAt={result.receivedAt}
+        event={data.event}
+      />
       {view === "room" && room?.pause?.paused && (
         <div className="stage-room-pause" role="status">
           <strong>{room.name} paused</strong>

@@ -253,6 +253,49 @@ class Projection:
         costs = sum(cost for cid, cost in self.hint_costs.get(team_id, {}).items() if cid in ids)
         return {"gross_points": gross, "hint_costs": costs, "points": gross - costs}
 
+    def clock(self, elapsed, started, complete=False, paused=False, finished_at=None, delay_ms=0):
+        e = self.event
+        ended = e.status in ("closed", "published") or bool(e.end_at and self.at >= e.end_at)
+        state = ("not_started" if not started or e.status == "draft" else
+                 "complete" if complete else "ended" if ended else
+                 "paused" if e.status == "paused" or paused else "running")
+        return {"elapsed_ms": elapsed if state != "not_started" else None,
+                "state": state, "sampled_at": iso(finished_at if complete else self.at),
+                "delay_ms": delay_ms,
+                "remaining_ms": max(0, round((e.end_at - self.at).total_seconds() * 1000)) if e.end_at and not complete else None,
+                "finished_at": iso(finished_at) if complete else None}
+
+    def event_clock(self, team_id=None):
+        """Event-start elapsed time; only the viewer's complete clear stops early."""
+        if self.event.status == "published" and team_id is not None and self.event.snapshot:
+            saved = next((row.get("event_completion") for row in self.event.snapshot.get("teams", [])
+                          if row["id"] == team_id), None)
+            if saved:
+                return dict(saved)
+            # An incomplete or legacy published result must not become a new
+            # completed clear after later account/eligibility changes.
+            return self.event_clock()
+        ids = {s.challenge_id for steps in self.participant_steps.values() for s in steps}
+        solves = self.solves.get(team_id, {}) if team_id is not None else {}
+        complete = bool(ids) and ids.issubset(solves)
+        finish = max(solves[cid] for cid in ids) if complete else None
+        until = finish if complete else min(self.at, self.event.end_at or self.at)
+        elapsed = active_ms(self.event.start_at, until, self.pauses)
+        return self.clock(elapsed, bool(self.event.start_at), complete, finished_at=finish)
+
+    def room_clock(self, room, team_id, progress):
+        complete = progress["status"] == "complete"
+        elapsed = progress["milestone_elapsed_ms"] if complete else progress["elapsed_ms"]
+        delay = 0
+        if not complete and elapsed is not None:
+            corrected = elapsed + self.corrections.get((team_id, room.id), 0)
+            elapsed, delay = max(0, corrected), max(0, -corrected)
+        solves = self.solves.get(team_id, {})
+        finish = max((solves[s.challenge_id] for s in self.participant_steps.get(room.id, [])
+                      if s.challenge_id in solves), default=None) if complete else None
+        return self.clock(elapsed, bool(progress["started_at"]), complete,
+                          self.room_pause(room.id)["paused"], finish, delay)
+
     def progress(self, room, team_id, solves=None):
         e = self.event
         ids = [s.challenge_id for s in self.participant_steps.get(room.id, [])]
@@ -308,7 +351,8 @@ class Projection:
             prefix_open = prefix_open and solved
         result = {"id": room.id, "slug": room.slug, "name": room.name, "subtitle": room.subtitle,
                   "description": room.description, "position": room.position, "theme": room.theme,
-                  "steps": data, "progress": p, "team_score": self.score(team_id), "pause": self.room_pause(room.id),
+                  "steps": data, "progress": p, "clock": self.room_clock(room, team_id, p),
+                  "team_score": self.score(team_id), "pause": self.room_pause(room.id),
                   "startable": not self.room_pause(room.id)["paused"] and bool(participant_steps) and self.challenges[participant_steps[0].challenge_id].state == "visible"}
         if admin:
             result["challenge_ids"] = [s.challenge_id for s in steps]
@@ -363,6 +407,8 @@ def standings(e=None, public=False):
         data = dict(e.snapshot)
         data.setdefault("scoring_version", 1)
         data["event"] = event_data(e)
+        if "event_clock" not in data:
+            data["event_clock"] = projection(e).event_clock()
         if public and not released(e):
             data["teams"], data["room_leaders"] = [], []
         return data
@@ -388,7 +434,10 @@ def standings(e=None, public=False):
                        "points": p["points"], "gross_points": p["gross_points"], "hint_costs": p["hint_costs"],
                        "milestone_elapsed_ms": p["score_elapsed_ms"], "rank": None,
                        "complete": p["status"] == "complete", "pause": view.room_pause(room.id)})
-        teams.append({**view.score(team.id), "id": team.id, "name": team.name, "total": len(solves), "overall_elapsed_ms": elapsed, "room_progress": rp})
+        completion = view.event_clock(team.id)
+        teams.append({**view.score(team.id), "id": team.id, "name": team.name, "total": len(solves),
+                      "overall_elapsed_ms": elapsed, "room_progress": rp,
+                      "event_completion": completion if completion["state"] == "complete" else None})
     assign_point_ranks(teams, "overall_elapsed_ms")
     leaders = []
     by_id = {t["id"]: t for t in teams}
@@ -404,7 +453,7 @@ def standings(e=None, public=False):
                         "teams": [row for row in rows if row["rank"] == 1]})
     if public and not released(e):
         teams, leaders = [], []
-    return {"scoring_version": 2, "event": event_data(e), "rooms": [
+    return {"scoring_version": 2, "event": event_data(e), "event_clock": view.event_clock(), "rooms": [
                 {"id": r.id, "slug": r.slug, "name": r.name, "pause": view.room_pause(r.id),
                  "total": len(view.participant_steps.get(r.id, [])),
                  "steps": [{"id": step.challenge_id, "value": view.challenges[step.challenge_id].value}

@@ -10,6 +10,7 @@ export function useQuestSession(path: string) {
     loading: true,
     error: "",
     syncError: "",
+    roomsReceivedAt: null,
   });
   const session = useRef<ReturnType<typeof createQuestSession> | null>(null);
   const previousPath = useRef(path);

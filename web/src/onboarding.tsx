@@ -77,7 +77,7 @@ function PersonalOnboarding({
           </h2>
           <p>
             {state.ready_at
-              ? `${viewer.name || "Your attendance"} · Confirmed ${dateTime(state.ready_at)}`
+              ? `${viewer.display_name || viewer.name || "Your attendance"} · Confirmed ${dateTime(state.ready_at)}`
               : state.can_ready
                 ? "Confirm that you're here on your own device. Your organizers will bring the attending participants into teams."
                 : "Your account is ready. Organizers open attendance check-in separately from registration and team preparation."}

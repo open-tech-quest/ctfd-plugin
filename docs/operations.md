@@ -73,6 +73,17 @@ Participants see only their own released team and members' names/readiness; emai
 are organizer-only. Native team forms cannot bypass this process. If a request
 says its reviewed plan is stale, refresh and review again rather than retrying it.
 
+During play, room cards show the current active room time or the fixed completion
+time. **Event time** counts from event start and stops during global pauses and at
+event end. Completing all mapped challenges freezes your team's final event time.
+A pause in one room stops only that room's clock. Standings label their separate
+award measurement as time to the last counted solve.
+
+Signup and **Account** include an optional native CTFd **Display name** field.
+The Quest header and `{{user.name}}` descriptions use it; blank or missing values
+use the username. Editing it keeps the login username unchanged. Native public
+profiles do not expose this field by default.
+
 ## Late arrivals
 
 Before apply, reopen capture as needed, then close it and preview again. During
