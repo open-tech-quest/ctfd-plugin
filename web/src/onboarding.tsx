@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { dateTime } from "./api";
 import { useParticipantSession } from "./participant-session";
 import type { Phase, Viewer } from "./types";
@@ -23,7 +23,24 @@ function PersonalOnboarding({
   phase: Phase;
 }) {
   const session = useParticipantSession();
-  const [name, setName] = useState("");
+  const team = session?.state?.roster_released ? session.state.team : null;
+  const [draft, setDraft] = useState({
+    teamId: team?.id,
+    base: team?.name || "",
+    value: team?.name || "",
+  });
+  useEffect(() => {
+    setDraft((current) =>
+      current.teamId !== team?.id ||
+      current.value === current.base ||
+      current.value === team?.name
+        ? { teamId: team?.id, base: team?.name || "", value: team?.name || "" }
+        : current,
+    );
+  }, [team?.id, team?.name]);
+  const name = draft.value;
+  const nameConflict =
+    !!team && (draft.teamId !== team.id || draft.base !== team.name);
   if (!session) return null;
   const { state, busy, error, update, openPrompt, refresh } = session;
   if (!state)
@@ -33,12 +50,10 @@ function PersonalOnboarding({
       </Notice>
     ) : (
       <div className="onboarding-loading" role="status">
-        {phase === "draft"
-          ? "Checking your team and attendance…"
-          : "Loading your team…"}
+        Loading your team…
       </div>
     );
-  const team = state.roster_released ? state.team : null;
+  const attendanceRequired = state.require_attendance !== false;
   if (phase !== "draft" && team)
     return (
       <>
@@ -64,78 +79,75 @@ function PersonalOnboarding({
     );
   if (phase === "closed" || phase === "published") return null;
   return (
-    <section
-      className="onboarding-panel"
-      id="your-team"
-      aria-label="Your attendance and team"
-    >
-      <div className="personal-readiness">
-        <div>
-          <p className="eyebrow">Your place in the quest</p>
-          <h2>
-            {state.ready_at ? "You're checked in" : "Ready to join the quest?"}
-          </h2>
-          <p>
-            {state.ready_at
-              ? `${viewer.display_name || viewer.name || "Your attendance"} · Confirmed ${dateTime(state.ready_at)}`
-              : state.can_ready
-                ? "Confirm that you're here on your own device. Your organizers will bring the attending participants into teams."
-                : "Your account is ready. Organizers open attendance check-in separately from registration and team preparation."}
-          </p>
-          <p className="meta">
-            {phase === "draft" && state.allow_team_naming
-              ? "Checking in and choosing a team name never start a competition clock"
-              : "Checking in never starts a competition clock"}
-          </p>
+    <section className="onboarding-panel" id="your-team" aria-label="Your team">
+      {attendanceRequired ? (
+        <div className="personal-readiness">
+          <div>
+            <p className="eyebrow">Your place in the quest</p>
+            <h2>
+              {state.ready_at
+                ? "You're checked in"
+                : "Ready to join the quest?"}
+            </h2>
+            <p>
+              {state.ready_at
+                ? `${viewer.display_name || viewer.name || "Your attendance"} · Confirmed ${dateTime(state.ready_at)}`
+                : state.can_ready
+                  ? "Confirm that you're here on your own device. Organizers will bring attending participants into teams."
+                  : "Your account is ready. Organizers open attendance check-in separately from registration and team preparation."}
+            </p>
+            <p className="meta">
+              Checking in and changing your team name never start a competition
+              clock
+            </p>
+          </div>
+          {state.ready_at ? (
+            <span className="readiness-confirmed">
+              <Check />{" "}
+              {state.late ? "Late arrival recorded" : "Ready to quest"}
+            </span>
+          ) : state.can_ready ? (
+            <button className="button" disabled={busy} onClick={openPrompt}>
+              Confirm your attendance
+            </button>
+          ) : (
+            <span className="meta">
+              {state.attendance?.enabled
+                ? "Attendance confirmation is not available for this account"
+                : "Attendance check-in is closed"}
+            </span>
+          )}
         </div>
-        {state.ready_at ? (
-          <span className="readiness-confirmed">
-            <Check /> {state.late ? "Late arrival recorded" : "Ready to quest"}
-          </span>
-        ) : state.can_ready ? (
-          <button className="button" disabled={busy} onClick={openPrompt}>
-            Confirm your attendance
-          </button>
-        ) : (
-          <span className="meta">
-            {state.attendance?.enabled
-              ? "Attendance confirmation is not available for this account"
-              : "Attendance check-in is closed"}
-          </span>
-        )}
-      </div>
+      ) : (
+        <div className="personal-readiness">
+          <div>
+            <p className="eyebrow">Your place in the quest</p>
+            <h2>{team ? "Your team" : "You're registered"}</h2>
+            <p>
+              Organizers form teams from registered participants. No attendance
+              check-in is needed.
+            </p>
+          </div>
+        </div>
+      )}
       {error && (
         <Notice tone="error" retry={() => void refresh()}>
           {error}
         </Notice>
       )}
-      {state.late && (
+      {attendanceRequired && state.late && (
         <div className="onboarding-note">
           Your attendance is recorded as a late arrival.
-          {!team && (
-            <>
-              {" "}
-              Please see an organizer for placement
-              {state.phase === "finalized"
-                ? "; organizers can review controlled late admission when the event permits it"
-                : " in a team"}
-              .
-            </>
-          )}
+          {!team && " Please see an organizer for team placement."}
         </div>
       )}
       {!state.roster_released ? (
         <div className="onboarding-note">
           <h3>Team details stay private until roster release</h3>
           <p>
-            {state.ready_at
-              ? "Your check-in is saved. "
-              : state.can_ready
-                ? "Confirm your attendance above when you're ready. "
-                : "Attendance confirmation is available when organizers open check-in. "}
-            Teams are formed from checked-in participants after attendance
-            review. Your team appears after that plan is applied and the rosters
-            are released.
+            {attendanceRequired
+              ? "Your team appears after organizers apply the checked-in grouping plan and release rosters."
+              : "Your team appears after organizers close registration, apply the grouping plan and release rosters."}
           </p>
         </div>
       ) : !team ? (
@@ -146,26 +158,13 @@ function PersonalOnboarding({
               : "Your team is being arranged"}
           </h3>
           <p>
-            {state.phase === "check_in"
-              ? state.ready_at
-                ? "Your attendance is confirmed. Organizers will form teams from checked-in participants after capture closes."
-                : "You're registered in the participant pool. Confirm attendance when check-in opens; team formation happens afterwards."
-              : state.phase === "closed"
-                ? state.ready_at
-                  ? "Organizers are reviewing random balanced teams from checked-in participants. Your team appears when the reviewed plan is applied."
-                  : "Only checked-in participants enter the reviewed teams. Confirm attendance when capture is available, or ask an organizer about the next check-in window."
-                : state.phase === "naming"
-                  ? state.ready_at
-                    ? "Your readiness is saved. An organizer can place an attending late arrival before rosters are finalized."
-                    : state.can_ready
-                      ? "Confirm attendance above, then see an organizer about placement before rosters are finalized."
-                      : "Ask an organizer about the next late-arrival check-in window and team placement."
-                  : state.ready_at
-                    ? "Your attendance is saved. Ask an organizer about controlled late admission into an existing team with space or an agreed named new team. You can play after placement when the event permits it."
-                    : state.can_ready
-                      ? "Confirm attendance above, then an organizer reviews your team placement before you can play."
-                      : state.attendance.reason ||
-                        "Ask an organizer about opening late check-in and arranging your team placement."}
+            {!attendanceRequired
+              ? "Organizers will assign your team. If teams are already formed, ask an organizer about placement."
+              : state.ready_at
+                ? "Your attendance is saved. An organizer can place you in a team before you can play."
+                : state.can_ready
+                  ? "Confirm your attendance above, then ask an organizer about team placement."
+                  : "Confirm attendance when check-in opens, or ask an organizer about the next check-in window and team placement."}
           </p>
         </div>
       ) : (
@@ -175,19 +174,17 @@ function PersonalOnboarding({
               <span className="meta">
                 {state.phase === "check_in" || state.phase === "closed"
                   ? "Provisional team"
-                  : state.phase === "finalized"
-                    ? "Final team"
-                    : team.name_locked
-                      ? "Fixed team name"
-                      : "Your final group"}
+                  : "Your team"}
               </span>
               <h3>{team.name}</h3>
               <TeamNumber number={team.id} />
             </div>
-            <span className="meta">
-              {team.members.filter((member) => member.ready_at).length} of{" "}
-              {team.members.length} checked in
-            </span>
+            {attendanceRequired && (
+              <span className="meta">
+                {team.members.filter((member) => member.ready_at).length} of{" "}
+                {team.members.length} checked in
+              </span>
+            )}
           </div>
           <ul className="teammate-list">
             {team.members.map((member) => (
@@ -196,32 +193,34 @@ function PersonalOnboarding({
                   {member.name}
                   {member.id === viewer.id && <small> You</small>}
                 </span>
-                <span className={member.ready_at ? "member-ready" : "meta"}>
-                  {member.ready_at ? (
-                    <>
-                      <Check /> Ready
-                    </>
-                  ) : (
-                    "Not checked in"
-                  )}
-                </span>
+                {attendanceRequired && (
+                  <span className={member.ready_at ? "member-ready" : "meta"}>
+                    {member.ready_at ? (
+                      <>
+                        <Check /> Ready
+                      </>
+                    ) : (
+                      "Not checked in"
+                    )}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
           {(state.phase === "check_in" || state.phase === "closed") && (
             <p className="meta roster-explanation">
-              Any earlier assignment is provisional. Organizers form the
-              reviewed teams from checked-in participants before finalization.
+              This assignment is provisional until organizers apply the reviewed
+              teams.
             </p>
           )}
-          {state.allow_team_naming && state.can_name && !team.name_locked ? (
+          {state.allow_team_naming && state.can_name ? (
             <div className="team-name-claim">
               <div>
-                <h3>Give your team its final name</h3>
+                <h3>Change your team name</h3>
                 <p>
-                  Agree with your teammates first. Any checked-in member can
-                  confirm the name once; the first confirmation fixes it for
-                  your group.
+                  Agree with your teammates first. You can change the name
+                  throughout Draft, including after roster finalization. Keeping
+                  a name such as Team 1 is fine.
                 </p>
               </div>
               <label className="field">
@@ -229,40 +228,62 @@ function PersonalOnboarding({
                 <input
                   maxLength={128}
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      value: event.target.value,
+                    }))
+                  }
                   disabled={busy}
                   autoComplete="off"
-                  placeholder="The name your team agreed on"
                 />
               </label>
+              {nameConflict && (
+                <Notice>
+                  The team name changed to “{team.name}”. Your unsaved name is
+                  retained.{" "}
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        teamId: team.id,
+                        base: team.name,
+                      }))
+                    }
+                  >
+                    Review latest name and keep my edit
+                  </button>
+                </Notice>
+              )}
               <Confirm
-                key={`${team.id}-${state.allow_team_naming}-${state.can_name}-${team.name_locked}-${state.phase}`}
-                label="Confirm team name"
-                description={`Use “${name.trim()}” as your team's final name? This can be confirmed only once. An organizer correction requires a reason.`}
-                disabled={busy || !name.trim()}
+                key={`${team.id}-${team.name}-${name}-${state.can_name}`}
+                label="Save team name"
+                description={`Use “${name.trim()}” as your team's name? You can change it again until the event goes Live.`}
+                disabled={
+                  busy ||
+                  nameConflict ||
+                  !name.trim() ||
+                  name.trim() === team.name
+                }
                 onConfirm={() =>
                   update("/onboarding/name", {
                     name: name.trim(),
                     confirm: true,
+                    expected_name: draft.base,
+                    team_id: team.id,
                   })
                 }
               />
             </div>
-          ) : state.phase === "naming" &&
-            state.allow_team_naming &&
-            !team.name_locked ? (
-            <p className="onboarding-note">
-              {state.ready_at
-                ? "A checked-in teammate can confirm your team's name once naming is available."
-                : "Check in before confirming your team's name."}
-            </p>
-          ) : team.name_locked || !state.allow_team_naming ? (
+          ) : (
             <p className="meta roster-explanation">
-              {state.phase === "finalized"
-                ? "Your roster and team name are finalized. Your team shares progress across devices."
-                : "Your team name is fixed. Organizers will review and finalize the roster before starting the event."}
+              {state.allow_team_naming
+                ? "An eligible teammate can change the name while the event is in Draft."
+                : "Organizers manage team names. Your current name is valid and does not need confirmation."}
             </p>
-          ) : null}
+          )}
         </div>
       )}
     </section>

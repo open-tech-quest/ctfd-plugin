@@ -29,7 +29,7 @@ export function RegistrationControls({
       <p className="section-copy">
         {state.enabled
           ? "New participants can create their own account. Close registration when you no longer want new public sign-ups."
-          : "New public sign-ups are closed. Existing participants can still sign in and confirm attendance while check-in is available."}
+          : "New public sign-ups are closed. Existing participants can still sign in; organizers manage attendance and team placement separately."}
       </p>
       <Confirm
         key={state.enabled ? "open" : "closed"}

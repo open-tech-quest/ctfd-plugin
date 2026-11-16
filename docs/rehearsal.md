@@ -102,8 +102,11 @@ prerequisites.
 3. Move to attendance review, preview the server's plan and apply it. For
    eligible participants, use the actual ready count in the server preview rather
    than assuming every sample account is present. If member naming is enabled,
-   confirm names as participants; otherwise use the generated names.
-   Finalize, then start the event separately. These are distinct actions.
+   save and change names as participants; generated names are also valid.
+   Exercise team-to-team moves and moving a no-show back to unassigned, including
+   after finalization. Finalize, then start separately. Check that names and ordinary
+   transfers stop once Live. On a separate draft, disable required attendance, close
+   registration and form registered teams without creating any check-in records.
 4. Use two teammates to check shared room starts, prerequisite locks and duplicate
    flags. Solve a room's first challenge for 100 points; buy its second challenge's
    25-point hint and verify a shared balance of 75. Solving the 200-point second

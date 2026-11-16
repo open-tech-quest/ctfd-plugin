@@ -11,7 +11,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          Solves, SolutionFiles, Solutions, Submissions, Tags, TeamComments,
                          TeamFieldEntries, Teams, Tokens, Tracking, Unlocks, UserComments,
                          UserFieldEntries, Users, db)
-from . import archive, projector, registration
+from . import archive, projector, registration, onboarding
 from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestExclusion,
                      QuestHintPurchase, QuestPriceChange, QuestMaintainer, QuestOnboarding, QuestPause, QuestRoomPause,
                      QuestDemoBatch, QuestDemoChallenge, QuestRoom, QuestStep,
@@ -210,6 +210,8 @@ def reset_round(e, data, actor_id):
     for challenge in Challenges.query.filter_by(type='dynamic').all():
         challenge.value = challenge.initial
     state = QuestOnboarding.query.get(1)
+    if mode == "defaults":
+        native_config(onboarding.ATTENDANCE_KEY, "true")
     state.phase, state.applied_at, state.finalized_at = 'check_in', None, None
     state.grandfathered = False
     state.attendance_open = False

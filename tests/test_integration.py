@@ -139,6 +139,17 @@ class QuestIntegration(unittest.TestCase):
 
     def post(self, client, path, data, method="POST"):
         headers = {"CSRF-Token": "quest-test-csrf"}
+        if path == PREFIX + "/onboarding/name" and isinstance(data, dict):
+            # Submit the same team/name context a displayed naming form carries.
+            # Stale-context tests pass explicit snapshots; missing-context tests
+            # use client.open directly so this convenience cannot mask the guard.
+            own = client.get(PREFIX + "/onboarding")
+            state = own.json.get("data", {}) if own.is_json else {}
+            team = state.get("team") if isinstance(state, dict) else None
+            if team:
+                data = dict(data)
+                data.setdefault("team_id", team["id"])
+                data.setdefault("expected_name", team["name"])
         if path == "/api/v1/unlocks" and isinstance(data, dict) and data.get("type") == "hints":
             hint = client.get("/api/v1/hints/" + str(data.get("target")))
             if hint.is_json and isinstance(hint.json.get("data"), dict) and hint.json["data"].get("quote_revision"):
@@ -960,15 +971,15 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(self.apply_attendance(plan)["phase"], "naming")
         self.assertEqual(self.post(self.admin, PREFIX + "/admin/onboarding/optimize", {"preview": False, "fingerprint": plan["fingerprint"]}).status_code, 409)
         self.assertEqual(self.onboarding_action("reopen_checkin").status_code, 409)
-        self.assertEqual(self.onboarding_action("finalize").status_code, 409)
+        # Generated names are valid; finalize membership before optional names.
+        self.assertEqual(self.onboarding_action("finalize").status_code, 200)
         response = self.post(self.alice, PREFIX + "/onboarding/name", {"name": "Workshop Foxes", "confirm": True})
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-        self.assertTrue(response.json["data"]["team"]["name_locked"])
-        self.assertEqual(self.post(self.bob, PREFIX + "/onboarding/name", {"name": "Other name", "confirm": True}).status_code, 409)
-        self.assertEqual(self.onboarding_action("finalize").status_code, 200)
+        self.assertFalse(response.json["data"]["team"]["name_locked"])
+        self.assertEqual(self.post(self.bob, PREFIX + "/onboarding/name", {"name": "Other name", "confirm": True}).status_code, 200)
         self.assertTrue(self.admin.get(PREFIX + "/admin/state").json["data"]["onboarding"]["can_start"])
         public = self.guest.get(PREFIX + "/standings").json["data"]["teams"]
-        self.assertEqual([team["name"] for team in public], ["Workshop Foxes"])
+        self.assertEqual([team["name"] for team in public], ["Other name"])
         with self.app.app_context():
             self.assertEqual(Teams.query.count(), 2)
             self.assertEqual(QuestReadiness.query.count(), 3)
@@ -1003,16 +1014,18 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(self.post(self.admin, PREFIX + "/admin/onboarding/optimize", {"preview": False, "fingerprint": plan["fingerprint"], "groups": []}).status_code, 400)
         self.apply_attendance(plan)
 
-    def test_onboarding_concurrent_once_name_claims_and_casefold_uniqueness(self):
+    def test_onboarding_concurrent_stale_name_edits_and_casefold_uniqueness(self):
         self.open_onboarding(capacity=2)
         self.attendance_window(True)
         for client in (self.alice, self.bob, self.carol):
             self.ready_user(client)
         self.assertEqual(self.onboarding_action("close_checkin").status_code, 200)
         self.apply_attendance(self.attendance_plan())
+        before = self.alice.get(PREFIX + "/onboarding").json["data"]["team"]
         def claim(item):
             uid, name = item
-            return self.post(self.client(uid), PREFIX + "/onboarding/name", {"name": name, "confirm": True})
+            return self.post(self.client(uid), PREFIX + "/onboarding/name", {"name": name, "confirm": True,
+                "team_id": before["id"], "expected_name": before["name"]})
         with ThreadPoolExecutor(max_workers=2) as pool:
             results = list(pool.map(claim, [(2,"Orbit Foxes"),(3,"Orbit Ravens")]))
         self.assertEqual(sorted(response.status_code for response in results), [200,409])
@@ -1215,7 +1228,7 @@ class QuestIntegration(unittest.TestCase):
         with self.app.app_context():
             self.assertIsNone(Users.query.get(3).team_id)
 
-    def test_onboarding_generated_placeholder_must_change_but_meaningful_name_can_confirm(self):
+    def test_onboarding_generated_and_meaningful_names_are_valid_defaults(self):
         self.open_onboarding(capacity=1)
         self.attendance_window(True)
         for client in (self.alice,self.bob,self.carol):
@@ -1230,8 +1243,8 @@ class QuestIntegration(unittest.TestCase):
         own = generated_member.get(PREFIX+"/onboarding").json["data"]
         self.assertTrue(own["team"]["name"].startswith("Team "))
         response = self.post(generated_member,PREFIX+"/onboarding/name",{"name":own["team"]["name"].swapcase()+" ","confirm":True})
-        self.assertEqual(response.status_code,400)
-        self.assertIn("placeholder",response.json["error"])
+        self.assertEqual(response.status_code,200,response.get_data(as_text=True))
+        self.assertEqual(self.onboarding_action("finalize").status_code,200)
         retained = retained_member.get(PREFIX+"/onboarding").json["data"]
         self.assertEqual(self.post(retained_member,PREFIX+"/onboarding/name",{"name":retained["team"]["name"],"confirm":True}).status_code,200)
 
@@ -3087,10 +3100,6 @@ class QuestIntegration(unittest.TestCase):
             with self.app.app_context():
                 setattr(Teams.query.get(self.team_id),field,False)
                 db.session.commit()
-        with self.app.app_context():
-            QuestTeamName.query.get(self.team_id).name_locked=False
-            db.session.commit()
-        self.assertEqual(self.admit([5],team_id=self.team_id).status_code,409)
         self.assertEqual(self.admit([5],team_id=999999).status_code,404)
         for name in ("RED TEAM",None,""):
             result=self.admit([5],new_team_name=name)
@@ -3289,7 +3298,7 @@ class QuestIntegration(unittest.TestCase):
             db.session.commit()
         denied=self.post(self.admin,PREFIX+"/admin/event/action",{"action":"start"})
         self.assertEqual(denied.status_code,409)
-        self.assertIn("attended, assigned team",denied.json["error"])
+        self.assertIn("eligible assigned team",denied.json["error"])
         with self.app.app_context():
             state=QuestOnboarding.query.get(1)
             state.phase="naming"
@@ -3405,7 +3414,7 @@ class QuestIntegration(unittest.TestCase):
             self.assertEqual(QuestStart.query.count(),0)
             self.assertEqual(Solves.query.count(),0)
 
-    def test_formation_optional_once_naming_toggle_and_admin_correction_provenance(self):
+    def test_formation_fluent_naming_toggle_and_admin_correction_provenance(self):
         ids=self.formation_pool(11)
         plan=self.form_ready_pool(ids)
         self.apply_attendance(plan)
@@ -3419,7 +3428,7 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(self.post(claimant,PREFIX+"/onboarding/name",{"name":"Ready Rockets","confirm":True}).status_code,200)
         self.naming_policy(False)
         self.naming_policy(True)
-        self.assertFalse(claimant.get(PREFIX+"/onboarding").json["data"]["can_name"])
+        self.assertTrue(claimant.get(PREFIX+"/onboarding").json["data"]["can_name"])
         with self.app.app_context():
             chosen=Teams.query.filter_by(name="Ready Rockets").one()
             self.assertFalse(QuestTeamName.query.get(chosen.id).auto_named)
@@ -3440,7 +3449,7 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(self.admin.get(PREFIX+"/admin/state").json["data"]["onboarding"]["unnamed_count"],0)
         self.assertEqual(self.onboarding_action("finalize").status_code,200)
 
-    def test_formation_naming_policy_strict_validation_stale_plans_and_once_claim_race(self):
+    def test_formation_naming_policy_strict_validation_stale_plans_and_edit_race(self):
         ids=self.formation_pool(5)
         for data in ({},{"allow_team_naming":1},{"allow_team_naming":"true"},{"unknown":True}):
             self.assertEqual(self.post(self.admin,PREFIX+"/admin/onboarding",data,"PATCH").status_code,400)
@@ -3469,9 +3478,11 @@ class QuestIntegration(unittest.TestCase):
                 finally:
                     release.set()
                 self.assertEqual(pending.result().status_code,409)
-        self.assertEqual(self.naming_policy(True)["unnamed_count"],1)
+        self.assertEqual(self.naming_policy(True)["unnamed_count"],0)
+        before = self.client(ids[0]).get(PREFIX+"/onboarding").json["data"]["team"]
         def claim(uid):
-            return self.post(self.client(uid),PREFIX+"/onboarding/name",{"name":f"Claimed by {uid}","confirm":True})
+            return self.post(self.client(uid),PREFIX+"/onboarding/name",{"name":f"Claimed by {uid}","confirm":True,
+                "team_id":before["id"],"expected_name":before["name"]})
         with ThreadPoolExecutor(max_workers=2) as pool:
             responses=list(pool.map(claim,ids[:2]))
         self.assertEqual(sorted(r.status_code for r in responses),[200,409])
@@ -3561,7 +3572,7 @@ class QuestIntegration(unittest.TestCase):
         self.naming_policy(False)
         self.naming_policy(True)
         self.assertTrue(self.alice.get(PREFIX+"/onboarding").json["data"]["can_name"])
-        self.assertFalse(self.carol.get(PREFIX+"/onboarding").json["data"]["can_name"])
+        self.assertTrue(self.carol.get(PREFIX+"/onboarding").json["data"]["can_name"])
         self.naming_policy(False)
         # Re-running actual startup migration steps must not re-enable policy.
         from CTFd.plugins.migrations import upgrade

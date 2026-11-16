@@ -106,7 +106,10 @@ function AuthenticatedParticipantSession({
   }
   useEffect(() => setError(""), [state?.attendance?.generation]);
   const eligible =
-    !!state?.can_ready && !!state.attendance?.enabled && !state.ready_at;
+    state?.require_attendance !== false &&
+    !!state?.can_ready &&
+    !!state.attendance?.enabled &&
+    !state.ready_at;
   const showPrompt =
     eligible && dismissedGeneration !== state?.attendance.generation;
   function dismiss() {

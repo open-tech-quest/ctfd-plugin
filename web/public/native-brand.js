@@ -47,6 +47,7 @@
     }
     function render(state) {
       if (
+        state?.require_attendance === false ||
         !state?.attendance?.enabled ||
         !state.can_ready ||
         state.ready_at ||

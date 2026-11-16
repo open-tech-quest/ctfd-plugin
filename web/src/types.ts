@@ -245,6 +245,7 @@ export interface AttendanceWindow {
   reason: string | null;
 }
 export interface Onboarding {
+  require_attendance: boolean;
   allow_team_naming: boolean;
   attendance: AttendanceWindow;
   phase: OnboardingPhase;
@@ -262,6 +263,10 @@ export interface Onboarding {
   can_name: boolean;
 }
 export interface AttendanceState {
+  require_attendance: boolean;
+  eligible_count: number;
+  unassigned_count: number;
+  fingerprint: string;
   allow_team_naming: boolean;
   late_admission: {
     allowed: boolean;
@@ -275,6 +280,7 @@ export interface AttendanceState {
   pending_count: number;
   unassigned_ready_count: number;
   unnamed_count: number;
+  finalization_reason: string | null;
   can_start: boolean;
   start_reason: string | null;
 }

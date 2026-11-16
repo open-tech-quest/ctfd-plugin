@@ -32,7 +32,7 @@ export function LateAdmission({
     if (previousFingerprint.current !== admission?.fingerprint) {
       setSelected([]);
       setNotice(
-        "Attendance or team availability changed. Review the current queue and select newcomers again.",
+        "Participants or team availability changed. Review the current queue and select newcomers again.",
       );
       previousFingerprint.current = admission?.fingerprint;
     }
@@ -47,16 +47,16 @@ export function LateAdmission({
         </p>
       </section>
     );
+  const attendanceRequired = data.onboarding.require_attendance !== false;
   const capacity = data.onboarding.team_size;
   const queue = data.participants.filter(
-    (person) => !person.banned && person.ready_at && !person.team_id,
+    (person) =>
+      !person.banned &&
+      (!attendanceRequired || person.ready_at) &&
+      !person.team_id,
   );
   const teams = data.teams.filter(
-    (team) =>
-      team.name_locked &&
-      !team.hidden &&
-      !team.banned &&
-      team.user_ids.length < capacity,
+    (team) => !team.hidden && !team.banned && team.user_ids.length < capacity,
   );
   const target = teams.find((team) => team.id === Number(teamId));
   const names = queue
@@ -78,7 +78,7 @@ export function LateAdmission({
   const enabled = admission.allowed && !!admission.fingerprint && !busy;
   const finalName =
     mode === "existing" ? target?.name || "the selected team" : name.trim();
-  const confirmation = `Admit ${names.join(", ")} to “${finalName}”? ${mode === "new" ? "This creates a team with this agreed final name and fixed placement. It begins without progress or starts and must explicitly start each room." : "This is their final placement. They share this team’s existing progress and room starts."} Existing players, team names, recorded solves and competition clocks remain unchanged. This is not a rebalance.`;
+  const confirmation = `Admit ${names.join(", ")} to “${finalName}”? ${mode === "new" ? "This creates a team with this name. It begins without progress or starts and must explicitly start each room." : "They share this team’s existing progress and room starts."} Existing players, team names, recorded solves and competition clocks remain unchanged. This is not a rebalance.`;
   return (
     <section className="admin-panel late-admission">
       <div className="section-heading">
@@ -93,9 +93,12 @@ export function LateAdmission({
         </button>
       </div>
       <p>
-        Admit checked-in, unassigned newcomers to an existing named team with
-        space, or create an additional team with an agreed final name. Existing
-        players are not moved.
+        Admit eligible unassigned newcomers to an existing team with space, or
+        create an additional team.{" "}
+        {attendanceRequired
+          ? "Newcomers must confirm attendance first. "
+          : "Attendance confirmation is not required. "}
+        Existing players are not moved by late admission.
       </p>
       {!admission.allowed && (
         <Notice>
@@ -109,14 +112,14 @@ export function LateAdmission({
         </Notice>
       )}
       {!queue.length ? (
-        <p className="meta">
-          No checked-in newcomers are waiting for placement. Registration and
-          late attendance capture are controlled separately.
-        </p>
+        <p className="meta">No eligible newcomers are waiting for placement.</p>
       ) : (
         <>
           <fieldset disabled={!enabled}>
-            <legend>Choose up to {capacity} checked-in newcomers</legend>
+            <legend>
+              Choose up to {capacity}{" "}
+              {attendanceRequired ? "checked-in" : "eligible"} newcomers
+            </legend>
             <div className="late-team-choices">
               {queue.map((person) => (
                 <label key={person.id}>
@@ -157,7 +160,7 @@ export function LateAdmission({
                   checked={mode === "existing"}
                   onChange={() => setMode("existing")}
                 />
-                Join an existing final team
+                Join an existing team
               </label>
               <label className="checkbox-field">
                 <input
@@ -179,7 +182,7 @@ export function LateAdmission({
                 >
                   <option value="">
                     {teams.length
-                      ? "Choose a named team with space"
+                      ? "Choose a team with space"
                       : "No eligible team has space"}
                   </option>
                   {teams.map((team) => (
@@ -197,8 +200,8 @@ export function LateAdmission({
                   ))}
                 </select>
                 <small>
-                  Only visible, non-banned teams with a confirmed final name are
-                  offered. All existing members count toward capacity.
+                  Only visible, non-banned teams are offered. All existing
+                  members count toward capacity.
                 </small>
                 {target &&
                   target.user_ids.length + selected.length > capacity && (
@@ -210,7 +213,7 @@ export function LateAdmission({
               </label>
             ) : (
               <label className="field">
-                <span>Agreed final team name</span>
+                <span>New team name</span>
                 <input
                   value={name}
                   onChange={(event) => setName(event.target.value)}
@@ -218,8 +221,8 @@ export function LateAdmission({
                   autoComplete="off"
                 />
                 <small>
-                  Choose an agreed unique name or an unused Team N name. It
-                  becomes the fixed final name for this additional team.
+                  Choose a unique name or an unused Team N name. Enabled
+                  teammates can rename it while the event remains in Draft.
                 </small>
                 {name.trim() && (!nameValid || nameTaken) && (
                   <small>

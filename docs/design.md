@@ -21,7 +21,8 @@ The event moves through `draft → live ↔ paused → closed → published`.
   events support reviewed challenge maintenance and append-only additions.
   Pausing is always the organizer's manual decision, never a maintenance gate.
   Native and automation writes cannot bypass the same content/history protections.
-- Start requires finalized attended teams, capture closed, at least one mapped
+- Start requires finalized eligible teams under the selected attendance policy,
+  capture closed, at least one mapped
   challenge and no loaded demo. A future scheduled start prevents early opening;
   the organizer must still start the event explicitly.
 - A team starts a room once, atomically on the server, before content is released.
@@ -46,7 +47,8 @@ The event moves through `draft → live ↔ paused → closed → published`.
   See [archives](archives.md).
 
 Registration, attendance, team formation and event start are separate actions.
-Naming defaults to fixed generated names; member naming is optional. See the
+Generated team names are valid defaults; optional member renaming and organizer
+reassignment remain available throughout Draft and stop at Live. See the
 [roster contract](rosters.md) for phases, privacy, reviewed plans and late arrivals.
 
 ## Progress, timing and awards

@@ -17,7 +17,7 @@ from CTFd.models import (Awards, ChallengeComments, ChallengeFiles, ChallengeTop
                          SolutionFiles, Solutions, Submissions, Tags, TeamComments,
                          TeamFieldEntries, TeamFields, Teams, Topics, Unlocks,
                          UserComments, UserFieldEntries, UserFields, Users, db)
-from . import read_cache, registration, standings_access
+from . import read_cache, registration, standings_access, onboarding
 from .models import (QuestAsset, QuestChallengeSource, QuestAudit, QuestCorrection, QuestDemoBatch, QuestDemoChallenge, QuestExclusion,
                      QuestHintPurchase, QuestPriceChange, QuestMaintainer, QuestOnboarding,
                      QuestPause, QuestRoomPause, QuestReadiness, QuestRoom, QuestStart,
@@ -54,7 +54,7 @@ _TEAM_FIELDS = "name user_ids excluded reason".split()
 _SCALARS = {"team_id", "user_id", "challenge_id", "hint_id", "room_id", "room_slug", "batch_id",
             "original_solve_id", "detached_team_id", "cost", "adjustment_ms", "reason", "at", "late",
             "name", "old", "new", "source", "generation", "new_team", "joined_at", "fingerprint",
-            "team_size", "allow_team_naming", "file_id", "kind"}
+            "team_size", "allow_team_naming", "require_attendance", "from_team_id", "to_team_id", "file_id", "kind"}
 _LISTS = {"user_ids", "challenge_ids", "unassigned_user_ids", "fields"}
 
 
@@ -234,7 +234,8 @@ def collect_event(e):
                    "members": sorted(user.id for user in users if user.team_id == team.id)}
                   for team in db.session.query(Teams.id, Teams.name, Teams.captain_id, Teams.hidden,
                                                Teams.banned, Teams.created).order_by(Teams.id).all()],
-        "onboarding": _row(state, "phase team_size applied_at finalized_at grandfathered attendance_open attendance_generation attendance_opened_at attendance_closed_at allow_team_naming") if state else None,
+        "onboarding": {**_row(state, "phase team_size applied_at finalized_at grandfathered attendance_open attendance_generation attendance_opened_at attendance_closed_at allow_team_naming"),
+                       "require_attendance": onboarding.require_attendance()} if state else None,
         "registration": registration.status(),
         "standings_visibility": standings_access.settings(),
         "readiness": [_row(row, "user_id ready_at late") for row in QuestReadiness.query.order_by(QuestReadiness.user_id).all()],

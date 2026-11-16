@@ -366,24 +366,26 @@ function EventControls({
         {draft && !onboarding?.can_start && (
           <p className="attendance-blocker">
             {onboarding?.start_reason ||
-              "Attendance status is not available. Refresh organizer controls before starting."}
+              "Roster status is not available. Refresh organizer controls before starting."}
           </p>
         )}
       </section>
-      <AttendanceWindowControls
-        state={onboarding?.attendance}
-        busy={busy}
-        onChange={(enabled) =>
-          mutate(
-            "/admin/attendance",
-            "PATCH",
-            { enabled },
-            enabled
-              ? "Attendance check-in opened"
-              : "Attendance check-in closed",
-          )
-        }
-      />
+      {onboarding?.require_attendance !== false && (
+        <AttendanceWindowControls
+          state={onboarding?.attendance}
+          busy={busy}
+          onChange={(enabled) =>
+            mutate(
+              "/admin/attendance",
+              "PATCH",
+              { enabled },
+              enabled
+                ? "Attendance check-in opened"
+                : "Attendance check-in closed",
+            )
+          }
+        />
+      )}
       <RegistrationControls
         state={registration}
         busy={busy}

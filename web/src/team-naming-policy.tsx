@@ -13,9 +13,7 @@ export function TeamNamingPolicy({
   onChange: (enabled: boolean) => Promise<void>;
 }) {
   const helpId = useId();
-  const editable =
-    event.status === "draft" &&
-    ["check_in", "closed", "naming"].includes(state.phase);
+  const editable = event.status === "draft";
   return (
     <div className="team-naming-policy">
       <label className="checkbox-field">
@@ -33,13 +31,13 @@ export function TeamNamingPolicy({
       </label>
       <p id={helpId} className="meta">
         {state.allow_team_naming
-          ? "Any checked-in current teammate can choose the team's unique name once before finalization. Enabling this opens only generated, unclaimed names; chosen or organizer-corrected names stay fixed."
-          : "Teams receive fixed generated names such as Team 1 and Team 2 when the reviewed groups are applied. Participant name confirmation is not required."}
+          ? "Current teammates can change their team's unique name throughout Draft, including after roster finalization. Names freeze when the event goes Live."
+          : "Teams keep their generated or chosen names. Names such as Team 1 and Team 2 are valid; renaming is always optional."}
       </p>
       <p className="meta">
         {editable
-          ? "Turning this off fixes current names without discarding a chosen name. Naming policy changes invalidate older formation previews."
-          : "The naming policy is fixed after roster finalization or competition start."}
+          ? "Turning this off stops participant renaming and keeps current names. Team names never block roster finalization or event start."
+          : "Participant naming is available only while the event is in Draft."}
       </p>
     </div>
   );

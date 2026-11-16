@@ -76,10 +76,13 @@ export function EventNotice({ data }: { data: Bootstrap }) {
       ) : !viewer.team_id && viewer.role === "participant" ? (
         <Notice>
           <Link href="/quest#your-team">
-            Check in and see your team in the quest lobby
+            {data.onboarding?.require_attendance === false
+              ? "See your team placement in the quest lobby"
+              : "Check in and see your team in the quest lobby"}
           </Link>
-          . Your team appears after organizers form the checked-in teams and
-          release the rosters.
+          {data.onboarding?.require_attendance === false
+            ? ". Organizers assign teams from registered participants and control roster release. Ask an organizer if you need placement."
+            : ". Your team appears after organizers form the checked-in teams and release the rosters."}
           {event.rosters_release_at && (
             <> Roster release: {dateTime(event.rosters_release_at)}.</>
           )}

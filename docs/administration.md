@@ -30,6 +30,12 @@ Actual role transitions clear attendance; demotion or unbanning never restores o
 readiness or invents a membership. Native administrators remain managed in CTFd,
 with self/last-usable-admin and history protections.
 
+Organizer **Move participant** is a separate audited Draft action, available even
+after roster finalization. It preserves attendance and naming history, checks
+competition history/capacity and stops at Live. It does not use native removal
+endpoints that delete activity. See
+[roster controls](rosters.md#organizer-moves-during-draft).
+
 Those per-account/history protections remain in force during ordinary operation.
 The explicit [end-of-event reset](archives.md#two-danger-actions) is a separate
 admin-only exception: in draft, closed or published state, after an atomic archive,

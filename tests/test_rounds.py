@@ -7,7 +7,7 @@ from unittest.mock import patch
 from CTFd.models import (Awards, ChallengeComments, Challenges, Comments, Flags,
     Hints, Notifications, Ratings, Solves, Submissions, TeamComments,
     TeamFieldEntries, TeamFields, Teams, Unlocks, Users, db)
-from CTFd.utils import get_config
+from CTFd.utils import get_config, set_config
 from CTFd.plugins.open_tech_quest import archive, rounds
 from CTFd.plugins.open_tech_quest.models import (QuestAudit, QuestCorrection,
     QuestExclusion, QuestHintPurchase, QuestMaintainer, QuestOnboarding,
@@ -310,3 +310,24 @@ class RoundIntegration(unittest.TestCase):
             self.assertEqual(QuestRoom.query.count(),5)
         self.assertEqual(self.admin.get(P+f'/admin/archives/{first_id}').json,original)
         self.assertEqual(len(self.admin.get(P+'/admin/archives').json['data']['archives']),2)
+
+
+    def test_roster_mode_is_archived_retained_for_another_round_and_reset_with_defaults(self):
+        from CTFd.plugins.open_tech_quest import onboarding
+        with self.app.app_context():
+            set_config(onboarding.ATTENDANCE_KEY, "false")
+            self.assertFalse(onboarding.require_attendance())
+        preview = self.preview()
+        response = self.reset(preview)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertFalse(onboarding.require_attendance())
+            saved = QuestAudit.query.filter_by(action='event.archive').order_by(QuestAudit.id.desc()).first()
+            self.assertFalse(saved.detail['document']['data']['onboarding']['require_attendance'])
+        preview = self.admin.get(P+'/admin/round/preview?mode=defaults').json['data']
+        response = self.reset(preview)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        with self.app.app_context():
+            self.assertTrue(onboarding.require_attendance())
+            saved = QuestAudit.query.filter_by(action='event.archive').order_by(QuestAudit.id.desc()).first()
+            self.assertFalse(saved.detail['document']['data']['onboarding']['require_attendance'])

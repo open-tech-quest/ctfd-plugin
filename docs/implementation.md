@@ -49,6 +49,15 @@ Native operations can close/commit sessions; recovery must reacquire the lock an
 validate again. See [rosters](rosters.md) and [administration](administration.md)
 for the constraints that must survive changes.
 
+Formation policy uses native `Configs` key `quest_require_attendance`, absent
+means true. Authoritative reads bypass worker-local config caches; writes use
+the event lock and existing transactional config revision invalidation. There is
+no schema migration or startup policy write. Archives include the resolved policy;
+new-round reset retains it and defaults reset restores attendance-required mode.
+Draft participant naming uses team ID/current-name context; organizer moves use
+a roster fingerprint. Both recheck phase after lock waits against concurrent Start.
+Native remove-member is not used: upstream deletes user submissions/unlocks/awards.
+
 Migration `0012_room_pauses` adds timestamped per-room incident history without
 changing prior rows. SQLite applies the equivalent additive table upgrade.
 Pause writes use the event lock and a revision bound to phase, incident history

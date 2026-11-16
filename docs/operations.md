@@ -23,7 +23,8 @@ To explore this process with dummy accounts and a repeatable reset, use the
    The UI displays browser-local time; stored/API timestamps are UTC. Empty roster
    release means assignments become visible immediately.
 5. Set maximum team size (default five). Participant naming defaults off: generated
-   Team 1, Team 2, … names are final. Enable member naming only if wanted.
+   Team 1, Team 2, … names are valid defaults. Enable member renaming if wanted;
+   it stays optional throughout Draft.
 6. Test `/quest/stage` on the actual projector. **Organize → Projector** offers
    room-award overview, featured room, overall leaders, full matrix and published
    awards. Enable automatic rotation for a 60-second overview, 30-second featured
@@ -49,35 +50,47 @@ Administrators retain every view. If either comparison is disabled, the projecto
 and its data require an administrator login. Controls apply in any phase, including
 published results, without changing awards. Settings remain across round cleanup.
 
-## Registration, attendance and final teams
+## Registration and team formation
 
-**Registration creates accounts; attendance confirms presence; Start opens play.**
-These are separate controls. New installations default to attendance closed;
-existing settings and confirmations survive upgrades and restarts.
+Registration and attendance are independent controls. Existing windows and saved
+confirmations survive upgrades/restarts. **Require attendance before forming
+teams** defaults on; choose the policy before applying teams, with capture closed.
 
-1. Open **Event → Public registration** while collecting registrations. Accounts
-   remain unassigned. Closing signup also rejects an already-loaded native form;
-   existing users can still sign in.
-2. At the venue, open **Attendance check-in** from Event or Teams. Unconfirmed
-   participants on active Quest pages receive a prompt through the five-second
-   sync; returning tabs refresh it. They must press **I'm ready to quest**.
-   **Not yet** dismisses that opening's dialog and leaves a visible check-in action.
-3. At cutoff, close registration as appropriate and **Move to attendance review**.
-   This closes capture. Preview checked-in teams, inspect assignments/capacity
-   warnings, then apply exactly the reviewed proposal. Changed attendance or
-   settings require another preview. No-show accounts remain unassigned.
-4. Generated names are already locked. If member naming is enabled, any ready
-   teammate can confirm one unique final name. Enabling it after apply opens only
-   generated/unclaimed names; chosen names never reopen. Disabling retains names.
-5. Finalize with capture closed, ready people assigned, valid team sizes and final
-   names. Remove any demo and configure real challenges, then **Start event**
-   separately. A future scheduled start prevents early opening; it does not
-   replace the organizer's Start action.
+1. Open **Event → Public registration** while collecting participants. Closing
+   signup rejects even an already-loaded native form; existing users can sign in.
+2. Choose the formation path in **Organize → Teams**:
+   - With attendance required, open check-in at the venue. Participants confirm
+     on their own devices. At cutoff, **Move to attendance review** closes capture.
+     Preview checked-in teams; no-shows without check-in stay outside the groups.
+   - Without attendance required, close registration and preview registered teams
+     directly. All eligible registered participant accounts enter the pool without
+     login/check-in, including possible no-shows. Staff/banned accounts are excluded.
+3. Inspect the random balanced proposal and capacity warnings, then explicitly
+   apply it. Changed accounts/settings require another preview. Registration must
+   remain closed when applying the registration-only proposal.
+4. During Draft, use **Move participant** to assign an unassigned person, transfer
+   someone between teams, or move a no-show back to unassigned. Review the source,
+   destination and team sizes, and enter a reason. Capacity is enforced. Assigning
+   requires check-in only when attendance is required. Names and check-ins survive.
+5. Custom names are optional. Generated names remain valid. If member renaming is
+   enabled, eligible teammates can change their released team's name repeatedly
+   throughout Draft, including after roster finalization. Renaming never starts
+   a clock or changes membership. A stale naming form must be refreshed.
+6. Finalize the reviewed rosters with capture closed and valid capacity. In
+   attendance mode resolve the required ready queue; in registration-only mode
+   deliberate unassigned accounts may remain outside the event. Remove demos and
+   configure real challenges, then **Start event** separately. A future scheduled
+   start prevents early opening; it does not replace the organizer's Start action.
 
-Registration, check-in, preview, apply and naming never start competition clocks.
-Participants see only their own released team and members' names/readiness; emails
-are organizer-only. Native team forms cannot bypass this process. If a request
-says its reviewed plan is stale, refresh and review again rather than retrying it.
+Roster finalization confirms readiness to launch; organizers may still move
+participants and members may still rename in Draft. Start rechecks the resulting
+rosters. Once Live, ordinary transfers and all team renaming stop, including while
+Paused. Dedicated admission handles eligible unassigned newcomers.
+
+Participants see only their own released team; emails remain organizer-only.
+Native team forms cannot bypass these rules. Signup, check-in, preview, apply,
+renaming and reassignment never start competition clocks. Ordinary moves preserve
+accounts and evidence; banning is an access/scoring action, not a no-show marker.
 
 During play, room cards show the current active room time or the fixed completion
 time. **Event time** counts from event start and stops during global pauses and at
@@ -92,21 +105,22 @@ profiles do not expose this field by default.
 
 ## Late arrivals
 
-Before apply, reopen capture as needed, then close it and preview again. During
-final team review, place ready unassigned people with a reason in teams with room
-or create additional teams; existing groups are not automatically reshuffled.
+Before applying teams, refresh the preview after pool changes. Afterwards, place
+newcomers explicitly; existing groups are never automatically reshuffled. During
+Draft, **Move participant** remains available even after roster finalization.
 
-After finalization, open the explicitly labelled **late attendance** window for
-unassigned newcomers and reopen signup if needed. This works in draft/live/paused
-until cutoff. The newcomer registers/logs in and confirms presence; an administrator
-then admits them into a final-named team with space, or an additional agreed named
-team, with a reason. Close the windows afterwards.
+After finalization, dedicated admission works in draft/live/paused until cutoff.
+If attendance is required, open late check-in and have the newcomer confirm
+presence first. Otherwise select an eligible unassigned account directly. Reopen
+signup only if new public accounts are needed. An administrator supplies a reason
+and admits the newcomer into a visible team with space or a uniquely named new
+team. Close signup/capture afterwards.
 
-Existing members, progress and clocks stay fixed. New teams use the configured
-clock origins and explicitly start their rooms. Ready post-finalization newcomers
-can wait unassigned across Start once capture is closed; they cannot play until
-admitted. Closed/published events and the cutoff block admission. The detailed
-[roster contract](rosters.md) explains eligibility and reviewed-plan guarantees.
+Existing team progress/clocks remain unchanged. New teams use configured clock
+origins and explicitly start rooms. Eligible post-finalization queues may wait
+unassigned across Start under the [roster contract](rosters.md); they cannot play
+before admission. Existing members cannot switch teams through late admission.
+Closed/published events and cutoff block admission.
 
 ## Demo and authoring
 

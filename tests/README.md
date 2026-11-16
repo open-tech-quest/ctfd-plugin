@@ -165,3 +165,13 @@ clamped at zero active elapsed time, reasoned and audited. They affect room awar
 times only; overall awards retain the event/team-first-room clock. Native solve
 timestamps are never rewritten. Unpublish/reopen actions require reasons and
 preserve history; reopening excludes the closed interval as an organizer pause.
+
+Roster preparation regressions cover default attendance-required formation and
+registration-only preview/apply without synthetic readiness; signup/policy/account
+races invalidate plans. Draft renaming remains optional/repeatable after roster
+finalization, detects stale names/membership and stops at Live. Dedicated organizer
+moves check capacity/history/authority, repair captain ownership and preserve
+readiness/names. Both directions and unassignment are exercised, with late
+admission respecting the configured policy. MariaDB tests serialize moves and
+name saves against Start and concurrent destination claims. Disposable UI checks
+exercise the same forms at desktop and mobile sizes.

@@ -168,7 +168,7 @@ def install_guards(app):
                     if target_hint and QuestStep.query.filter_by(challenge_id=target_hint.challenge_id).first():
                         return denied("Use organizer preview to read event hints without a purchase")
             if write and (path.startswith("/api/v1/configs") or path.startswith("/admin/plugins/")):
-                controlled = {"user_mode", "start", "end", "paused", registration.KEY, standings_access.KEY}
+                controlled = {"user_mode", "start", "end", "paused", registration.KEY, standings_access.KEY, onboarding.ATTENDANCE_KEY}
                 names = [path.rsplit("/", 1)[-1], *data.keys(), data.get("key")]
                 if controlled_config_write(names, controlled):
                     return denied("Manage team mode, event clocks, registration and standings visibility through Open Tech Quest organizer controls", 409)

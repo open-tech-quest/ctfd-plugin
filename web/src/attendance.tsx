@@ -11,6 +11,7 @@ import { Confirm, Empty, Notice } from "./ui";
 import { AttendanceWindowControls } from "./attendance-window";
 import { LateAdmission } from "./late-admission";
 import { TeamNamingPolicy } from "./team-naming-policy";
+import { ParticipantMove } from "./participant-move";
 
 type Mutation = (
   path: string,
@@ -51,8 +52,12 @@ export function Attendance({
       setView("teams");
   }, [state?.phase]);
   useEffect(() => {
-    if (!state?.allow_team_naming && filter === "unnamed") setFilter("all");
-  }, [state?.allow_team_naming, filter]);
+    if (
+      state?.require_attendance === false &&
+      ["ready", "pending", "late"].includes(filter)
+    )
+      setFilter("all");
+  }, [state?.require_attendance, filter]);
   if (!state)
     return (
       <Notice>
@@ -60,9 +65,12 @@ export function Attendance({
         the update completes.
       </Notice>
     );
+  const attendanceRequired = state.require_attendance !== false;
+  const teamCount = (team: Team) =>
+    attendanceRequired ? team.ready_count : team.user_ids.length;
   const minimum = Math.ceil(state.team_size * 0.8);
   const undersized = data.teams.filter(
-    (team) => team.ready_count > 0 && team.ready_count < minimum,
+    (team) => teamCount(team) > 0 && teamCount(team) < minimum,
   ).length;
   const matches = (value: string) =>
     value.toLocaleLowerCase().includes(query.toLocaleLowerCase());
@@ -75,13 +83,10 @@ export function Attendance({
         )) &&
       (filter === "all" ||
         (filter === "undersized" &&
-          team.ready_count > 0 &&
-          team.ready_count < minimum) ||
+          teamCount(team) > 0 &&
+          teamCount(team) < minimum) ||
         (filter === "pending" &&
           people.some((person) => !person.ready_at && eligible(person))) ||
-        (filter === "unnamed" &&
-          team.user_ids.length > 0 &&
-          !team.name_locked) ||
         (filter === "ready" &&
           team.ready_count > 0 &&
           team.ready_count === people.filter(eligible).length))
@@ -97,42 +102,69 @@ export function Attendance({
       (filter === "all" ||
         (filter === "ready" && !!person.ready_at) ||
         (filter === "pending" && !person.ready_at && eligible(person)) ||
-        (filter === "unassigned" && !person.team_id && !!person.ready_at) ||
+        (filter === "unassigned" &&
+          !person.team_id &&
+          eligible(person) &&
+          (!attendanceRequired || !!person.ready_at)) ||
         (filter === "late" && person.late)),
   );
   return (
     <>
-      <AttendanceWindowControls
-        state={state.attendance}
-        busy={busy}
-        onChange={(enabled) =>
-          mutate(
-            "/admin/attendance",
-            "PATCH",
-            { enabled },
-            enabled
-              ? "Attendance check-in opened"
-              : "Attendance check-in closed",
-          )
-        }
-      />
+      {attendanceRequired && (
+        <AttendanceWindowControls
+          state={state.attendance}
+          busy={busy}
+          onChange={(enabled) =>
+            mutate(
+              "/admin/attendance",
+              "PATCH",
+              { enabled },
+              enabled
+                ? "Attendance check-in opened"
+                : "Attendance check-in closed",
+            )
+          }
+        />
+      )}
       <AttendanceLifecycle data={data} busy={busy} mutate={mutate} />
+      {data.event.status === "draft" && (
+        <ParticipantMove
+          data={data}
+          busy={busy}
+          mutate={mutate}
+          onRefresh={onRefresh}
+        />
+      )}
       <div
         className="attendance-counts"
         role="group"
         aria-label="Attendance totals"
       >
         <div>
-          <strong>{state.ready_count}</strong>
-          <span>Checked in</span>
+          <strong>
+            {attendanceRequired ? state.ready_count : state.eligible_count}
+          </strong>
+          <span>
+            {attendanceRequired ? "Checked in" : "Eligible participants"}
+          </span>
         </div>
+        {attendanceRequired && (
+          <div>
+            <strong>{state.pending_count}</strong>
+            <span>Pending check-in</span>
+          </div>
+        )}
         <div>
-          <strong>{state.pending_count}</strong>
-          <span>Pending check-in</span>
-        </div>
-        <div>
-          <strong>{state.unassigned_ready_count}</strong>
-          <span>Ready, unassigned</span>
+          <strong>
+            {attendanceRequired
+              ? state.unassigned_ready_count
+              : state.unassigned_count}
+          </strong>
+          <span>
+            {attendanceRequired
+              ? "Ready, unassigned"
+              : "Unassigned participants"}
+          </span>
         </div>
         <div>
           <strong>{undersized}</strong>
@@ -140,27 +172,21 @@ export function Attendance({
         </div>
         <div>
           <strong>
-            {state.allow_team_naming
-              ? state.unnamed_count
-              : data.teams.filter(
-                  (team) => team.name_locked && team.user_ids.length > 0,
-                ).length}
+            {data.teams.filter((team) => team.user_ids.length > 0).length}
           </strong>
-          <span>
-            {state.allow_team_naming
-              ? "Teams awaiting names"
-              : "Teams with fixed names"}
-          </span>
+          <span>Populated teams</span>
         </div>
       </div>
-      {data.event.status === "draft" && state.phase === "closed" && (
-        <TeamFormation
-          key={`${state.attendance?.generation}-${state.attendance?.enabled}-${state.team_size}-${state.allow_team_naming}`}
-          data={data}
-          busy={busy}
-          mutate={mutate}
-        />
-      )}
+      {data.event.status === "draft" &&
+        (state.phase === "closed" ||
+          (!attendanceRequired && state.phase === "check_in")) && (
+          <TeamFormation
+            key={`${state.attendance?.generation}-${state.attendance?.enabled}-${state.team_size}-${state.allow_team_naming}-${attendanceRequired}-${data.registration.enabled}`}
+            data={data}
+            busy={busy}
+            mutate={mutate}
+          />
+        )}
       {data.event.status === "draft" && state.phase === "naming" && (
         <LateQueue data={data} busy={busy} mutate={mutate} />
       )}
@@ -174,15 +200,11 @@ export function Attendance({
       )}
       <div className="section-heading">
         <div>
-          <h2>Teams and attendance</h2>
+          <h2>Teams and participants</h2>
           <p>
-            {state.phase === "check_in"
-              ? "Registered participants wait in the pool. Teams form only after attendance capture closes and a checked-in grouping plan is applied."
-              : state.phase === "closed"
-                ? "Preview random balanced teams from checked-in participants, then explicitly apply the reviewed plan."
-                : state.phase === "naming"
-                  ? "Review the formed teams and any ready late arrivals before finalizing. Participant naming follows the organizer setting."
-                  : "Existing players and team names stay fixed. Checked-in newcomers can be admitted through the controlled late-admission action when available."}
+            {data.event.status === "draft"
+              ? "Review teams and move participants as needed. Organizers can adjust membership throughout Draft, including after finalization. Team renaming is optional."
+              : "Existing memberships and names are fixed after the event starts. Eligible newcomers can use controlled late admission."}
           </p>
         </div>
       </div>
@@ -225,19 +247,24 @@ export function Attendance({
             onChange={(event) => setFilter(event.target.value)}
           >
             <option value="all">All {view}</option>
-            <option value="ready">Checked in</option>
-            <option value="pending">Pending check-in</option>
+            {attendanceRequired && (
+              <>
+                <option value="ready">Checked in</option>
+                <option value="pending">Pending check-in</option>
+              </>
+            )}
             {view === "teams" ? (
               <>
                 <option value="undersized">Below 80% target</option>
-                {state.allow_team_naming && (
-                  <option value="unnamed">Awaiting team name</option>
-                )}
               </>
             ) : (
               <>
-                <option value="unassigned">Ready, unassigned</option>
-                <option value="late">Late arrivals</option>
+                <option value="unassigned">
+                  {attendanceRequired ? "Ready, unassigned" : "Unassigned"}
+                </option>
+                {attendanceRequired && (
+                  <option value="late">Late arrivals</option>
+                )}
               </>
             )}
           </select>
@@ -266,7 +293,9 @@ export function Attendance({
           >
             {data.teams.length
               ? "Try another search or attendance filter."
-              : "Registered participants remain in the pool. After check-in, move to attendance review and preview teams from checked-in participants."}
+              : attendanceRequired
+                ? "After check-in, move to attendance review and preview the checked-in teams."
+                : "Close registration, then preview and apply random balanced teams from registered participants."}
           </Empty>
         )
       ) : (
@@ -279,20 +308,27 @@ export function Attendance({
 function AttendanceLifecycle({ data, busy, mutate }: Props) {
   const state = data.onboarding;
   const [size, setSize] = useState(state.team_size);
-  useEffect(() => {
-    setSize(state.team_size);
-  }, [state.team_size]);
+  useEffect(() => setSize(state.team_size), [state.team_size]);
   const draft = data.event.status === "draft";
+  const attendanceRequired = state.require_attendance !== false;
   const settingsEditable =
     draft && ["check_in", "closed"].includes(state.phase);
+  const phases = attendanceRequired
+    ? phaseNames
+    : {
+        check_in: "Participant pool",
+        closed: "Team review",
+        naming: "Final team review",
+        finalized: "Rosters finalized",
+      };
   return (
     <section className="admin-panel attendance-lifecycle">
       <div className="section-heading">
-        <h2>Prepare the attending teams</h2>
-        <span className="phase">{phaseNames[state.phase]}</span>
+        <h2>Prepare teams</h2>
+        <span className="phase">{phases[state.phase]}</span>
       </div>
       <ol className="phase-path">
-        {Object.entries(phaseNames).map(([phase, name]) => (
+        {Object.entries(phases).map(([phase, name]) => (
           <li key={phase} className={phase === state.phase ? "current" : ""}>
             {name}
           </li>
@@ -300,26 +336,49 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
       </ol>
       {state.phase !== "finalized" && (
         <div className="event-day-guidance">
-          <h3>Event-day sequence</h3>
+          <h3>Preparation sequence</h3>
           <p>
-            Morning registration collects individual accounts without forming
-            teams. Open attendance later so people can confirm they are here. At
-            the cutoff, close registration as appropriate and move to attendance
-            review, which closes capture. Teams are created only after you
-            preview and apply the checked-in groups.
+            {attendanceRequired
+              ? "Collect registrations, open attendance check-in, then move to attendance review. Preview and apply random balanced teams from checked-in participants."
+              : "Close public registration, then preview and apply random balanced teams from all eligible registered participants. No attendance check-in is needed. No-shows are included; use Move participant to adjust teams or return them to unassigned."}
           </p>
-          <ol>
-            <li>Move to attendance review</li>
-            <li>Preview teams from checked-in participants</li>
-            <li>Apply the reviewed teams</li>
-            {state.allow_team_naming && (
-              <li>Ready teammates choose their names once</li>
-            )}
-            <li>Finalize rosters</li>
-            <li>Start event from the Event tab</li>
-          </ol>
+          <p>
+            Review the groups, finalize rosters, then start the event from the
+            Event tab. Team renaming is optional and remains available
+            throughout Draft.
+          </p>
         </div>
       )}
+      <div className="team-naming-policy">
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={attendanceRequired}
+            disabled={busy || !settingsEditable || state.attendance.enabled}
+            onChange={(event) =>
+              void mutate(
+                "/admin/onboarding",
+                "PATCH",
+                { require_attendance: event.currentTarget.checked },
+                "Team formation policy saved",
+              ).catch(() => {})
+            }
+          />
+          Require attendance before forming teams
+        </label>
+        <p className="meta">
+          {attendanceRequired
+            ? "Only checked-in eligible participants enter random team formation."
+            : "All eligible registered participants enter formation, including no-shows. Registration must be closed before previewing and applying teams."}
+        </p>
+        <p className="meta">
+          {state.attendance.enabled
+            ? "Close attendance capture before changing this policy."
+            : settingsEditable
+              ? "Choose the policy before applying teams. Changing it invalidates older previews."
+              : "The formation policy is fixed after teams have been applied."}
+        </p>
+      </div>
       <div className="attendance-settings">
         <form
           onSubmit={(event) => {
@@ -360,8 +419,8 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
         </form>
         <p>
           Maximum size is a hard limit. The 80% target is a guideline; the
-          attendance preview explains any smaller groups. Readiness belongs to
-          the person and survives a team move.
+          preview explains smaller groups. A move preserves the participant's
+          recorded attendance.
         </p>
       </div>
       <TeamNamingPolicy
@@ -374,17 +433,17 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
             "PATCH",
             { allow_team_naming: enabled },
             enabled
-              ? "Participant team naming enabled"
-              : "Current team names fixed; participant naming disabled",
+              ? "Participant team renaming enabled throughout Draft"
+              : "Participant renaming disabled; current names retained",
           )
         }
       />
       <div className="actions">
-        {draft && state.phase === "check_in" && (
+        {draft && attendanceRequired && state.phase === "check_in" && (
           <Confirm
-            key={`review-${state.attendance?.generation}-${state.attendance?.enabled}`}
+            key={`review-${state.attendance.generation}-${state.attendance.enabled}`}
             label="Move to attendance review"
-            description="Close attendance capture and review the checked-in participant pool. No team is created by this action; next, preview and apply the random balanced groups. Existing readiness stays saved and no competition clock starts."
+            description="Close attendance capture and review the checked-in participant pool. Next, preview and apply the random balanced groups. Existing readiness stays saved and no competition clock starts."
             disabled={busy}
             onConfirm={() =>
               mutate(
@@ -399,34 +458,24 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
         {draft && state.phase === "closed" && (
           <Confirm
             label="Return to participant pool"
-            description="Return to the participant pool before reviewed teams have been applied. This does not open attendance capture or form teams. Recorded readiness is retained; control the check-in window separately."
+            description="Return to the participant pool before reviewed teams have been applied. Recorded attendance is retained; capture stays unchanged."
             disabled={busy}
             onConfirm={() =>
               mutate(
                 "/admin/onboarding/action",
                 "POST",
                 { action: "reopen_checkin" },
-                "Returned to participant pool; attendance capture is unchanged",
+                "Returned to participant pool",
               )
             }
           />
         )}
         {draft && state.phase === "naming" && (
           <Confirm
-            key={`finalize-${state.attendance?.generation}-${state.attendance?.enabled}-${state.allow_team_naming}`}
+            key={`finalize-${state.fingerprint}`}
             label="Finalize rosters"
-            description={
-              state.allow_team_naming
-                ? "Freeze these reviewed teams after required one-time name choices are complete, assigned members are ready and waiting arrivals are resolved. Starting the event is a separate action."
-                : "Finalize the reviewed teams with their fixed generated or already-confirmed names. Assigned members must be ready and waiting arrivals resolved. Starting the event is a separate action."
-            }
-            disabled={
-              busy ||
-              state.attendance?.enabled ||
-              state.unassigned_ready_count > 0 ||
-              state.unnamed_count > 0 ||
-              state.ready_count === 0
-            }
+            description="Confirm the reviewed rosters are ready for launch. Organizers can still move participants and enabled teammates can rename teams throughout Draft. Generated Team N names are valid. Start the event separately."
+            disabled={busy || !!state.finalization_reason}
             onConfirm={() =>
               mutate(
                 "/admin/onboarding/action",
@@ -438,31 +487,14 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
           />
         )}
       </div>
-      {state.phase === "naming" && state.attendance?.enabled && (
-        <p className="attendance-blocker">
-          Close attendance check-in before finalizing the rosters
-        </p>
+      {state.phase === "naming" && state.finalization_reason && (
+        <p className="attendance-blocker">{state.finalization_reason}</p>
       )}
-      {state.phase === "naming" &&
-        (state.unassigned_ready_count > 0 || state.unnamed_count > 0) && (
-          <p className="attendance-blocker">
-            Before finalizing:{" "}
-            {state.unassigned_ready_count > 0
-              ? `${state.unassigned_ready_count} ready participant${state.unassigned_ready_count === 1 ? " needs" : "s need"} placement`
-              : ""}
-            {state.unassigned_ready_count > 0 && state.unnamed_count > 0
-              ? " · "
-              : ""}
-            {state.unnamed_count > 0
-              ? `${state.unnamed_count} team${state.unnamed_count === 1 ? " needs" : "s need"} a final name`
-              : ""}
-          </p>
-        )}
       {state.phase === "finalized" && (
         <p className="meta">
           {draft
-            ? "Rosters are finalized. Close attendance capture before starting the competition separately from the Event tab."
-            : "Rosters are finalized. Eligible newcomers can be admitted separately while existing players and competition clocks remain unchanged."}
+            ? "Rosters are ready for launch. You can still adjust teams and names during Draft; launch checks the current rosters again."
+            : "Existing memberships and names are fixed. Eligible newcomers can be admitted separately while existing progress and clocks remain unchanged."}
         </p>
       )}
     </section>
@@ -473,21 +505,30 @@ function TeamFormation({ data, busy, mutate }: Props) {
   const [plan, setPlan] = useState<AttendancePlan | null>(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState("");
+  const attendanceRequired = data.onboarding.require_attendance !== false;
+  const blocked =
+    data.onboarding.attendance.enabled ||
+    (!attendanceRequired && data.registration.enabled);
   const name = (id: number) =>
     data.participants.find((person) => person.id === id)?.name ||
     `Participant ${id}`;
   return (
     <section className="admin-panel optimize-panel">
-      <h2>Form teams from checked-in participants</h2>
+      <h2>
+        {attendanceRequired
+          ? "Form teams from checked-in participants"
+          : "Form teams from registered participants"}
+      </h2>
       <p>
-        Preview random, balanced groups from checked-in eligible participants
-        only. Unchanged attendance and settings return the same proposal. Review
-        and explicitly apply it; unconfirmed accounts remain outside the teams
-        and no competition clock starts.
+        {attendanceRequired
+          ? "Preview random, balanced groups from checked-in eligible participants. Unconfirmed accounts stay outside the teams."
+          : "Preview random, balanced groups from every eligible registered participant. No attendance confirmation is required; no-shows are included."}{" "}
+        Unchanged accounts and settings return the same proposal. Review and
+        explicitly apply it; no competition clock starts.
       </p>
       <button
         className="button secondary"
-        disabled={busy || loading || data.onboarding.attendance?.enabled}
+        disabled={busy || loading || blocked}
         onClick={async () => {
           setLoading(true);
           setPlan(null);
@@ -511,8 +552,15 @@ function TeamFormation({ data, busy, mutate }: Props) {
           ? "Forming preview…"
           : plan
             ? "Refresh team preview"
-            : "Preview checked-in teams"}
+            : attendanceRequired
+              ? "Preview checked-in teams"
+              : "Preview registered teams"}
       </button>
+      {!attendanceRequired && data.registration.enabled && (
+        <p className="attendance-blocker">
+          Close public registration before previewing or applying teams.
+        </p>
+      )}
       {data.onboarding.attendance?.enabled && (
         <p className="attendance-blocker">
           Close attendance check-in before previewing or applying the final
@@ -586,36 +634,27 @@ function TeamFormation({ data, busy, mutate }: Props) {
               </summary>
               <p>{plan.unassigned_user_ids.map(name).join(", ")}</p>
               <p className="meta">
-                These accounts remain registered. A later check-in appears in
-                the organizer placement queue.
+                These accounts remain registered. Organizers can review later
+                placement separately.
               </p>
             </details>
           )}
           <p className="meta">
-            This plan is tied to the current attendance, capacity and
-            memberships and naming policy. If anything changes, the server
-            rejects it and you must preview again.
+            This plan is tied to current accounts, registration, attendance,
+            capacity, memberships and naming policy. If anything changes, the
+            server rejects it and you must preview again.
           </p>
           <Confirm
             key={`${plan.fingerprint}-${data.onboarding.allow_team_naming}`}
             label="Apply reviewed teams"
-            description={
-              data.onboarding.allow_team_naming
-                ? "Create exactly the reviewed teams from checked-in participants. Generated unclaimed names become available for one ready teammate to choose once before finalization. Existing records are retained and no competition clock starts."
-                : "Create exactly the reviewed teams from checked-in participants and fix their generated names, such as Team 1 and Team 2. No participant name confirmation is required. Review and finalize the rosters before starting the event; no clock starts now."
-            }
-            disabled={
-              busy ||
-              loading ||
-              data.onboarding.attendance?.enabled ||
-              !plan.groups.length
-            }
+            description={`Create exactly the reviewed teams from ${attendanceRequired ? "checked-in" : "registered"} eligible participants? Teams receive generated names such as Team 1 and Team 2. Renaming is optional and enabled members can change names throughout Draft. Review and finalize the rosters before starting the event; no clock starts now.`}
+            disabled={busy || loading || blocked || !plan.groups.length}
             onConfirm={async () => {
               await mutate(
                 "/admin/onboarding/optimize",
                 "POST",
                 { preview: false, fingerprint: plan.fingerprint },
-                "Checked-in teams formed; review and finalize the rosters",
+                "Teams formed; review and finalize the rosters",
               );
               setPlan(null);
             }}
@@ -630,7 +669,10 @@ function LateQueue({ data, busy, mutate }: Props) {
   const [selected, setSelected] = useState<number[]>([]),
     [reason, setReason] = useState("");
   const queue = data.participants.filter(
-    (person) => eligible(person) && person.ready_at && !person.team_id,
+    (person) =>
+      eligible(person) &&
+      (data.onboarding.require_attendance === false || person.ready_at) &&
+      !person.team_id,
   );
   const queueKey = queue.map((person) => person.id).join(",");
   useEffect(
@@ -643,10 +685,11 @@ function LateQueue({ data, busy, mutate }: Props) {
   if (!queue.length) return null;
   return (
     <section className="admin-panel late-arrival-queue">
-      <h2>Ready participants awaiting placement</h2>
+      <h2>Participants awaiting placement</h2>
       <p>
         Place late arrivals in an existing final group with space. Every
-        placement needs a reason. Finalize only when this queue is resolved.
+        placement needs a reason. In attendance mode, resolve checked-in
+        participants before finalizing.
       </p>
       {queue.map((person) => (
         <LatePlacement
@@ -663,12 +706,12 @@ function LateQueue({ data, busy, mutate }: Props) {
           When the existing groups are full, create another group without moving
           their members or changing their names.{" "}
           {data.onboarding.allow_team_naming
-            ? "A ready member of the new group can choose its name once."
-            : "The new group receives a generated fixed team name."}
+            ? "Members can change the name throughout Draft."
+            : "The new group receives a generated Team N name."}
         </p>
         <fieldset disabled={busy}>
           <legend>
-            Select up to {data.onboarding.team_size} ready participants
+            Select up to {data.onboarding.team_size} eligible participants
           </legend>
           <div className="late-team-choices">
             {queue.map((person) => (
@@ -708,7 +751,7 @@ function LateQueue({ data, busy, mutate }: Props) {
         <Confirm
           key={`additional-${data.onboarding.allow_team_naming}`}
           label="Create additional team"
-          description={`Create an additional team for ${selected.length} selected ready participant${selected.length === 1 ? "" : "s"}? Existing groups stay intact. ${data.onboarding.allow_team_naming ? "A ready teammate can choose its final name once before finalization." : "Its generated name is fixed; participant name confirmation is not required."}`}
+          description={`Create an additional team for ${selected.length} selected eligible participant${selected.length === 1 ? "" : "s"}? Existing groups stay intact. ${data.onboarding.allow_team_naming ? "Members can rename it throughout Draft." : "Its generated name is valid; renaming is optional."}`}
           disabled={
             busy ||
             !selected.length ||
@@ -739,7 +782,10 @@ function LatePlacement({
   const [teamId, setTeamId] = useState(""),
     [reason, setReason] = useState("");
   const available = data.teams.filter(
-    (team) => team.user_ids.length < data.onboarding.team_size,
+    (team) =>
+      !team.hidden &&
+      !team.banned &&
+      team.user_ids.length < data.onboarding.team_size,
   );
   return (
     <form
@@ -749,9 +795,14 @@ function LatePlacement({
         const team = available.find((team) => team.id === Number(teamId));
         if (!team) return;
         void mutate(
-          `/admin/teams/${team.id}`,
-          "PATCH",
-          { user_ids: [...team.user_ids, person.id], reason },
+          "/admin/onboarding/move",
+          "POST",
+          {
+            user_id: person.id,
+            team_id: team.id,
+            fingerprint: data.onboarding.fingerprint,
+            reason,
+          },
           `${person.name} placed in ${team.name}`,
         ).catch(() => {});
       }}
@@ -759,7 +810,9 @@ function LatePlacement({
       <div>
         <strong>{person.name}</strong>
         <span>
-          {person.email} · {person.late ? "Late arrival" : "Checked in"}
+          {person.email}
+          {data.onboarding.require_attendance !== false &&
+            ` · ${person.late ? "Late arrival" : "Checked in"}`}
         </span>
       </div>
       <label>
@@ -837,29 +890,29 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
               ? "Excluded from awards"
               : phase === "check_in" || phase === "closed"
                 ? "Provisional"
-                : team.name_locked
-                  ? "Fixed name"
-                  : data.onboarding.allow_team_naming
-                    ? "Awaiting name"
-                    : "Review team"}
+                : draft
+                  ? "Reviewed team"
+                  : "Final team"}
           </small>
         </span>
         <span className="attendance-team-size">
           {team.user_ids.length}
           <small>/{data.onboarding.team_size} people</small>
         </span>
-        <span
-          className={
-            team.ready_count === team.user_ids.length && team.ready_count > 0
-              ? "member-ready"
-              : "meta"
-          }
-        >
-          {team.ready_count} ready
-          {team.user_ids.length > team.ready_count
-            ? ` · ${team.user_ids.length - team.ready_count} pending`
-            : ""}
-        </span>
+        {data.onboarding.require_attendance !== false && (
+          <span
+            className={
+              team.ready_count === team.user_ids.length && team.ready_count > 0
+                ? "member-ready"
+                : "meta"
+            }
+          >
+            {team.ready_count} ready
+            {team.user_ids.length > team.ready_count
+              ? ` · ${team.user_ids.length - team.ready_count} pending`
+              : ""}
+          </span>
+        )}
         <span className="meta">View team</span>
       </summary>
       <div className="attendance-team-body">
@@ -873,11 +926,13 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
               <span>
                 {person.banned
                   ? "Ineligible"
-                  : person.ready_at
-                    ? person.late
-                      ? "Ready · Late arrival"
-                      : "Ready"
-                    : "Pending check-in"}
+                  : data.onboarding.require_attendance === false
+                    ? "Eligible participant"
+                    : person.ready_at
+                      ? person.late
+                        ? "Ready · Late arrival"
+                        : "Ready"
+                      : "Pending check-in"}
               </span>
             </li>
           ))}
@@ -957,7 +1012,9 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
                   )
                   .map((person) => (
                     <option key={person.id} value={person.id}>
-                      {person.name} · {person.ready_at ? "Ready" : "Pending"}
+                      {person.name}
+                      {data.onboarding.require_attendance !== false &&
+                        ` · ${person.ready_at ? "Ready" : "Pending"}`}
                     </option>
                   ))}
               </select>
@@ -1017,7 +1074,11 @@ function ParticipantList({
           <tr>
             <th scope="col">Participant</th>
             <th scope="col">Team</th>
-            <th scope="col">Attendance</th>
+            <th scope="col">
+              {data.onboarding.require_attendance === false
+                ? "Status"
+                : "Attendance"}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -1034,6 +1095,8 @@ function ParticipantList({
               <td>
                 {person.banned ? (
                   "Ineligible"
+                ) : data.onboarding.require_attendance === false ? (
+                  "Eligible participant"
                 ) : person.ready_at ? (
                   <>
                     <span className="member-ready">
