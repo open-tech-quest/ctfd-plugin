@@ -72,7 +72,7 @@ repeated price cohorts, same-price alignment, ID cutoffs with equal timestamps,
 recovery/unban, refunds and new charges, negative room/overall acknowledgment at
 the apply lock, effective affordability and unchanged original native history.
 
-Description-placeholder checks cover cursor/selection insertion, character limits,
+Description/hint placeholder checks cover cursor/selection insertion, character limits,
 viewer/team privacy, zero/negative net points, literal names and escaping, encoded
 Markdown links, unsafe URL positions and unchanged raw templates. Isolated browser
 checks exercise both editors, staff preview, shared team identities and score

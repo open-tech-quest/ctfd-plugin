@@ -7,6 +7,7 @@ export function DescriptionEditor({
   value,
   onChange,
   disabled = false,
+  required = false,
   rows = 8,
   maxLength = 10000,
 }: {
@@ -14,6 +15,7 @@ export function DescriptionEditor({
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  required?: boolean;
   rows?: number;
   maxLength?: number;
 }) {
@@ -50,6 +52,7 @@ export function DescriptionEditor({
           maxLength={maxLength}
           value={value}
           disabled={disabled}
+          required={required}
           aria-describedby={`${id}-help`}
           onSelect={(event) =>
             setSelection({

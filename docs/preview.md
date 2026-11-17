@@ -33,8 +33,8 @@ labels and the same affordability states. No real event points, purchases,
 attendance, teams, starts, submissions or solves are created. Clock displays are
 stopped examples; awards, rankings and event timing are not simulated.
 
-Description placeholders use an example team identity; `team.points` follows the
-same derived local balance as the score displays and hint dialog. The separate
+Room, challenge and hint placeholders use an example team identity; `team.points`
+follows the same derived local balance as the score displays and hint dialog. The separate
 Markdown editor preview still uses static example values. See
 [personalized descriptions](administration.md#personalized-descriptions).
 

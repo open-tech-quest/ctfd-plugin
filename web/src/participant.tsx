@@ -1147,7 +1147,10 @@ function ChallengePanel({
                             ? "Used by your team"
                             : "Revealed"}
                       </p>
-                      <Markdown source={hints[hint.id] ?? hint.content ?? ""} />
+                      <Markdown
+                        source={hints[hint.id] ?? hint.content ?? ""}
+                        placeholders={placeholders}
+                      />
                     </>
                   ) : (
                     <button

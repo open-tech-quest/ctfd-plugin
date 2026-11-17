@@ -161,9 +161,9 @@ The React/Vite app is copied into the plugin's `assets/app/`; the Jinja shell
 serves `/quest` and its routes. Only safe viewer/CSRF data belongs in
 `window.QUEST_INIT`. Native login, registration, settings and admin remain usable.
 
-Description placeholders opt into the shared Markdown renderer at the room and
-challenge body call sites. The four allowed values come from the current viewer
-and room's overall `team_score`; existing resource refreshes update points. Keep
+Description placeholders opt into the shared Markdown renderer at the room,
+challenge and revealed hint body call sites. The four allowed values come from the
+current viewer and room's overall `team_score`; existing resource refreshes update points. Keep
 personalized results out of shared raw-content caches. Editor/participant preview
 uses explicit static samples; archives retain raw templates. No native fields,
 API permissions, grading rules or schema are changed.

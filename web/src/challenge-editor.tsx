@@ -9,7 +9,7 @@ import type {
   QuestEvent,
   Room,
 } from "./types";
-import { ConfirmDialog, Empty, Markdown, Notice } from "./ui";
+import { ConfirmDialog, Empty, Notice } from "./ui";
 import { DescriptionEditor } from "./description-editor";
 import {
   challengeDraftOf as draftOf,
@@ -734,26 +734,13 @@ function ChallengeForm({
                         </p>
                       </div>
                     )}
-                  <label className="field">
-                    <span>Hint {index + 1} text (Markdown)</span>
-                    <textarea
-                      rows={4}
-                      maxLength={10000}
-                      required
-                      value={hint.content}
-                      onChange={(event) =>
-                        change({ content: event.target.value })
-                      }
-                    />
-                  </label>
-                  <details className="introduction-preview">
-                    <summary>Preview hint {index + 1}</summary>
-                    {hint.content.trim() ? (
-                      <Markdown source={hint.content} />
-                    ) : (
-                      <p className="meta">Write a hint to preview it here</p>
-                    )}
-                  </details>
+                  <DescriptionEditor
+                    label={`Hint ${index + 1} text (Markdown)`}
+                    rows={4}
+                    required
+                    value={hint.content}
+                    onChange={(content) => change({ content })}
+                  />
                   {!!hint.prerequisites.length && (
                     <p className="meta">
                       This hint requires other hints. Its existing requirements

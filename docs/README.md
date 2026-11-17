@@ -9,7 +9,7 @@
 | Back up the full event or restore an earlier state | [Backup and restore](backups.md) |
 | Explore or test an event from setup through cleanup | [Full-event rehearsal](rehearsal.md) |
 | Browse rooms freely or test the participant journey as staff | [Staff browsing and journey](preview.md) |
-| Personalize descriptions and lab links | [Description placeholders](administration.md#personalized-descriptions) |
+| Personalize descriptions, hints and lab links | [Description placeholders](administration.md#personalized-descriptions) |
 | Estimate resources and understand the measurements | [Sizing](sizing.md) |
 | Understand timing, rankings and lifecycle rules | [Product contract](design.md) |
 | Change the backend, frontend or release workflow | [Implementation](implementation.md) |

@@ -214,7 +214,7 @@ readable neutral surfaces, visible keyboard focus and restrained motion respecti
 `prefers-reduced-motion`. Approved assets and license/provenance rules are in
 [branding](../branding/README.md). Theme changes never change competition identity.
 
-Room introductions and challenge instructions can use the fixed placeholders
+Room introductions, challenge instructions and hint bodies can use the fixed placeholders
 `team.number`, `team.name`, `user.name` and `team.points`. Team number means the
 native team ID, `user.name` prefers the display name with username fallback, and
 points mean the current overall net score. Resolve only the

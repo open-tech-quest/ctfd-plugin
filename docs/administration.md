@@ -208,8 +208,8 @@ competition history are never deleted to force an ordinary challenge removal.
 
 ### Personalized descriptions
 
-Room introductions and challenge instructions offer **Insert placeholder** at the
-text cursor. The saved Markdown stays a template; Quest fills it for each viewer.
+Room introductions, challenge instructions and hint text offer **Insert placeholder**
+at the text cursor. The saved Markdown stays a template; Quest fills it for each viewer.
 
 | Placeholder | Value |
 |---|---|
@@ -250,9 +250,9 @@ Prefix a token with a backslash, such as `\{{team.name}}`, to show it literally,
 including in code examples. Only the four listed names are expanded; other
 placeholders remain literal text.
 
-Descriptions retain their template text through API reads, catalog imports and
-archives. Substitution is limited to these description views; native grading,
-hint text and other Markdown views keep their existing behavior.
+Descriptions and hints retain their template text through API reads, catalog imports
+and archives. Hints resolve only after they are revealed, using the current viewer
+and score, including any hint deduction. Titles, grading and archived reports stay literal.
 
 ### Links in Markdown
 
