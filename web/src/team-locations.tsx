@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { request } from "./api";
 import { useResource } from "./hooks";
 import { ConfirmDialog, Empty, Notice } from "./ui";
@@ -49,8 +49,10 @@ type Plan = {
 
 export function TeamLocations({
   onChanged,
+  rosterRevision,
 }: {
   onChanged: () => Promise<void>;
+  rosterRevision: string;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -73,13 +75,42 @@ export function TeamLocations({
           {open ? "Close locations" : "Manage locations"}
         </button>
       </div>
-      {open && <LocationResource onChanged={onChanged} />}
+      {open && (
+        <LocationResource
+          onChanged={onChanged}
+          rosterRevision={rosterRevision}
+        />
+      )}
     </section>
   );
 }
 
-function LocationResource({ onChanged }: { onChanged: () => Promise<void> }) {
+function LocationResource({
+  onChanged,
+  rosterRevision,
+}: {
+  onChanged: () => Promise<void>;
+  rosterRevision: string;
+}) {
   const resource = useResource<Locations>("/admin/locations", 20000);
+  const previous = useRef(rosterRevision);
+  const [refreshing, setRefreshing] = useState(false);
+  const changed = previous.current !== rosterRevision;
+  useEffect(() => {
+    if (previous.current === rosterRevision) return;
+    previous.current = rosterRevision;
+    let active = true;
+    setRefreshing(true);
+    void resource
+      .refresh()
+      .catch(() => {})
+      .finally(() => {
+        if (active) setRefreshing(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [rosterRevision, resource.refresh]);
   if (!resource.data)
     return resource.error ? (
       <Notice tone="error" retry={() => void resource.refresh()}>
@@ -99,6 +130,7 @@ function LocationResource({ onChanged }: { onChanged: () => Promise<void> }) {
         data={resource.data}
         refresh={resource.refresh}
         onChanged={onChanged}
+        refreshing={refreshing || changed}
       />
     </>
   );
@@ -108,15 +140,17 @@ function Workspace({
   data,
   refresh,
   onChanged,
+  refreshing,
 }: {
   data: Locations;
   refresh: () => Promise<void>;
   onChanged: () => Promise<void>;
+  refreshing: boolean;
 }) {
   const [rooms, setRooms] = useState<Venue[]>(data.rooms),
     [layoutRevision, setLayoutRevision] = useState(data.revision),
     [dirty, setDirty] = useState(false),
-    [busy, setBusy] = useState(false),
+    [acting, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [query, setQuery] = useState(""),
@@ -124,6 +158,7 @@ function Workspace({
     [strategy, setStrategy] = useState<"spread" | "fill">("spread"),
     [plan, setPlan] = useState<Plan | null>(null),
     [editing, setEditing] = useState<LocatedTeam | null>(null);
+  const busy = acting || refreshing;
   useEffect(() => {
     if (!dirty) {
       setRooms(data.rooms);

@@ -112,6 +112,32 @@ may wait unassigned across Start once capture closes; earlier unresolved ready
 queues still block attendance-based finalization/start. Closed/published/cutoff
 events refuse admission. No path invents attendance timestamps.
 
+### Place waiting participants
+
+After finalization, **Place waiting participants** previews an add-only batch in
+Draft, Live or Paused, before cutoff. It fills vacancies in existing competing
+teams, then creates balanced new teams within capacity. Hidden, banned,
+award-excluded and ineligible teams are skipped. Only eligible unassigned people
+without competition history are included; attendance is required only under the
+saved attendance policy. Existing memberships, names, numbers, locations and
+competition history are preserved. New teams start without progress.
+
+Registration and late check-in may stay open. The reviewed batch is frozen:
+new arrivals remain queued for the next preview instead of invalidating this one.
+The signed review expires after 15 minutes and is bound to its administrator,
+selected account incarnations, affected team memberships/names/locations and
+event policy. Apply rechecks these under the event lock and commits all placements
+and the audit atomically; changed or already-placed people require a new preview.
+Ordinary progress in existing teams does not invalidate a Live review. Each batch
+contains at most 1,000 people. No client-supplied grouping is accepted.
+
+Locations are a separate action. Run the default location distribution afterward
+to seat teams without locations. Leave **Reassign existing locations** unchecked:
+already-seated teams keep their tables. A location preview opened before team
+placement must be refreshed. This is not a rerun of the initial optimizer, which
+remains unavailable after its first apply. Use **Late admission** for a manually
+selected group/destination.
+
 ## Privacy and native routes
 
 The dashboard shows attendance and naming controls during draft preparation.
@@ -149,6 +175,7 @@ All paths below are under `/api/v1/quest`, with native session/CSRF protection.
 | Review/finalize | `POST /admin/onboarding/action`; see server actions for phase-specific bodies |
 | Preview/apply grouping | `POST /admin/onboarding/optimize`, `{preview:true}` then `{preview:false,fingerprint}` |
 | Admit after finalization | `POST /admin/onboarding/admit`, `{user_ids,reason,fingerprint}` plus `team_id` or `new_team_name` |
+| Place a waiting batch | `POST /admin/onboarding/waiting`, `{preview:true}` then `{preview:false,token,reason}` |
 
 The older `/admin/teams/allocate` remains supported for eligible, unassigned
 people before apply, with the same attendance policy and closed-capture rules.

@@ -308,6 +308,56 @@ svg {
   flex-shrink: 0;
   vertical-align: middle;
 }
+.waiting-placement-review {
+  margin-top: 24px;
+}
+.waiting-placement > p {
+  max-width: 80ch;
+}
+.waiting-placement-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 16px;
+  margin: 24px 0 16px;
+}
+.waiting-placement-counts p {
+  margin: 0;
+  color: var(--muted, #6c6c78);
+}
+.waiting-placement-counts strong {
+  display: block;
+  color: var(--ink, #202027);
+  font-size: 28px;
+  font-weight: 500;
+}
+.waiting-placement-scroll {
+  max-height: 480px;
+  overflow: auto;
+  border: 1px solid #dedee6;
+  margin: 20px 0;
+}
+.waiting-placement-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.waiting-placement-groups > li {
+  padding: 20px;
+  border-bottom: 1px solid #dedee6;
+  overflow-wrap: anywhere;
+}
+.waiting-placement-groups > li:last-child {
+  border-bottom: 0;
+}
+.waiting-placement-groups h3,
+.waiting-placement-groups p:last-child {
+  margin: 0;
+}
+.waiting-placement-groups .section-heading {
+  margin: 0 0 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
 .eyebrow {
   font-size: 14px;
   color: var(--muted);

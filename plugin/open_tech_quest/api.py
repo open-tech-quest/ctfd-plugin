@@ -1073,6 +1073,36 @@ def admit_late_arrivals():
     return success(onboarding.summary(e))
 
 
+@api.route("/admin/onboarding/waiting", methods=["POST"])
+@admin
+def place_waiting_participants():
+    from . import waiting
+    data, e = body(), locked_administrator()
+    preview = boolean(data.get("preview"), "preview")
+    if set(data) != ({"preview"} if preview else {"preview", "token", "reason"}):
+        fail("Request a preview, or apply its token with an organizer reason")
+    if preview:
+        response = success(waiting.preview(e))
+    else:
+        explanation = reason(data)
+        try:
+            groups = waiting.apply(e, data["token"])
+            audit("onboarding.admit_batch", {"groups": groups, "reason": explanation,
+                                             "user_ids": [uid for group in groups for uid in group["user_ids"]]})
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
+        for group in groups:
+            clear_team_session(group["team_id"])
+            for uid in group["user_ids"]:
+                clear_user_session(uid)
+        clear_standings()
+        response = success({"groups": groups})
+    response.headers["Cache-Control"] = "private, no-store"
+    return response
+
+
 @api.route("/admin/registration", methods=["PATCH"])
 @admin
 def configure_registration():

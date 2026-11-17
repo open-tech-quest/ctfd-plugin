@@ -172,7 +172,18 @@ function FullAdmin({ viewer }: { viewer: Viewer }) {
           <RoomManagement viewer={viewer} />
         ) : tab === "Teams" ? (
           <>
-            <TeamLocations onChanged={resource.refresh} />
+            <TeamLocations
+              onChanged={resource.refresh}
+              rosterRevision={JSON.stringify(
+                data.teams.map((team) => [
+                  team.id,
+                  team.name,
+                  team.hidden,
+                  team.banned,
+                  [...team.user_ids].sort((a, b) => a - b),
+                ]),
+              )}
+            />
             <Attendance
               data={data}
               busy={busy}

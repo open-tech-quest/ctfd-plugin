@@ -110,6 +110,15 @@ newcomers explicitly; existing groups are never automatically reshuffled. During
 Draft, **Move participant** remains available even after roster finalization.
 
 After finalization, dedicated admission works in draft/live/paused until cutoff.
+For an arrival wave, use **Teams → Place waiting participants**: preview the
+current waiting batch, review the people joining existing/new teams, enter a
+reason and apply. Existing members, names, numbers and locations stay in place.
+Signup may remain open; registrations after preview wait for the next batch.
+Then run location distribution with **Reassign existing locations** unchecked to
+seat only teams without a location. Repeat for later arrivals. Prefer placing
+the main arrival wave while still in Draft, before starting the competition.
+
+Use **Late admission** to choose specific people and one destination manually.
 If attendance is required, open late check-in and have the newcomer confirm
 presence first. Otherwise select an eligible unassigned account directly. Reopen
 signup only if new public accounts are needed. An administrator supplies a reason

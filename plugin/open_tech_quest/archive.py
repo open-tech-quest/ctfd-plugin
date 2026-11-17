@@ -109,9 +109,9 @@ def _audit_detail(action, raw):
     for key in _LISTS:
         if isinstance(raw.get(key), list):
             result[key] = [item for item in raw[key] if type(item) is int or (key == "fields" and isinstance(item, str))]
-    if action in ("teams.allocate", "onboarding.optimize") and isinstance(raw.get("groups"), list):
+    if action in ("teams.allocate", "onboarding.optimize", "onboarding.admit_batch") and isinstance(raw.get("groups"), list):
         result["groups"] = [
-            {**_flat(group, {"team_id", "name", "new"}),
+            {**_flat(group, {"team_id", "name", "new", "new_team"}),
              **({"user_ids": [uid for uid in group["user_ids"] if type(uid) is int]} if isinstance(group.get("user_ids"), list) else {})}
             if isinstance(group, dict) else [uid for uid in group if type(uid) is int]
             for group in raw["groups"] if isinstance(group, (dict, list))]

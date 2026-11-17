@@ -12,6 +12,7 @@ import { AttendanceWindowControls } from "./attendance-window";
 import { LateAdmission } from "./late-admission";
 import { TeamNamingPolicy } from "./team-naming-policy";
 import { ParticipantMove } from "./participant-move";
+import { WaitingParticipants } from "./waiting-participants";
 
 type Mutation = (
   path: string,
@@ -189,6 +190,9 @@ export function Attendance({
         )}
       {data.event.status === "draft" && state.phase === "naming" && (
         <LateQueue data={data} busy={busy} mutate={mutate} />
+      )}
+      {state.phase === "finalized" && (
+        <WaitingParticipants data={data} busy={busy} mutate={mutate} />
       )}
       {state.phase === "finalized" && (
         <LateAdmission

@@ -58,6 +58,15 @@ Draft participant naming uses team ID/current-name context; organizer moves use
 a roster fingerprint. Both recheck phase after lock waits against concurrent Start.
 Native remove-member is not used: upstream deletes user submissions/unlocks/awards.
 
+`waiting.py` and pure `waiting_math.py` provide reviewed add-only arrival batches.
+The signed 15-minute plan freezes selected users and destinations; its guard
+checks only those accounts/teams plus event/round policy, so unrelated signup and
+ongoing team progress do not stale it. Apply uses fresh administrator authority
+and the event transaction, rechecks eligibility/capacity, preserves existing
+locations and records `onboarding.admit_batch`. No new models or schema are added.
+The organizer component uses existing state polling and keeps its preview across
+unrelated roster refreshes. See [rosters](rosters.md#place-waiting-participants).
+
 Migration `0012_room_pauses` adds timestamped per-room incident history without
 changing prior rows. SQLite applies the equivalent additive table upgrade.
 Pause writes use the event lock and a revision bound to phase, incident history

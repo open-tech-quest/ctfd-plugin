@@ -176,6 +176,12 @@ admission respecting the configured policy. MariaDB tests serialize moves and
 name saves against Start and concurrent destination claims. Disposable UI checks
 exercise the same forms at desktop and mobile sizes.
 
+Waiting-batch regressions cover frozen previews across new registrations,
+selected-account/destination conflicts, live progress, role/CSRF checks, expiry,
+concurrent apply and rollback. The 98-to-250-participant scenario preserves the
+original 13 teams' members/tables, creates 19 teams and confirms that subsequent
+default location distribution seats only those new teams on unused tables.
+
 Venue-location checks cover administrator-only writes, CSRF, own-team visibility,
 roster-release privacy, stable spread/fill plans, insufficient capacity, unavailable
 tables, stale reviews, concurrent assignment, atomic swaps, repeated Draft edits,
