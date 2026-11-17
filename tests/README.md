@@ -189,3 +189,7 @@ roster-release privacy, stable spread/fill plans, insufficient capacity, unavail
 tables, stale reviews, concurrent assignment, atomic swaps, repeated Draft edits,
 live logistics changes, roster moves/renaming and archive/reset preservation.
 The full replacement fixture also restores a populated venue/table assignment.
+
+`test_live_admin_naming.py` covers Live/Paused organizer corrections with participant
+naming disabled, current-name/reason validation, native CSRF/role checks, preserved
+competition/location records and atomic rejection of mixed membership writes.

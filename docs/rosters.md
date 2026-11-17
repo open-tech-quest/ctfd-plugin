@@ -76,6 +76,13 @@ and naming-policy changes. Renaming never changes team IDs, membership, location
 solves, points or clocks. `{{team.name}}` follows the current name; use
 `{{team.number}}` for stable lab addresses.
 
+Administrators can also correct a team name in **Organize → Teams** during
+Draft, Live or Paused, independently of the participant-naming switch. Live/Paused
+corrections require an organizer reason and the displayed `expected_name`; stale
+names reject the whole change. Team numbers, locations and competition records
+stay intact. Membership changes retain their Draft-only rules. Closed/Published
+names remain read-only.
+
 ## Organizer moves during Draft
 
 **Move participant** supports unassigned → team, team → team and team → unassigned
@@ -174,6 +181,7 @@ All paths below are under `/api/v1/quest`, with native session/CSRF protection.
 | Confirm presence (attendance mode) | `POST /onboarding/ready`, empty body; no client timestamp |
 | Save team name (Draft/Live/Paused) | `POST /onboarding/name`, `{name, confirm:true, team_id, expected_name}` |
 | Configure signup/window | `PATCH /admin/registration` or `/admin/attendance`, `{enabled:boolean}` |
+| Correct team name (admin) | `PATCH /admin/teams/<id>`, `{name, expected_name, reason}` |
 | Configure formation/naming | `PATCH /admin/onboarding`, `team_size`, `allow_team_naming` and/or `require_attendance` |
 | Move participant in Draft | `POST /admin/onboarding/move`, `{user_id, team_id, fingerprint, reason}`; null team means unassigned |
 | Review/finalize | `POST /admin/onboarding/action`; see server actions for phase-specific bodies |

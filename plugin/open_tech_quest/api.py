@@ -645,19 +645,28 @@ def allocate():
 @api.route("/admin/teams/<int:team_id>", methods=["PATCH"])
 @admin
 def configure_team(team_id):
-    data, e = body(), event(lock=True)
+    data, e = body(), locked_administrator()
     team = Teams.query.get(team_id)
     if team is None:
         fail("Team not found", 404)
-    if set(data) - {"name", "excluded", "reason", "user_ids"}:
+    if set(data) - {"name", "expected_name", "excluded", "reason", "user_ids"}:
         fail("Unknown team setting")
+    if "expected_name" in data and "name" not in data:
+        fail("Supply a name with its displayed team name")
     if e.status == "published":
         fail("Unpublish results before changing teams", 409)
     if "name" in data:
         name = text(data["name"], "Team name", 128)
+        if "expected_name" in data:
+            expected = text(data["expected_name"], "Displayed team name", 128)
+            if expected != team.name:
+                fail("This team's name changed. Refresh and review the latest name before saving.", 409)
+        elif e.status in ("live", "paused") and name != team.name:
+            fail("Review the current team name and supply expected_name before a live correction.", 409)
         if name != team.name:
-            draft(e)
-            if onboarding.settings().phase in ("naming", "finalized") or onboarding.is_locked(team.id):
+            if e.status not in ("draft", "live", "paused"):
+                fail("Team names are read-only after the event closes", 409)
+            if e.status != "draft" or onboarding.settings().phase in ("naming", "finalized") or onboarding.is_locked(team.id):
                 reason(data)
             onboarding.lock_name(team.id, get_current_user().id)
             team.name = unique_name(name, team.id)

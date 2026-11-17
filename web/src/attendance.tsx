@@ -860,18 +860,31 @@ function LatePlacement({
 }
 
 function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
-  const [name, setName] = useState(team.name),
+  const [identity, setIdentity] = useState({
+      base: team.name,
+      value: team.name,
+    }),
     [members, setMembers] = useState(team.user_ids.map(String)),
     [excluded, setExcluded] = useState(team.excluded),
     [reason, setReason] = useState("");
   const membershipKey = team.user_ids.join(",");
-  useEffect(() => setName(team.name), [team.name]);
+  useEffect(() => {
+    setIdentity((current) =>
+      current.value === current.base || current.value === team.name
+        ? { base: team.name, value: team.name }
+        : current,
+    );
+  }, [team.name]);
   useEffect(() => setMembers(team.user_ids.map(String)), [membershipKey]);
   useEffect(() => setExcluded(team.excluded), [team.excluded]);
   const phase = data.onboarding.phase;
   const draft = data.event.status === "draft";
   const provisional = draft && (phase === "check_in" || phase === "closed");
-  const identityEditable = draft;
+  const identityEditable = ["draft", "live", "paused"].includes(
+    data.event.status,
+  );
+  const name = identity.value;
+  const nameConflict = identity.base !== team.name;
   const published = data.event.status === "published";
   const people = teamPeople(data, team);
   const membersChanged =
@@ -945,11 +958,14 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
         <form
           onSubmit={(event) => {
             event.preventDefault();
+            if (nameConflict) return;
             void mutate(
               `/admin/teams/${team.id}`,
               "PATCH",
               {
-                ...(identityEditable && name !== team.name ? { name } : {}),
+                ...(identityEditable && name !== team.name
+                  ? { name, expected_name: identity.base }
+                  : {}),
                 ...(provisional && membersChanged
                   ? { user_ids: members.map(Number) }
                   : {}),
@@ -972,14 +988,19 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
                 maxLength={128}
                 required
                 disabled={!identityEditable || busy}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) =>
+                  setIdentity((current) => ({
+                    ...current,
+                    value: event.target.value,
+                  }))
+                }
               />
               <small>
-                {!draft
-                  ? "Team identity is fixed after competition start"
+                {!identityEditable
+                  ? "Team names are read-only after the event closes"
                   : provisional
                     ? "Participant name choice follows the saved naming policy after teams are formed"
-                    : "Correcting a final group name requires an organizer reason"}
+                    : "A name correction requires a reason. Team number, location, progress and clocks stay unchanged."}
               </small>
             </label>
             <label className="checkbox-field">
@@ -992,6 +1013,22 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
               Exclude from awards and public standings
             </label>
           </div>
+          {nameConflict && (
+            <Notice>
+              The team name changed to “{team.name}”. Your unsaved name is
+              retained.{" "}
+              <button
+                type="button"
+                className="text-button"
+                disabled={busy}
+                onClick={() =>
+                  setIdentity((current) => ({ ...current, base: team.name }))
+                }
+              >
+                Review latest name and keep my edit
+              </button>
+            </Notice>
+          )}
           {provisional && (
             <label className="field">
               <span>Provisional members</span>
@@ -1044,6 +1081,7 @@ function RosterTeam({ team, data, busy, mutate }: Props & { team: Team }) {
             disabled={
               busy ||
               published ||
+              nameConflict ||
               !changed ||
               (provisional &&
                 membersChanged &&

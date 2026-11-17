@@ -89,6 +89,11 @@ member renaming remains available in the dashboard under **Team members & name**
 organizers can turn it on/off in Teams during play. Names become read-only when
 the event closes. Dedicated admission handles eligible unassigned newcomers.
 
+For an organizer correction during play, expand the team in **Organize → Teams**,
+edit **Organizer name correction**, give a reason and save. This works even when
+participant naming is disabled. A teammate's intervening rename requires review
+before saving; it never changes the team number, location or competition history.
+
 Participants see only their own released team; emails remain organizer-only.
 Native team forms cannot bypass these rules. Signup, check-in, preview, apply,
 renaming and reassignment never start competition clocks. Ordinary moves preserve
