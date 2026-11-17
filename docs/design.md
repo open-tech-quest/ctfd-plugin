@@ -224,9 +224,11 @@ sample identities; journey points come from local progress.
 See [personalized descriptions](administration.md#personalized-descriptions).
 
 Participant room paths scroll within a bounded horizontal rail with navigation
-controls. Cards fit their titles within a bounded width; long titles wrap in full,
-including locked steps. The home screen balances any room count into rows of two
-or three, uses a horizontal card for a single room, and stacks cards on phones.
+controls. Cards share a consistent bounded width and height, with points aligned
+along the bottom. Card titles show up to two lines followed by an ellipsis; the
+opened challenge shows its full title. The home screen balances any room count
+into rows of two or three, uses a horizontal card for a single room, and stacks
+cards on phones.
 Progress & standings opens on an assigned participant’s own points, hint costs and
 room progress, without ranks. Room and overall comparisons remain available by
 choice and highlight the viewer’s team. Other teams’ hint-cost breakdowns are not
