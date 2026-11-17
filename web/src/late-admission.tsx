@@ -222,7 +222,7 @@ export function LateAdmission({
                 />
                 <small>
                   Choose a unique name or an unused Team N name. Enabled
-                  teammates can rename it while the event remains in Draft.
+                  teammates can rename it during Draft, Live or Paused play.
                 </small>
                 {name.trim() && (!nameValid || nameTaken) && (
                   <small>

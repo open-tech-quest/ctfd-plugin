@@ -51,8 +51,9 @@ Physical locations are assigned separately to native teams. Admins configure ven
 rooms/tables and preview distribution or assign/swap manually; participants see
 their own released location read-only alongside Team number. Location changes
 never reshape teams or affect competition clocks/scores. See [rosters](rosters.md#venue-rooms-and-team-locations).
-Generated team names are valid defaults; optional member renaming and organizer
-reassignment remain available throughout Draft and stop at Live. See the
+Generated team names are valid defaults. Optional member renaming remains available
+in Draft, Live and Paused; organizer reassignment stops at Live. Renaming preserves
+team IDs, locations, progress and clocks. See the
 [roster contract](rosters.md) for phases, privacy, reviewed plans and late arrivals.
 
 ## Progress, timing and awards

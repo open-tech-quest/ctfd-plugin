@@ -166,7 +166,7 @@ class RosterFlowIntegration(unittest.TestCase):
         with self.app.app_context():
             self.assertEqual(QuestAudit.query.filter_by(action="onboarding.name").count(), before)
         self.action("start")
-        for phase in ("live", "paused", "closed", "published"):
+        for phase in ("closed", "published"):
             with self.app.app_context():
                 QuestEvent.query.get(1).status = phase
                 db.session.commit()

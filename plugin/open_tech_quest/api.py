@@ -821,8 +821,8 @@ def claim_team_name():
     user = participant_account()
     if set(data) != {"name", "confirm", "expected_name", "team_id"} or data.get("confirm") is not True:
         fail("Supply name, team_id, expected_name and confirm: true")
-    if e.status != "draft":
-        fail("Team names can be changed only while the event is in draft", 409)
+    if e.status not in ("draft", "live", "paused"):
+        fail("Team names can be changed only during Draft, Live or Paused play", 409)
     if not onboarding.settings().allow_team_naming:
         fail("Participant team naming is disabled by the organizer", 409)
     team_id = integer(data["team_id"], "Team ID")
@@ -851,11 +851,14 @@ def claim_team_name():
 @api.route("/admin/onboarding", methods=["PATCH"])
 @admin
 def configure_onboarding():
-    data, e = body(), event(lock=True)
-    draft(e)
+    data, e = body(), locked_administrator()
+    if e.status not in ("draft", "live", "paused"):
+        fail("Team settings are read-only after the event closes", 409)
     state = onboarding.settings()
     if not data or set(data) - {"team_size", "allow_team_naming", "require_attendance"}:
         fail("Supply team_size, allow_team_naming and/or require_attendance")
+    if "team_size" in data or "require_attendance" in data:
+        draft(e)
     if "team_size" in data and state.phase not in ("check_in", "closed"):
         fail("Team capacity is fixed after attendance optimization", 409)
     if "team_size" in data:

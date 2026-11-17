@@ -3380,7 +3380,7 @@ class QuestIntegration(unittest.TestCase):
         self.assertEqual(self.post(member,PREFIX+"/onboarding/name",{"name":"Not allowed","confirm":True}).status_code,409)
         self.assertEqual(self.onboarding_action("finalize").status_code,200)
         self.action("start")
-        self.assertEqual(self.post(self.admin,PREFIX+"/admin/onboarding",{"allow_team_naming":True},"PATCH").status_code,409)
+        self.assertEqual(self.post(self.admin,PREFIX+"/admin/onboarding",{"allow_team_naming":True},"PATCH").status_code,200)
 
     def test_formation_ready_tail_sizes_staff_and_bans_excluded_without_clock_changes(self):
         ids=self.formation_pool(25)
@@ -3604,4 +3604,4 @@ class QuestIntegration(unittest.TestCase):
             self.assertEqual([(s.id,s.user_id,s.team_id,s.date) for s in Solves.query.all()],native)
             self.assertEqual(QuestEvent.query.get(1).start_at,stamp)
             self.assertEqual(standings()["teams"],before["teams"])
-        self.assertEqual(self.post(self.admin,PREFIX+"/admin/onboarding",{"allow_team_naming":True},"PATCH").status_code,409)
+        self.assertEqual(self.post(self.admin,PREFIX+"/admin/onboarding",{"allow_team_naming":True},"PATCH").status_code,200)

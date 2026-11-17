@@ -74,8 +74,8 @@ teams** defaults on; choose the policy before applying teams, with capture close
    requires check-in only when attendance is required. Names and check-ins survive.
 5. Custom names are optional. Generated names remain valid. If member renaming is
    enabled, eligible teammates can change their released team's name repeatedly
-   throughout Draft, including after roster finalization. Renaming never starts
-   a clock or changes membership. A stale naming form must be refreshed.
+   during Draft, Live and Paused, including after roster finalization. Renaming
+   never changes the team number, location, progress or clocks. A stale naming form must be refreshed.
 6. Finalize the reviewed rosters with capture closed and valid capacity. In
    attendance mode resolve the required ready queue; in registration-only mode
    deliberate unassigned accounts may remain outside the event. Remove demos and
@@ -84,8 +84,10 @@ teams** defaults on; choose the policy before applying teams, with capture close
 
 Roster finalization confirms readiness to launch; organizers may still move
 participants and members may still rename in Draft. Start rechecks the resulting
-rosters. Once Live, ordinary transfers and all team renaming stop, including while
-Paused. Dedicated admission handles eligible unassigned newcomers.
+rosters. Once Live, ordinary transfers stop, including while Paused. Enabled
+member renaming remains available in the dashboard under **Team members & name**;
+organizers can turn it on/off in Teams during play. Names become read-only when
+the event closes. Dedicated admission handles eligible unassigned newcomers.
 
 Participants see only their own released team; emails remain organizer-only.
 Native team forms cannot bypass these rules. Signup, check-in, preview, apply,

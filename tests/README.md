@@ -168,9 +168,11 @@ preserve history; reopening excludes the closed interval as an organizer pause.
 
 Roster preparation regressions cover default attendance-required formation and
 registration-only preview/apply without synthetic readiness; signup/policy/account
-races invalidate plans. Draft renaming remains optional/repeatable after roster
-finalization, detects stale names/membership and stops at Live. Dedicated organizer
-moves check capacity/history/authority, repair captain ownership and preserve
+races invalidate plans. Participant renaming remains optional/repeatable through
+Draft/Live/Paused, detects stale names/membership and stops at Closed. Live naming-policy changes
+leave capacity/attendance policy locked. `test_live_naming.py` checks teammate
+conflicts, access, stable IDs/locations/solves/scores/clocks and closed-state guards.
+Dedicated organizer moves check capacity/history/authority, repair captain ownership and preserve
 readiness/names. Both directions and unassignment are exercised, with late
 admission respecting the configured policy. MariaDB tests serialize moves and
 name saves against Start and concurrent destination claims. Disposable UI checks

@@ -348,8 +348,8 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
           </p>
           <p>
             Review the groups, finalize rosters, then start the event from the
-            Event tab. Team renaming is optional and remains available
-            throughout Draft.
+            Event tab. Team renaming is optional and remains available during
+            Draft, Live and Paused play.
           </p>
         </div>
       )}
@@ -437,7 +437,7 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
             "PATCH",
             { allow_team_naming: enabled },
             enabled
-              ? "Participant team renaming enabled throughout Draft"
+              ? "Participant team renaming enabled"
               : "Participant renaming disabled; current names retained",
           )
         }
@@ -478,7 +478,7 @@ function AttendanceLifecycle({ data, busy, mutate }: Props) {
           <Confirm
             key={`finalize-${state.fingerprint}`}
             label="Finalize rosters"
-            description="Confirm the reviewed rosters are ready for launch. Organizers can still move participants and enabled teammates can rename teams throughout Draft. Generated Team N names are valid. Start the event separately."
+            description="Confirm the reviewed rosters are ready for launch. Organizers can still move participants throughout Draft. Enabled teammates can rename during Draft, Live and Paused play. Generated Team N names are valid. Start the event separately."
             disabled={busy || !!state.finalization_reason}
             onConfirm={() =>
               mutate(
@@ -651,7 +651,7 @@ function TeamFormation({ data, busy, mutate }: Props) {
           <Confirm
             key={`${plan.fingerprint}-${data.onboarding.allow_team_naming}`}
             label="Apply reviewed teams"
-            description={`Create exactly the reviewed teams from ${attendanceRequired ? "checked-in" : "registered"} eligible participants? Teams receive generated names such as Team 1 and Team 2. Renaming is optional and enabled members can change names throughout Draft. Review and finalize the rosters before starting the event; no clock starts now.`}
+            description={`Create exactly the reviewed teams from ${attendanceRequired ? "checked-in" : "registered"} eligible participants? Teams receive generated names such as Team 1 and Team 2. Renaming is optional and enabled members can change names during Draft, Live and Paused play. Review and finalize the rosters before starting the event; no clock starts now.`}
             disabled={busy || loading || blocked || !plan.groups.length}
             onConfirm={async () => {
               await mutate(
@@ -710,7 +710,7 @@ function LateQueue({ data, busy, mutate }: Props) {
           When the existing groups are full, create another group without moving
           their members or changing their names.{" "}
           {data.onboarding.allow_team_naming
-            ? "Members can change the name throughout Draft."
+            ? "Members can change the name during Draft, Live and Paused play."
             : "The new group receives a generated Team N name."}
         </p>
         <fieldset disabled={busy}>
@@ -755,7 +755,7 @@ function LateQueue({ data, busy, mutate }: Props) {
         <Confirm
           key={`additional-${data.onboarding.allow_team_naming}`}
           label="Create additional team"
-          description={`Create an additional team for ${selected.length} selected eligible participant${selected.length === 1 ? "" : "s"}? Existing groups stay intact. ${data.onboarding.allow_team_naming ? "Members can rename it throughout Draft." : "Its generated name is valid; renaming is optional."}`}
+          description={`Create an additional team for ${selected.length} selected eligible participant${selected.length === 1 ? "" : "s"}? Existing groups stay intact. ${data.onboarding.allow_team_naming ? "Members can rename it during Draft, Live and Paused play." : "Its generated name is valid; renaming is optional."}`}
           disabled={
             busy ||
             !selected.length ||

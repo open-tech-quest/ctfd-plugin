@@ -64,14 +64,17 @@ attendance generation. Apply recomputes under lock and rejects stale reviews
 atomically; client-edited groups are not accepted.
 
 `allow_team_naming` defaults false. When enabled, an eligible current member of a
-released, visible, non-banned team can rename it repeatedly throughout **Draft**,
-including after roster finalization. Attendance is required for the naming member
+released, visible, non-banned team can rename it repeatedly during **Draft, Live
+or Paused**, including after roster finalization. Attendance is required for the naming member
 only in attendance-required mode. Saving includes the displayed team ID and name;
 a concurrent rename or transfer requires refreshing instead of overwriting newer
 state. Existing custom or organizer-corrected names remain editable under this
 policy. Disabling preserves names and stops participant edits. Organizers can
-change this policy throughout Draft. Live, Paused, Closed and Published reject
-renaming; roster finalization alone does not lock the display name.
+change this policy during Draft, Live or Paused; capacity and attendance policy
+still follow their preparation-only guards. Closed and Published reject renaming
+and naming-policy changes. Renaming never changes team IDs, membership, locations,
+solves, points or clocks. `{{team.name}}` follows the current name; use
+`{{team.number}}` for stable lab addresses.
 
 ## Organizer moves during Draft
 
@@ -142,7 +145,8 @@ selected group/destination.
 
 The dashboard shows attendance and naming controls during draft preparation.
 Once play starts, assigned participants see a collapsed **Team members** list
-without readiness badges or setup messages. Unassigned late arrivals retain
+without readiness badges or setup messages. When naming is enabled, **Team members
+& name** also contains the same guarded name editor. Unassigned late arrivals retain
 check-in and placement guidance during live/paused play. Closed/published events
 keep the member list for assigned teams and hide unfinished onboarding.
 
@@ -168,7 +172,7 @@ All paths below are under `/api/v1/quest`, with native session/CSRF protection.
 |---|---|
 | Read own state | `GET /onboarding` |
 | Confirm presence (attendance mode) | `POST /onboarding/ready`, empty body; no client timestamp |
-| Save draft team name | `POST /onboarding/name`, `{name, confirm:true, team_id, expected_name}` |
+| Save team name (Draft/Live/Paused) | `POST /onboarding/name`, `{name, confirm:true, team_id, expected_name}` |
 | Configure signup/window | `PATCH /admin/registration` or `/admin/attendance`, `{enabled:boolean}` |
 | Configure formation/naming | `PATCH /admin/onboarding`, `team_size`, `allow_team_naming` and/or `require_attendance` |
 | Move participant in Draft | `POST /admin/onboarding/move`, `{user_id, team_id, fingerprint, reason}`; null team means unassigned |

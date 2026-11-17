@@ -54,7 +54,7 @@ means true. Authoritative reads bypass worker-local config caches; writes use
 the event lock and existing transactional config revision invalidation. There is
 no schema migration or startup policy write. Archives include the resolved policy;
 new-round reset retains it and defaults reset restores attendance-required mode.
-Draft participant naming uses team ID/current-name context; organizer moves use
+Participant naming in Draft/Live/Paused uses team ID/current-name context; organizer moves use
 a roster fingerprint. Both recheck phase after lock waits against concurrent Start.
 Native remove-member is not used: upstream deletes user submissions/unlocks/awards.
 

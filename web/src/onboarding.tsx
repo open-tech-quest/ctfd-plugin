@@ -54,6 +54,72 @@ function PersonalOnboarding({
       </div>
     );
   const attendanceRequired = state.require_attendance !== false;
+  const nameEditor =
+    ["draft", "live", "paused"].includes(phase) &&
+    team &&
+    state.allow_team_naming &&
+    state.can_name ? (
+      <div className="team-name-claim">
+        <div>
+          <h3>Change your team name</h3>
+          <p>
+            Agree with your teammates first. You can change the name during
+            Draft, Live and Paused play while organizers allow it. Your team
+            number, location and progress stay the same.
+          </p>
+        </div>
+        <label className="field">
+          <span>Team name</span>
+          <input
+            maxLength={128}
+            value={name}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                value: event.target.value,
+              }))
+            }
+            disabled={busy}
+            autoComplete="off"
+          />
+        </label>
+        {nameConflict && (
+          <Notice>
+            The team name changed to “{team.name}”. Your unsaved name is
+            retained.{" "}
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() =>
+                setDraft((current) => ({
+                  ...current,
+                  teamId: team.id,
+                  base: team.name,
+                }))
+              }
+            >
+              Review latest name and keep my edit
+            </button>
+          </Notice>
+        )}
+        <Confirm
+          key={`${team.id}-${team.name}-${name}-${state.can_name}`}
+          label="Save team name"
+          description={`Use “${name.trim()}” as your team's name? Your team number, location and progress stay the same.`}
+          disabled={
+            busy || nameConflict || !name.trim() || name.trim() === team.name
+          }
+          onConfirm={() =>
+            update("/onboarding/name", {
+              name: name.trim(),
+              confirm: true,
+              expected_name: draft.base,
+              team_id: team.id,
+            })
+          }
+        />
+      </div>
+    ) : null;
   if (phase !== "draft" && team)
     return (
       <>
@@ -63,7 +129,10 @@ function PersonalOnboarding({
           </Notice>
         )}
         <details className="team-roster" id="your-team">
-          <summary>Team members ({team.members.length})</summary>
+          <summary>
+            {nameEditor ? "Team members & name" : "Team members"} (
+            {team.members.length})
+          </summary>
           <ul className="teammate-list">
             {team.members.map((member) => (
               <li key={member.id}>
@@ -74,6 +143,7 @@ function PersonalOnboarding({
               </li>
             ))}
           </ul>
+          {nameEditor}
         </details>
       </>
     );
@@ -213,74 +283,10 @@ function PersonalOnboarding({
               teams.
             </p>
           )}
-          {state.allow_team_naming && state.can_name ? (
-            <div className="team-name-claim">
-              <div>
-                <h3>Change your team name</h3>
-                <p>
-                  Agree with your teammates first. You can change the name
-                  throughout Draft, including after roster finalization. Keeping
-                  a name such as Team 1 is fine.
-                </p>
-              </div>
-              <label className="field">
-                <span>Team name</span>
-                <input
-                  maxLength={128}
-                  value={name}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      value: event.target.value,
-                    }))
-                  }
-                  disabled={busy}
-                  autoComplete="off"
-                />
-              </label>
-              {nameConflict && (
-                <Notice>
-                  The team name changed to “{team.name}”. Your unsaved name is
-                  retained.{" "}
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        teamId: team.id,
-                        base: team.name,
-                      }))
-                    }
-                  >
-                    Review latest name and keep my edit
-                  </button>
-                </Notice>
-              )}
-              <Confirm
-                key={`${team.id}-${team.name}-${name}-${state.can_name}`}
-                label="Save team name"
-                description={`Use “${name.trim()}” as your team's name? You can change it again until the event goes Live.`}
-                disabled={
-                  busy ||
-                  nameConflict ||
-                  !name.trim() ||
-                  name.trim() === team.name
-                }
-                onConfirm={() =>
-                  update("/onboarding/name", {
-                    name: name.trim(),
-                    confirm: true,
-                    expected_name: draft.base,
-                    team_id: team.id,
-                  })
-                }
-              />
-            </div>
-          ) : (
+          {nameEditor ?? (
             <p className="meta roster-explanation">
               {state.allow_team_naming
-                ? "An eligible teammate can change the name while the event is in Draft."
+                ? "An eligible teammate can change the name while participant naming is enabled."
                 : "Organizers manage team names. Your current name is valid and does not need confirmation."}
             </p>
           )}

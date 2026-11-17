@@ -189,7 +189,7 @@ def participant(user, e):
     show = released(e)
     team = Teams.query.get(user.team_id) if user.team_id and show else None
     can_name = bool(eligible(user) and (ready or not required) and team and not team.banned and not team.hidden
-                    and state.allow_team_naming and e.status == "draft")
+                    and state.allow_team_naming and e.status in ("draft", "live", "paused"))
     roster = None
     if team:
         from .locations import location
